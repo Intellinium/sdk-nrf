@@ -35,7 +35,9 @@ manifest:
       url-base: https://github.com/alexa
     - name: nordicsemi
       url-base: https://github.com/NordicSemiconductor
-
+    - name: intellinium
+      url-base: git@github.com:Intellinium
+      
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
   defaults:
@@ -52,7 +54,8 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: v2.4.99-ncs2
+      remote: intellinium
+      revision: v2.4.99-ncs2-itl
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -148,7 +151,14 @@ manifest:
       remote: nordicsemi
       revision: 24f1b2b0c64c694b7f9ac1b7eab60b39236ca0bf
       path: modules/lib/cddl-gen
-
+    - name: hal_intellinium
+      remote: intellinium
+      revision: main
+      path: modules/hal/intellinium
+    - name: embedded-Mx-lib
+      remote: intellinium
+      revision: gauge_multi_inst
+      path: modules/itl-lib
   # West-related configuration for the nrf repository.
   self:
     # This repository should be cloned to ncs/nrf.
