@@ -33,6 +33,8 @@ manifest:
       url-base: https://github.com/alexa
     - name: nordicsemi
       url-base: https://github.com/NordicSemiconductor
+    - name: intellinium
+      url-base: git@github.com:Intellinium
     - name: pelioniot
       url-base: https://github.com/PelionIoT
 
@@ -54,6 +56,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
+      remote: intellinium
       revision: 4d068de3f50f6a2de2be0c0b98670e33d28ff493
       import:
         # In addition to the zephyr repository itself, NCS also
@@ -157,6 +160,14 @@ manifest:
       remote: nordicsemi
       revision: 24f1b2b0c64c694b7f9ac1b7eab60b39236ca0bf
       path: modules/lib/cddl-gen
+    - name: hal_intellinium
+      remote: intellinium
+      revision: main
+      path: modules/hal/intellinium
+    - name: embedded-Mx-lib
+      remote: intellinium
+      revision: gauge_multi_inst
+      path: modules/itl-lib
     - name: homekit
       repo-path: sdk-homekit
       revision: ea26f7e4c62ad1aa6d2056349673b858320150a9
