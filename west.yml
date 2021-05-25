@@ -57,7 +57,7 @@ manifest:
     - name: zephyr
       repo-path: sdk-zephyr
       remote: intellinium
-      revision: 2766b10a2e65db3b0b27abf7af65caf1da3d0b83
+      revision: 786877fa928bc6deb966bdf5c96ffd391f355108
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
