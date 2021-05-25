@@ -164,7 +164,7 @@ manifest:
       remote: intellinium
       revision: main
       path: modules/hal/intellinium
-    - name: embedded-Mx-lib
+    - name: embedded-itl-lib
       remote: intellinium
       revision: gauge_multi_inst
       path: modules/itl-lib
