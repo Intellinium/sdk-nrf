@@ -170,7 +170,7 @@ manifest:
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium
-      revision: add_cognitive_test_API
+      revision: reformat_api
       path: modules/itl-ml/ppg
     - name: ml-ppg-cognitive-test
       remote: intellinium
