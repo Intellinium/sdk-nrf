@@ -29,6 +29,11 @@ nRF9160
 
   * :ref:`lib_modem_jwt` library, which provides an API to obtain a JSON Web Token (JWT) from the modem.  Functionality requires modem firmware v1.3.0 or higher.
 
+  * :ref:`lib_modem_attest_token` library:
+
+    * The library provides an API to get an attestation token from the modem.
+    * Functionality requires modem firmware v1.3.0 or higher.
+
 * Updated:
 
   * :ref:`lib_nrf_cloud` library:
@@ -37,6 +42,7 @@ nRF9160
     * Added Kconfig option :option:`CONFIG_NRF_CLOUD_AGPS_SINGLE_CELL_ONLY` to obtain cell-based location from nRF Connect for Cloud instead of using the modem's GPS.
     * Added function :c:func:`nrf_cloud_modem_fota_completed` which is to be called by the application after it re-initializes the modem (instead of rebooting) after a modem FOTA update.
     * Updated to include the FOTA type value in the :c:enumerator:`NRF_CLOUD_EVT_FOTA_DONE` event.
+    * Updated configuration options for setting the source of the MQTT client ID (nRF Cloud device ID).
 
   * :ref:`asset_tracker` application:
 
@@ -119,13 +125,18 @@ There are no entries for this section yet.
 MCUboot
 =======
 
-The MCUboot fork in |NCS| (``sdk-mcuboot``) contains all commits from the upstream MCUboot repository up to and including ``3fc59410b6``, plus some |NCS| specific additions.
+The MCUboot fork in |NCS| (``sdk-mcuboot``) contains all commits from the upstream MCUboot repository up to and including ``5f004461f9``, plus some |NCS| specific additions.
 
 The code for integrating MCUboot into |NCS| is located in :file:`ncs/nrf/modules/mcuboot`.
 
 The following list summarizes the most important changes inherited from upstream MCUboot:
 
-* No changes yet
+* Added support for indicating serial recovery through LED.
+* Made the debounce delay of the serial detect pin state configurable.
+* Added support for mbed TLS ECDSA for signatures.
+* Added an option to use GPIO PIN to enter to USB DFU class recovery.
+* Added an optional check that prevents attempting to boot an image built for a different ROM address than the slot it currently resides in.
+  The check is enabled if the image was signed with the ``IMAGE_F_ROM_FIXED`` flag.
 
 Mcumgr
 ======
@@ -186,7 +197,9 @@ The following list summarizes the most important changes inherited from upstream
 
     * Implemented workaround for nRF52 anomaly 242 in the nRF SoC flash driver.
     * Added automatic selection of :option:`CONFIG_MPU_ALLOW_FLASH_WRITE` when the MPU is enabled for Arm based SoCs.
-    * Deprecated the :c:func:`flash_write_protection_set` API function.
+    * Deprecated :c:func:`flash_write_protection_set()`.
+      The function will be removed in Zephyr v2.8.
+      Responsibility for write/erase protection management has been moved to the driver-specific implementation of the :c:func:`flash_write()` and :c:func:`flash_erase()` API calls.
     * Improved the SPI NOR flash driver to support devices that power up with block protect bits set.
 
   * GPIO:

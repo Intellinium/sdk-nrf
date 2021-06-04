@@ -55,7 +55,8 @@ manifest:
     - name: zephyr
       repo-path: sdk-zephyr
       remote: intellinium
-      revision: 786877fa928bc6deb966bdf5c96ffd391f355108
+      revision: 2541c598706e87d0475f650b9a27e89a701c58c6
+
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -87,10 +88,11 @@ manifest:
           - net-tools
           - nrf_hw_models
           - open-amp
-          - openthread
           - segger
+          - tensorflow
           - tinycbor
           - tinycrypt
+          - TraceRecorderSource
 
     # NCS repositories.
     #
@@ -98,24 +100,28 @@ manifest:
     # changes.
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: 6402e996db829901dc715de41e3669e28fefb670
+      revision: bbca448b64fc7e0e10122dab6909649068c22a0e
       path: bootloader/mcuboot
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: 5c6944ecf908d050da93d8755c3441a35ebdfa98
+      revision: e47d05deb577d45c3c2ea9d53958073f4246123c
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tfm
-      revision: 7b935d15868e4d4dd443fe04f103fef25bb34d2d
+      revision: b53b5d53b6f0b9004ebc27d1997c1a7608e321d5
     - name: tfm-mcuboot # This is used by the trusted-firmware-m module.
       repo-path: sdk-mcuboot
       path: modules/tee/tfm-mcuboot
-      revision: 81d19f017f18f1bc6bea906d96fd45fba3672064
-    - name: connectedhomeip
+      revision: v1.7.2
+    - name: openthread
+      repo-path: sdk-openthread
+      path: modules/lib/openthread
+      revision: 9c01aff66245c3989536a8c96dae3c6ec6402d0d
+    - name: matter
       repo-path: sdk-connectedhomeip
-      path: modules/lib/connectedhomeip
-      revision: b35e8eca374772d42967864ffd49648b32699010
+      path: modules/lib/matter
+      revision: dddca7629f68a040e97104a74387b66ca753d715
       submodules:
         - name: nlio
           path: third_party/nlio/repo
@@ -126,7 +132,7 @@ manifest:
     - name: nrf-802154
       repo-path: sdk-nrf-802154
       path: nrf-802154
-      revision: 76308d43844018ab0734adc441464d221408cf90
+      revision: a147927cf8ed43831dc2d8003017be8306724d61
       groups:
       - nrf-802154
     # Other third-party repositories.
@@ -147,9 +153,9 @@ manifest:
       path: modules/alexa-embedded
       revision: face92d8c62184832793f518bb1f19379538c5c1
       remote: alexa
-    - name: mbed-cloud-client-zephyr
+    - name: mbed-cloud-client
       path: modules/lib/pelion-dm
-      revision: 3f00170a0eda5a54ce0762fc7d3d83dc95610102
+      revision: 4.9.0
       remote: pelioniot
     - name: cddl-gen
       remote: nordicsemi
@@ -173,12 +179,12 @@ manifest:
       path: modules/itl-ml/ppg_ct
     - name: homekit
       repo-path: sdk-homekit
-      revision: ea26f7e4c62ad1aa6d2056349673b858320150a9
+      revision: 4b637f0f8cd0e9881c238d10b4121b3712c5ba0d
       groups:
       - homekit
     - name: find-my
       repo-path: sdk-find-my
-      revision: 260ab3188d1b11c5f630dbd9f1d1973c347aac97
+      revision: 07c8d591b47c4c3609f29871be031c9af39401e1
       groups:
       - find-my
 

@@ -180,6 +180,12 @@ static int z_to_nrf_optname(int z_in_level, int z_in_optname,
 		case TLS_SESSION_CACHE:
 			*nrf_out_optname = NRF_SO_SEC_SESSION_CACHE;
 			break;
+		case TLS_SESSION_CACHE_PURGE:
+			*nrf_out_optname = NRF_SO_SEC_SESSION_CACHE_PURGE;
+			break;
+		case TLS_DTLS_HANDSHAKE_TIMEO:
+			*nrf_out_optname = NRF_SO_SEC_DTLS_HANDSHAKE_TIMEO;
+			break;
 		default:
 			retval = -1;
 			break;
@@ -211,6 +217,24 @@ static int z_to_nrf_optname(int z_in_level, int z_in_optname,
 			break;
 		case SO_IPV6_ECHO_REPLY:
 			*nrf_out_optname = NRF_SO_SILENCE_IPV6_ECHO_REPLY;
+			break;
+		case SO_TCP_SRV_SESSTIMEO:
+			*nrf_out_optname = NRF_SO_TCP_SRV_SESSTIMEO;
+			break;
+		case SO_RAI_LAST:
+			*nrf_out_optname = NRF_SO_RAI_LAST;
+			break;
+		case SO_RAI_NO_DATA:
+			*nrf_out_optname = NRF_SO_RAI_NO_DATA;
+			break;
+		case SO_RAI_ONE_RESP:
+			*nrf_out_optname = NRF_SO_RAI_ONE_RESP;
+			break;
+		case SO_RAI_ONGOING:
+			*nrf_out_optname = NRF_SO_RAI_ONGOING;
+			break;
+		case SO_RAI_WAIT_MORE:
+			*nrf_out_optname = NRF_SO_RAI_WAIT_MORE;
 			break;
 		default:
 			retval = -1;
@@ -354,7 +378,7 @@ static int z_to_nrf_family(sa_family_t z_family)
 	case AF_PACKET:
 		return NRF_AF_PACKET;
 	case AF_UNSPEC:
-	/* No NRF_AF_UNSPEC defined. */
+		return NRF_AF_UNSPEC;
 	default:
 		return -EAFNOSUPPORT;
 	}
@@ -373,6 +397,8 @@ static int nrf_to_z_family(nrf_socket_family_t nrf_family)
 		return AF_LOCAL;
 	case NRF_AF_PACKET:
 		return AF_PACKET;
+	case NRF_AF_UNSPEC:
+		return AF_UNSPEC;
 	default:
 		return -EAFNOSUPPORT;
 	}
@@ -1273,6 +1299,12 @@ static const struct socket_op_vtable nrf91_socket_fd_op_vtable = {
 
 static bool nrf91_socket_is_supported(int family, int type, int proto)
 {
+	if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) &&
+		family == AF_PACKET && type == SOCK_RAW && proto == IPPROTO_RAW) {
+		/* This kind of socket combo is handled by zephyr packet socket: */
+		return false;
+	}
+
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_OFFLOAD_TLS)) {
 		return true;
 	}
@@ -1356,7 +1388,7 @@ static struct net_if_api nrf91_if_api = {
 /* TODO Get the actual MTU for the nRF91 LTE link. */
 NET_DEVICE_OFFLOAD_INIT(nrf91_socket, "nrf91_socket",
 			nrf91_nrf_modem_lib_socket_offload_init,
-			device_pm_control_nop,
+			NULL,
 			&nrf91_socket_iface_data, NULL,
 			0, &nrf91_if_api, 1280);
 

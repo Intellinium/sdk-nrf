@@ -6,8 +6,8 @@
 
 #include <zephyr.h>
 #include <hal/nrf_power.h>
-#include <power/power.h>
-#include <power/reboot.h>
+#include <pm/pm.h>
+#include <sys/reboot.h>
 
 #define MODULE power_handler
 #include "module_state_event.h"

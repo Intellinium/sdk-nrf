@@ -16,7 +16,7 @@
 #include <nrf_modem.h>
 #endif
 #include <net/aws_iot.h>
-#include <power/reboot.h>
+#include <sys/reboot.h>
 #include <date_time.h>
 #include <dfu/mcuboot.h>
 #include <cJSON.h>
@@ -70,7 +70,7 @@ static int shadow_update(bool version_number_include)
 {
 	int err;
 	char *message;
-	int64_t message_ts;
+	int64_t message_ts = 0;
 	int16_t bat_voltage = 0;
 
 	err = date_time_now(&message_ts);
