@@ -1,11 +1,10 @@
 @file:Repository("https://maven.pkg.jetbrains.space/public/p/space/maven")
-@file:Repository("https://jcenter.bintray.com")
-
+@file:DependsOn("io.github.microutils:kotlin-logging-jvm:2.0.8")
 @file:DependsOn("org.jetbrains:space-sdk-jvm:72091-beta")
-@file:DependsOn("io.ktor:ktor-client-apache:1.5.0")
+@file:DependsOn("io.ktor:ktor-client-apache:1.4.0")
 
-import space.jetbrains.api.runtime.SpaceHttpClient
 import io.ktor.client.*
+import space.jetbrains.api.runtime.SpaceHttpClient
 import kotlinx.coroutines.runBlocking
 import space.jetbrains.api.runtime.resources.chats
 import space.jetbrains.api.runtime.withServiceAccountTokenSource
