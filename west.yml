@@ -188,7 +188,7 @@ manifest:
       groups:
       - find-my
 
-  # West-related configuration for the nrf repository.
+  # West-related configuration for the nrf repository. 
   self:
     # This repository should be cloned to ncs/nrf.
     path: nrf
