@@ -13,4 +13,5 @@ jobs:
       id: manifest
       working-directory: ncs/nrf
       run: |
-        $(pwd)/scripts/ci/new_manifest_version.sh
+      	ls -la
+        ./scripts/ci/new_manifest_version.sh
