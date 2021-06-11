@@ -90,6 +90,36 @@ static void on_client_unregistered(void)
 	set_pelion_state(PELION_STATE_UNREGISTERED);
 }
 
+static void on_status_changed(int status)
+{
+	switch (status) {
+	case MbedCloudClient::Unregistered:
+		on_client_unregistered();
+		break;
+
+	case MbedCloudClient::Registered:
+		on_client_registered();
+		break;
+
+	case MbedCloudClient::RegistrationUpdated:
+		on_client_registration_updated();
+		break;
+
+	case MbedCloudClient::AlertMode:
+		LOG_INF("Client alert mode");
+		break;
+
+	case MbedCloudClient::Paused:
+		LOG_INF("Client paused");
+		break;
+
+	default:
+		LOG_ERR("Unknown client status");
+		__ASSERT_NO_MSG(false);
+		break;
+	}
+}
+
 static void on_client_error(int code)
 {
 	const char *description = cloud_client.error_description();
@@ -98,6 +128,9 @@ static void on_client_error(int code)
 	switch (code) {
 	case M2MInterface::NetworkError:
 		set_pelion_state(PELION_STATE_UNREGISTERED);
+		break;
+	case M2MInterface::InvalidCertificates:
+		set_pelion_state(PELION_STATE_SUSPENDED);
 		break;
 	default:
 		/* Ignore */
@@ -140,17 +173,15 @@ static void complete_objects_creation(void)
 
 static int pelion_init(void)
 {
+	cloud_client.init();
+
 	cloud_client.on_error(on_client_error);
-	cloud_client.on_registered(on_client_registered);
-	cloud_client.on_unregistered(on_client_unregistered);
-	cloud_client.on_registration_updated(on_client_registration_updated);
+	cloud_client.on_status_changed(on_status_changed);
 
 #if CONFIG_PELION_UPDATE
 	cloud_client.set_update_authorize_priority_handler(on_update_authorize_priority);
 	cloud_client.set_update_progress_handler(on_update_progress);
 #endif
-
-	cloud_client.init();
 
 	set_pelion_state(PELION_STATE_INITIALIZED);
 
@@ -173,6 +204,7 @@ static bool handle_net_state_event(const struct net_state_event *event)
 		update_connection_state();
 		break;
 
+	case PELION_STATE_SUSPENDED:
 	case PELION_STATE_DISABLED:
 	default:
 		/* Ignore */

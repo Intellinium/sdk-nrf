@@ -87,15 +87,16 @@
 .. _`SMP over Bluetooth`: https://github.com/apache/mynewt-mcumgr/blob/master/transport/smp-bluetooth.md
 
 .. _`Android CHIPTool`: https://github.com/nrfconnect/sdk-connectedhomeip/tree/b35e8e/src/android/CHIPTool
+.. _`Working with Android Controller`:
 .. _`Commissioning nRF Connect Accessory using Android CHIPTool`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/docs/guides/nrfconnect_android_commissioning.md
-.. _`Building and programming OpenThread RCP firmware`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/docs/guides/nrfconnect_android_commissioning.md#user-content-building-and-programming-openthread-rcp-firmware
-.. _`Building and installing Android CHIPTool`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/docs/guides/nrfconnect_android_commissioning.md#user-content-building-and-installing-android-chiptool
-.. _`Configuring PC as Thread Border Router`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/docs/guides/nrfconnect_android_commissioning.md#user-content-configuring-pc-as-thread-border-router
-.. _`Preparing and commissioning accessory device`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/docs/guides/nrfconnect_android_commissioning.md#user-content-preparing-accessory-device
+.. _`Working with Python Controller`: https://github.com/project-chip/connectedhomeip/blob/master/src/controller/python/README.md
 .. _`Matter Protocol Overview`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/README.md
 .. _`nRF Connect platform overview`: https://github.com/nrfconnect/sdk-connectedhomeip/blob/b35e8e/docs/guides/nrfconnect_platform_overview.md
+.. _`other controller setups`: https://github.com/nrfconnect/sdk-connectedhomeip/tree/b35e8e/src/controller
 
 .. _`Azure support for Asset Tracker v2`: https://github.com/nrfconnect/sdk-nrf/pull/3950
+
+.. _`Pelion Device Management Client library reference example`: https://github.com/PelionIoT/mbed-cloud-client-example
 
 .. ### Source: github.io
 
@@ -126,10 +127,12 @@
 .. _`known issues for nRF Connect SDK v1.4.1`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/known_issues.html?v=v1-4-1
 .. _`known issues for nRF Connect SDK v1.4.0`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrf/known_issues.html?v=v1-4-0
 
-.. _`Stack commissioning start sequence`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.3.0.7/using_zigbee__z_c_l.html#stack_start_initiation
+.. _`API documentation`:
+.. _`external ZBOSS development guide and API documentation`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.5.2.0/zigbee_devguide.html
+.. _`Stack commissioning start sequence`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.5.2.0/using_zigbee__z_c_l.html#stack_start_initiation
 .. _`ZBOSS NCP Host`: https://developer.nordicsemi.com/Zigbee/ncp_sdk_for_host/ncp_host_v0.9.4.zip
-.. _`process the frame`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.3.0.7/using_zigbee__z_c_l.html#process_zcl_cmd
-.. _`declaring custom cluster`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.3.0.7/using_zigbee__z_c_l.html#cluster_declaration_custom
+.. _`process the frame`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.5.2.0/using_zigbee__z_c_l.html#process_zcl_cmd
+.. _`declaring custom cluster`: https://developer.nordicsemi.com/nRF_Connect_SDK/doc/zboss/3.5.2.0/using_zigbee__z_c_l.html#cluster_declaration_custom
 
 .. ### Source: www.nordicsemi.com
 
@@ -260,6 +263,8 @@
 
 .. _`System Protection Unit`: https://infocenter.nordicsemi.com/topic/ps_nrf9160/spu.html
 
+.. _`nRF9160 Hardware Verification Guidelines - UART interface`: https://infocenter.nordicsemi.com/topic/nwp_034/WP/nwp_034/nwp_034_uart_if.html
+
 .. ### Source: devzone.nordicsemi.com
 
 .. _`DevZone`: https://devzone.nordicsemi.com/
@@ -310,6 +315,8 @@
 .. _`SUPL context model`: https://www.openmobilealliance.org/release/SUPL/V1_0-20060127-C/OMA-AD-SUPL-V1_0-20060127-C.pdf#page=16
 .. _`SET-initiated SUPL collaboration`: https://www.openmobilealliance.org/release/SUPL/V2_0_4-20181213-A/OMA-TS-ULP-V2_0_4-20181213-A.pdf#page=128
 .. _`SET-Initiated Non-Roaming Successful Case (Proxy mode)`: https://www.openmobilealliance.org/release/SUPL/V2_0_4-20181213-A/OMA-TS-ULP-V2_0_4-20181213-A.pdf#page=129
+.. _`LwM2M Object and Resource Registry`: http://openmobilealliance.org/wp/OMNA/LwM2M/LwM2MRegistry.html
+.. _`LwM2M editor`: http://devtoolkit.openmobilealliance.org/OEditor/LWMOView?url=https%3A%2F%2Fraw.githubusercontent.com%2FOpenMobileAlliance%2Flwm2m-registry%2Fprod%2Fversion_history%2F3300-1_0.xml
 
 .. ### Source: wikipedia
 
@@ -330,6 +337,8 @@
 .. _`Private addresses`: https://en.wikipedia.org/wiki/IP_address#Private_addresses
 
 .. _`MQTT`: https://en.wikipedia.org/wiki/MQTT
+
+.. _`HSM`: https://en.wikipedia.org/wiki/Hardware_security_module
 
 .. ### Source: doc.microsoft.com
 
@@ -371,6 +380,8 @@
 .. _`RFC 8032 - Edwards-Curve Digital Signature Algorithm (EdDSA)`: https://tools.ietf.org/html/rfc8032
 
 .. _`J-PAKE: Password-Authenticated Key Exchange by Juggling`: https://tools.ietf.org/html/rfc8236#section-3
+
+.. _`CBOR Object Signing and Encryption (COSE)`: https://tools.ietf.org/html/rfc8152
 
 .. ### Source: pubs.opengroup.org
 
@@ -425,6 +436,8 @@
 
 .. _`Openthread acting as a new reference platform`: https://openthread.io/certification/automation-setup#acting_as_a_new_reference_platform
 .. _`OpenThread Border Router`: https://openthread.io/guides/border-router
+.. _`OpenThread Border Router Codelab tutorial`: https://openthread.io/codelabs/openthread-border-router
+.. _`OpenThread Border Router Codelab tutorial step 2`: https://openthread.io/codelabs/openthread-border-router#2
 
 .. _`OpenThread system architecture`: https://openthread.io/platforms#system_architecture
 
@@ -483,7 +496,23 @@
 .. _`Edge Impulse's data forwarder`: https://docs.edgeimpulse.com/docs/cli-data-forwarder
 .. _`Edge Impulse CLI installation guide`: https://docs.edgeimpulse.com/docs/cli-installation
 
+.. ### Source: pelion.com
+
+.. _`Pelion website`: https://pelion.com/
+.. _`Pelion Device Management documentation`: https://developer.pelion.com/docs/
+.. _`Pelion Device Management release notes`: https://developer.pelion.com/docs/device-management/current/release-notes/index.html
+.. _`Pelion Device Management`: https://developer.pelion.com/docs/device-management/current/welcome/index.html
+.. _`Provisioning devices for Pelion Device Management`: https://developer.pelion.com/docs/device-management/current/provisioning-process/index.html
+.. _`Provisioning development devices`: https://developer.pelion.com/docs/device-management/current/provisioning-process/provisioning-development-devices.html
+.. _`Device Management Update`: https://developer.pelion.com/docs/device-management/v4.7/updating-firmware/index.html
+.. _`Factory Configuration Client`: https://developer.pelion.com/docs/device-management/current/factory-client/index.html
+.. _`Pelion's factory_configurator_client.h`: https://developer.pelion.com/docs/device-management/current/factory-client/factory__configurator__client_8h.html
+.. _`Pelion Manifest Tool`: https://developer.pelion.com/docs/device-management/v4.7/updating-firmware/manifest-tool.html
+.. _`Zephyr integration tutorial`: https://developer.pelion.com/docs/device-management/current/connecting/zephyr.html
+
 .. ### Source: other
+
+.. _`Pelion Device Management Portal`: https://portal.mbedcloud.com/login
 
 .. _`ARM TrustZone`: https://developer.arm.com/documentation/100690/0200/ARM-TrustZone-technology?lang=en
 
@@ -544,6 +573,8 @@
 .. _`tutorial on SSL.com`: https://www.ssl.com/guide/pem-der-crt-and-cer-x-509-encodings-and-conversions/
 .. _`POSIX Programmer's Manual`: https://man7.org/linux/man-pages/dir_section_3.html
 .. _`LwM2M`: https://omaspecworks.org/what-is-oma-specworks/iot/lightweight-m2m-lwm2m/
+.. _`IPSO objects`: https://omaspecworks.org/develop-with-oma-specworks/ipso-smart-objects/
+.. _`raw XML`: https://raw.githubusercontent.com/OpenMobileAlliance/lwm2m-registry/prod/version_history/3300-1_0.xml
 
 .. _`DLPTest.com`: https://dlptest.com/ftp-test/
 
@@ -595,3 +626,7 @@
 .. _`Thread Group's Confluence wiki page`: https://threadgroup.atlassian.net/wiki/spaces/THREADTEST/pages/25900869/Supporting+Material
 
 .. _`JSON Web Token (JWT)`: https://jwt.io/introduction
+
+.. _`Semantic versioning`: https://semver.org/
+
+.. _`mbedtls_memory_buffer_alloc_init`: https://tls.mbed.org/api/memory__buffer__alloc_8h.html#ac70d134be54133c272d8eab2cb85dfbf
