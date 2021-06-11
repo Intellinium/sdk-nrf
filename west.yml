@@ -171,7 +171,7 @@ manifest:
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium
-      revision: 8d7b354dd4f273505950a6196eca17e9c89c4982
+      revision: 49f09069eb8fa66de0d1d9b7cd1f38b9d4fee441
       path: modules/itl-ml/ppg
     - name: ml-ppg-cognitive-test
       remote: intellinium
