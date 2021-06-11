@@ -1,0 +1,16 @@
+name: New manifest
+
+on: push
+
+jobs:
+  messaging_job:
+    runs-on: ubuntu-latest
+    name: Send message to space channel
+   
+    steps:
+    - name: Send message
+      continue-on-error: true
+      id: manifest
+      working-directory: ncs/nrf
+      run: |
+        $(pwd)/scripts/ci/new_manifest_version.sh
