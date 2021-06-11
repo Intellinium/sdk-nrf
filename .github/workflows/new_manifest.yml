@@ -9,9 +9,7 @@ jobs:
    
     steps:
     - name: Send message
-      continue-on-error: true
       id: manifest
-      working-directory: ncs/nrf
       run: |
         ls -la
         ./scripts/ci/new_manifest_version.sh
