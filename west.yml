@@ -170,11 +170,11 @@ manifest:
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium
-      revision: add_cognitive_test_API
+      revision: 8d7b354dd4f273505950a6196eca17e9c89c4982
       path: modules/itl-ml/ppg
     - name: ml-ppg-cognitive-test
       remote: intellinium
-      revision: first_dev
+      revision: 7ca9059aa507dc7b57bad150c8fc101d935968f1
       path: modules/itl-ml/ppg_ct
     - name: homekit
       repo-path: sdk-homekit
