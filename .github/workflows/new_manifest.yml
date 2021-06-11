@@ -8,8 +8,16 @@ jobs:
     name: Send message to space channel
    
     steps:
+    - name: Checkout the code
+      uses: actions/checkout@v2
+      with:
+        path: nrf
+        ref: ${{ github.event.push.head.sha }}
+        fetch-depth: 0
+
     - name: Send message
       id: manifest
+      working-directory: nrf
       run: |
         ls -la
         ./scripts/ci/new_manifest_version.sh
