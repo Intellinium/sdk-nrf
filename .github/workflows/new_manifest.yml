@@ -16,8 +16,9 @@ jobs:
         fetch-depth: 0
 
     - name: Send message
+      uses: fwilhe2/setup-kotlin@main
+      with:
+        version: 1.4.30
       id: manifest
       working-directory: nrf
-      run: |
-        ls -la
-        ./scripts/ci/new_manifest_version.sh
+      run: kotlin ./scripts/ci/sendManifestMessageToDevChannel.main.kts
