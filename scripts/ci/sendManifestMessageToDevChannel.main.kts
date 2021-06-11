@@ -2,10 +2,7 @@
 @file:Repository("https://jcenter.bintray.com")
 
 @file:DependsOn("org.jetbrains:space-sdk-jvm:72091-beta")
-@file:DependsOn("io.github.microutils:kotlin-logging-jvm:2.0.8")
-@file:DependsOn("io.ktor:ktor-client-core:1.6.0")
-@file:DependsOn("io.ktor:ktor-client-cio:1.6.0")
-@file:DependsOn("io.ktor:ktor-client-apache:1.6.0")
+@file:DependsOn("io.ktor:ktor-client-apache:1.5.0")
 
 import space.jetbrains.api.runtime.SpaceHttpClient
 import io.ktor.client.*
