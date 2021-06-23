@@ -33,6 +33,8 @@ manifest:
       url-base: https://github.com/NordicSemiconductor
     - name: intellinium
       url-base: git@github.com:Intellinium
+    - name: intellinium-space-ml
+      url-base: git@git.jetbrains.space:intellinium/pod-machine-learning
     - name: pelioniot
       url-base: https://github.com/PelionIoT
 
@@ -187,6 +189,10 @@ manifest:
       revision: 07c8d591b47c4c3609f29871be031c9af39401e1
       groups:
       - find-my
+    - name: ml-tflite-toolbox
+      remote: intellinium-space-ml
+      revision: functionality_optimization
+      path: modules/itl-ml/ml-tflite-toolbox
 
   # West-related configuration for the nrf repository.
   self:
