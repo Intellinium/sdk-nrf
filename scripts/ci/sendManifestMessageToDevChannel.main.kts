@@ -26,7 +26,7 @@ runBlocking {
     space.chats.channels.messages.sendTextMessage(
         channelId = "3RHRvU3bsWEy",
         text = "A new nrf manifest version available.\n" +
-                "Please run ```git pull``` and ```west update``` in your ```ncs-itl/nrf``` folder.\n" +
+                "Please run ```git pull``` and ```west update``` in your ```ncs-itl/nrf``` folder, on the ```master``` branch.\n" +
                 "\n" +
                 "Commit message:\n" +
                 getCommitMessage()
