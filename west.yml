@@ -165,7 +165,7 @@ manifest:
       path: modules/lib/cddl-gen
     - name: hal_intellinium
       remote: intellinium
-      revision: main
+      revision: 4075d9581d0e970b0315027ab40e0cf3a6c9a433
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium
