@@ -48,7 +48,6 @@ static bool udp_datamode;
 /* global functions defined in different files */
 void rsp_send(const uint8_t *str, size_t len);
 int enter_datamode(slm_datamode_handler_t handler);
-bool check_uart_flowcontrol(void);
 bool exit_datamode(void);
 
 /* global variable defined in different files */
@@ -64,7 +63,7 @@ static int do_udp_server_start(uint16_t port)
 	int ret = 0;
 	struct sockaddr_in local;
 	int addr_len;
-	char ipv4_addr[NET_IPV4_ADDR_LEN];
+	char ipv4_addr[NET_IPV4_ADDR_LEN] = {0};
 
 	/* Open socket */
 	udp_sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -78,7 +77,8 @@ static int do_udp_server_start(uint16_t port)
 	/* Bind to local port */
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
-	if (!util_get_ipv4_addr(ipv4_addr)) {
+	util_get_ip_addr(ipv4_addr, NULL);
+	if (strlen(ipv4_addr) == 0) {
 		LOG_ERR("Unable to obtain local IPv4 address");
 		close(udp_sock);
 		return ret;
@@ -435,12 +435,6 @@ int handle_at_udp_server(enum at_cmd_type cmd_type)
 				LOG_WRN("Server is running");
 				return -EINVAL;
 			}
-#if defined(CONFIG_SLM_DATAMODE_HWFC)
-			if (op == AT_SERVER_START_WITH_DATAMODE && !check_uart_flowcontrol()) {
-				LOG_ERR("Data mode requires HWFC.");
-				return -EINVAL;
-			}
-#endif
 			err = do_udp_server_start((uint16_t)port);
 			if (err == 0 && op == AT_SERVER_START_WITH_DATAMODE) {
 				udp_datamode = true;
@@ -507,12 +501,6 @@ int handle_at_udp_client(enum at_cmd_type cmd_type)
 			if (at_params_valid_count_get(&at_param_list) > 4) {
 				at_params_unsigned_int_get(&at_param_list, 4, &sec_tag);
 			}
-#if defined(CONFIG_SLM_DATAMODE_HWFC)
-			if (op == AT_CLIENT_CONNECT_WITH_DATAMODE && !check_uart_flowcontrol()) {
-				LOG_ERR("Data mode requires HWFC.");
-				return -EINVAL;
-			}
-#endif
 			err = do_udp_client_connect(url, (uint16_t)port, sec_tag);
 			if (err == 0 && op == AT_CLIENT_CONNECT_WITH_DATAMODE) {
 				udp_datamode = true;

@@ -10,10 +10,13 @@
 #include <stdio.h>
 #include <modem/at_cmd.h>
 #include <modem/modem_jwt.h>
+#include <sys/base64.h>
 
-#define JWT_CMD_TEMPLATE "AT%%JWT=%d,%u,\"%s\",\"%s\",%d,%d"
+#define JWT_CMD_TEMPLATE "AT%%JWT=%d,%u,\"%s\",\"%s\""
+#define JWT_CMD_TEMPLATE_SEC_TAG "AT%%JWT=%d,%u,\"%s\",\"%s\",%d,%d"
 #define MAX_INT_PRINT_SZ 11
 #define JWT_CMD_PRINT_INT_SZ (MAX_INT_PRINT_SZ * 4)
+#define GET_BASE64_DECODED_LEN(n) (3 * n / 4)
 
 /* Minimum JWT response is ~420 bytes.
  * With very long (128 bytes) values for sub and aud claims
@@ -69,7 +72,7 @@ int modem_jwt_generate(struct jwt_data *const jwt)
 	enum at_cmd_state state;
 	char *cmd;
 	char *cmd_resp = NULL;
-	size_t cmd_sz = sizeof(JWT_CMD_TEMPLATE) + JWT_CMD_PRINT_INT_SZ +
+	size_t cmd_sz = sizeof(JWT_CMD_TEMPLATE_SEC_TAG) + JWT_CMD_PRINT_INT_SZ +
 			(jwt->subject ? strlen(jwt->subject) : 0) +
 			(jwt->audience ? strlen(jwt->audience) : 0);
 
@@ -84,13 +87,21 @@ int modem_jwt_generate(struct jwt_data *const jwt)
 		return -ENOMEM;
 	}
 
-	ret = snprintf(cmd, cmd_sz, JWT_CMD_TEMPLATE,
-		       jwt->alg,
-		       jwt->exp_delta_s,
-		       jwt->subject ? jwt->subject : "",
-		       jwt->audience ? jwt->audience : "",
-		       jwt->sec_tag,
-		       jwt->key);
+	if (jwt->sec_tag) {
+		ret = snprintf(cmd, cmd_sz, JWT_CMD_TEMPLATE_SEC_TAG,
+			jwt->alg,
+			jwt->exp_delta_s,
+			jwt->subject ? jwt->subject : "",
+			jwt->audience ? jwt->audience : "",
+			jwt->sec_tag,
+			jwt->key);
+	} else {
+		ret = snprintf(cmd, cmd_sz, JWT_CMD_TEMPLATE,
+			jwt->alg,
+			jwt->exp_delta_s,
+			jwt->subject ? jwt->subject : "",
+			jwt->audience ? jwt->audience : "");
+	}
 
 	if ((ret < 0) || (ret >= cmd_sz)) {
 		ret = -EIO;
@@ -146,6 +157,86 @@ cleanup:
 	}
 
 	return ret;
+}
+
+static int copy_uuid_str(char *dst, const char *src, const char *field)
+{
+	char *tag;
+	char *end;
+	char *dot;
+	char *uuid;
+	size_t len;
+
+	/* nRF modem generated tokens have two fixed fields that contain what we are looking for
+	 * "iss":"<chip>.<UUID>"  This is device UUID
+	 * "jti":"<chip>.<UUID>.<JTI data>" This is FW UUID
+	 * So I need to seek a first dot after the correct tag is found.
+	 */
+	tag = strstr(src, field);
+	if (!tag) {
+		return -EINVAL;
+	}
+
+	tag += strlen(field);
+	end = strchr(tag, '"');
+	dot = strchr(tag, '.');
+	if (!end || !dot || dot > end) {
+		return -EINVAL;
+	}
+
+	uuid = dot + 1;
+	len = end - uuid;
+	if (len < NRF_UUID_V4_STR_LEN) {
+		return -EINVAL;
+	}
+
+	strncpy(dst, uuid, NRF_UUID_V4_STR_LEN);
+	dst[NRF_UUID_V4_STR_LEN] = 0;
+	return 0;
+}
+
+int modem_jwt_get_uuids(struct nrf_device_uuid *dev,
+			struct nrf_modem_fw_uuid *mfw)
+{
+	struct jwt_data jwt = {0};
+	char *payload = NULL;
+	char *start, *end;
+	size_t slen, len;
+
+	int rc = modem_jwt_generate(&jwt);
+
+	if (rc) {
+		goto end;
+	}
+
+	start = strchr(jwt.jwt_buf, '.') + 1;
+	end = strrchr(jwt.jwt_buf, '.');
+	slen = end - start;
+	payload =  k_calloc(1, GET_BASE64_DECODED_LEN(slen));
+	if (!payload) {
+		rc = -ENOMEM;
+		goto end;
+	}
+
+	rc = base64_decode(payload, GET_BASE64_DECODED_LEN(slen), &len, start, slen);
+	if (rc) {
+		goto end;
+	} else if (len == 0 || len > GET_BASE64_DECODED_LEN(slen)) {
+		rc = -EINVAL;
+		goto end;
+	}
+
+	if (dev && !rc) {
+		rc = copy_uuid_str(dev->str, payload, "iss\":\"");
+	}
+	if (mfw && !rc) {
+		rc = copy_uuid_str(mfw->str, payload, "jti\":\"");
+	}
+
+end:
+	k_free(payload);
+	modem_jwt_free(jwt.jwt_buf);
+	return rc;
 }
 
 void modem_jwt_free(char *const jwt_buf)

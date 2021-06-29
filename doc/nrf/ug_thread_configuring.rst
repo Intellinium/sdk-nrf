@@ -132,15 +132,23 @@ By selecting support for Thread 1.2, you enable the following features in additi
 * Enhanced Frame Pending
 * Enhanced Keep Alive
 * Thread Domain Name
+* Coordinated Sampled Listening (CSL) Transmitter (for Full Thread Devices only)
 
 Moreover, Thread 1.2 also comes with the following features that are supported for development, but not production:
 
 * Domain Unicast Addresses - Set :option:`CONFIG_OPENTHREAD_DUA` to enable this feature.
 * Multicast Listener Registration - Set :option:`CONFIG_OPENTHREAD_MLR` to enable this feature.
 * Backbone Router - Set :option:`CONFIG_OPENTHREAD_BACKBONE_ROUTER` to enable this feature.
+* Link Metrics - Set :option:`CONFIG_OPENTHREAD_LINK_METRICS` to enable this feature.
+* Coordinated Sampled Listening (CSL) Receiver - Set :option:`CONFIG_OPENTHREAD_CSL_RECEIVER` to enable this feature.
 
 .. note::
-    To test Thread 1.2 options, you can use the :ref:`ot_cli_sample` sample with the :ref:`ot_cli_sample_thread_v12`.
+   The Link Metrics and Coordinated Sampled Listening features are not supported for nRF53 Series devices yet.
+   The Backbone Router feature enables the functionality for the Thread Network side, but not for the Backbone side.
+
+To test Thread 1.2 options, you can use the :ref:`ot_cli_sample` sample with the :ref:`ot_cli_sample_thread_v12`.
+
+
 
 Thread commissioning options
 ============================

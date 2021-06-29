@@ -7,6 +7,21 @@
 #include <secure_services.h>
 #include <toolchain.h>
 #include <fw_info.h>
+#include <arch/arm/aarch32/cortex_m/fpu.h>
+
+static struct fpu_ctx_full context_buffer;
+
+void before_nse(void)
+{
+	k_sched_lock();
+	z_arm_save_fp_context(&context_buffer);
+}
+
+void after_nse(void)
+{
+	k_sched_unlock();
+	z_arm_restore_fp_context(&context_buffer);
+}
 
 #ifdef CONFIG_SPM_SERVICE_REBOOT
 NRF_NSE(void, spm_request_system_reboot);

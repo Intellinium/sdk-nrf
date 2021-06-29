@@ -11,6 +11,7 @@ config SPM
 	default y if TRUSTED_EXECUTION_NONSECURE
 	depends on !BUILD_WITH_TFM
 	select FW_INFO
+	select ENTROPY_CC3XX
 	imply ARM_FIRMWARE_USES_SECURE_ENTRY_FUNCS if SPM_SECURE_SERVICES
 
 if SPM
@@ -34,6 +35,7 @@ menuconfig IS_SPM
 	bool "Current app is SPM"
 	default n
 	select TRUSTED_EXECUTION_SECURE
+	# depends on !FPU
 
 if IS_SPM
 
@@ -96,7 +98,6 @@ config SPM_SERVICE_RNG
 	bool "Request random numbers"
 	default y if SPM
 	select NORDIC_SECURITY_BACKEND if IS_SPM
-	select FPU if IS_SPM
 
 	help
 	  The Non-Secure Firmware is not allowed to use the crypto hardware.

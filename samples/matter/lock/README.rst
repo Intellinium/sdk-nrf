@@ -8,8 +8,8 @@ Matter: Door lock
    :local:
    :depth: 2
 
-This door lock sample demonstrates the usage of the `Matter`_ (formerly Project Connected Home over IP, Project CHIP) application layer to build a door lock device with one basic bolt.
-This device works as a Matter accessory, meaning it can be paired and controlled remotely over a Matter network built on top of a low-power, 802.15.4 Thread network.
+This door lock sample demonstrates the usage of the :ref:`Matter <ug_matter>` (formerly Project Connected Home over IP, Project CHIP) application layer to build a door lock device with one basic bolt.
+This device works as a Matter accessory device, meaning it can be paired and controlled remotely over a Matter network built on top of a low-power, 802.15.4 Thread network.
 You can use this sample as a reference for creating your own application.
 
 Requirements
@@ -21,11 +21,9 @@ The sample supports the following development kits:
    :header: heading
    :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp
 
-For remote testing scenarios, you also need the following:
+For remote testing scenarios, if you want to commission the lock device and :ref:`control it remotely <matter_lock_sample_network_mode>` through a Thread network, you also need the following:
 
-* If you want to commission the lock device and :ref:`control it remotely <matter_lock_sample_network_mode>` through a Thread network:
-
-  * A smartphone compatible with Android for using the `Android CHIPTool`_ application as the Matter controller.
+* A Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>`.
 
 .. note::
     |matter_gn_required_note|
@@ -39,7 +37,7 @@ It can be tested in the following ways:
 * Standalone, by using a single DK that runs the door lock application.
 * Remotely over the Thread protocol, which requires more devices.
 
-The remote control testing requires either commissioning by the Matter controller device into a network or using the test mode.
+The remote control testing requires a Matter controller, which can be configured either on PC or mobile (for remote testing in a network).
 Both methods can be enabled after :ref:`building and running the sample <matter_lock_sample_remote_control>`.
 
 .. _matter_lock_sample_network_mode:
@@ -49,8 +47,8 @@ Remote testing in a network
 
 .. matter_door_lock_sample_remote_testing_start
 
-By default, the Matter device has Thread disabled, and it must be paired with the Matter controller over Bluetooth LE to get configuration from it if you want to use the device within a Thread network.
-To do this, the device must be made discoverable manually (for security reasons) and the controller must get the commissioning information from the Matter device and provision the device into the network.
+By default, the Matter accessory device has Thread disabled, and it must be paired with the Matter controller over Bluetooth LE to get configuration from it if you want to use the device within a Thread network.
+To do this, the device must be made discoverable manually (for security reasons) and the controller must get the commissioning information from the Matter accessory device and provision the device into the network.
 For details, see the `Commissioning the device`_ section.
 
 .. matter_door_lock_sample_remote_testing_end
@@ -69,6 +67,26 @@ Alternatively to the commissioning procedure, you can use the test mode, which a
     The test mode is not compliant with Matter and it only works together with Matter controller and other devices which use the same default configuration.
 
 .. matter_door_lock_sample_test_mode_end
+
+Configuration
+*************
+
+|config|
+
+Device Firmware Upgrade support
+===============================
+
+.. matter_door_lock_sample_build_with_dfu_start
+
+You can configure the sample to use the secure bootloader for performing over-the-air Device Firmware Upgrade using Bluetooth LE.
+To build the sample with configuration that enables the DFU, run the following command with *build_target* replaced with the build target name of the hardware platform you are using (see `Requirements`_):
+
+.. parsed-literal::
+   :class: highlight
+
+   west build -b *build_target* -- -DOVERLAY_CONFIG=../common/config/overlay-dfu_support.conf -DPM_STATIC_YML_FILE="configuration/build-target/pm_static.yml"
+
+.. matter_door_lock_sample_build_with_dfu_end
 
 User interface
 **************
@@ -94,8 +112,17 @@ LED 2:
     * Off - The bolt is retracted and the door is unlocked.
     * Rapid Even Flashing (50 ms on/50 ms off during 2 s) - The simulated bolt is in motion from one position to another.
 
+.. matter_door_lock_sample_button1_start
+
 Button 1:
-    Initiates the factory reset of the device.
+    Depending on how long you press the button:
+
+    * If pressed for 6 seconds, it initiates the factory reset of the device.
+      Releasing the button within the 6-second window cancels the factory reset procedure.
+    * If pressed for less than 3 seconds, it initiates the OTA software update process.
+      The OTA process is disabled by default, but you can enable it when you build the sample with the DFU support (see `Configuration`_).
+
+.. matter_door_lock_sample_button1_end
 
 Button 2:
     Changes the lock state to the opposite one.
@@ -111,7 +138,7 @@ SEGGER J-Link USB port:
     Used for getting logs from the device or for communicating with it through the command-line interface.
 
 NFC port with antenna attached:
-    Optionally used for obtaining the commissioning information from the Matter device to start the :ref:`commissioning procedure <matter_lock_sample_remote_control>`.
+    Optionally used for obtaining the commissioning information from the Matter accessory device to start the :ref:`commissioning procedure <matter_lock_sample_remote_control>`.
 
 Building and running
 ********************
@@ -119,6 +146,8 @@ Building and running
 .. |sample path| replace:: :file:`samples/matter/lock`
 
 .. include:: /includes/build_and_run.txt
+
+See `Configuration`_ for information about building the sample with the DFU support.
 
 Testing
 =======
@@ -175,27 +204,30 @@ Commissioning the device
 
 .. matter_door_lock_sample_commissioning_start
 
-To commission the device, go to the `Commissioning nRF Connect Accessory using Android CHIPTool`_ tutorial and complete the steps described there.
-As part of this tutorial, you will build and program OpenThread RCP firmware, configure Thread Border Router, build and install `Android CHIPTool`_, commission the device, and send Matter commands that cover scenarios described in the `Testing`_ section.
+To commission the device, go to the :ref:`ug_matter_configuring` page and complete the steps for the Matter controller you want to use.
+As part of this tutorial, you will configure Thread Border Router, build and install the Matter controller, commission the device, and send Matter commands that cover scenarios described in the `Testing`_ section.
+If you are new to Matter, the recommended approach is :ref:`ug_matter_configuring_mobile` using an Android smartphone.
 
-In Matter, the commissioning procedure (called rendezvous) is done over Bluetooth LE between a Matter device and the Matter controller, where the controller has the commissioner role.
+In Matter, the commissioning procedure is done over Bluetooth LE between a Matter accessory device and the Matter controller, where the controller has the commissioner role.
 When the procedure is finished, the device should be equipped with all information needed to securely operate in the Matter network.
 
-During the last part of the commissioning procedure (the provisioning operation), Thread network credentials are sent from the Matter controller to the Matter device.
+During the last part of the commissioning procedure (the provisioning operation), Thread network credentials are sent from the Matter controller to the Matter accessory device.
 As a result, the device is able to join the Thread network and communicate with other Thread devices in the network.
 
-.. note::
-    Currently, Matter samples do not support storing Matter operational credentials exchanged during commissioning in the non-volatile memory.
-
-To start the commissioning procedure, the controller must get the commissioning information from the Matter device.
+To start the commissioning procedure, the controller must get the commissioning information from the Matter accessory device.
 The data payload, which includes the device discriminator and setup PIN code, is encoded within a QR code, printed to the UART console, and can be shared using an NFC tag.
 
 .. matter_door_lock_sample_commissioning_end
 
+Upgrading the device firmware
+=============================
+
+To upgrade the device firmware, complete the steps listed for the selected method in the `Performing Device Firmware Upgrade in Matter device`_ tutorial.
+
 Dependencies
 ************
 
-This sample uses Connected Home over IP library which includes the |NCS| platform integration layer:
+This sample uses the Matter library, which includes the |NCS| platform integration layer:
 
 * `Matter`_
 

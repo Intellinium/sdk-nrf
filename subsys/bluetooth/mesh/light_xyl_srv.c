@@ -100,9 +100,7 @@ static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	struct bt_mesh_light_xy_set set;
 	struct bt_mesh_light_xy_status status = { 0 };
 	struct bt_mesh_lightness_status light_rsp = { 0 };
-	struct bt_mesh_lightness_set light = {
-		.transition = &transition,
-	};
+	struct bt_mesh_lightness_set light;
 	struct bt_mesh_light_xyl_status xyl_status;
 
 	light.lvl = repr_to_light(net_buf_simple_pull_le16(buf), ACTUAL);
@@ -134,15 +132,11 @@ static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		}
 	}
 
-	if (buf->len == 2) {
-		model_transition_buf_pull(buf, &transition);
-	} else {
-		bt_mesh_dtt_srv_transition_get(srv->model, &transition);
-	}
+	set.transition = model_transition_get(srv->model, &transition, buf);
+	light.transition = set.transition;
 
-	set.transition = &transition;
 	lightness_srv_disable_control(&srv->lightness_srv);
-	lightness_srv_change_lvl(&srv->lightness_srv, ctx, &light, &light_rsp);
+	lightness_srv_change_lvl(&srv->lightness_srv, ctx, &light, &light_rsp, true);
 	srv->handlers->xy_set(srv, ctx, &set, &status);
 	srv->xy_last.x = set.params.x;
 	srv->xy_last.y = set.params.y;
@@ -152,7 +146,7 @@ static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	store_state(srv);
 
 	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-		bt_mesh_scene_invalidate(&srv->scene);
+		bt_mesh_scene_invalidate(srv->model);
 	}
 
 	(void)bt_mesh_light_xyl_srv_pub(srv, NULL, &xyl_status);
@@ -334,7 +328,7 @@ static void range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	if ((new_range.min.x > new_range.max.x) ||
 	    (new_range.min.y > new_range.max.y)) {
 		status_code = BT_MESH_MODEL_STATUS_INVALID;
-		goto respond;
+		return;
 	}
 
 	status_code = BT_MESH_MODEL_SUCCESS;
@@ -348,7 +342,6 @@ static void range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 
 	(void)bt_mesh_light_xyl_srv_range_pub(srv, NULL, status_code);
 
-respond:
 	if (ack) {
 		range_rsp(model, ctx, status_code);
 	}
@@ -461,9 +454,9 @@ static ssize_t scene_store(struct bt_mesh_model *model, uint8_t data[])
 	}
 
 	if (light.remaining_time) {
-		scene->light = repr_to_light(light.target, ACTUAL);
+		scene->light = light_to_repr(light.target, ACTUAL);
 	} else {
-		scene->light = repr_to_light(light.current, ACTUAL);
+		scene->light = light_to_repr(light.current, ACTUAL);
 	}
 
 	return sizeof(struct scene_data);
@@ -475,12 +468,6 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 {
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
 	struct scene_data *scene = (struct scene_data *)&data[0];
-	struct bt_mesh_light_xyl_status xyl_status = { 0 };
-	struct bt_mesh_lightness_status light_status = { 0 };
-	struct bt_mesh_lightness_set light = {
-		.lvl = scene->light,
-		.transition = transition,
-	};
 	struct bt_mesh_light_xy_status xy_status = { 0 };
 	struct bt_mesh_light_xy_set xy_set = {
 		.params.x = scene->xy.x,
@@ -489,27 +476,47 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 	};
 
 	srv->handlers->xy_set(srv, NULL, &xy_set, &xy_status);
-	if (!atomic_test_bit(&srv->lightness_srv.flags,
-			     LIGHTNESS_SRV_FLAG_EXTENDED_BY_LIGHT_CTRL)) {
-		lightness_srv_change_lvl(&srv->lightness_srv, NULL, &light, &light_status);
-	} else {
-		srv->lightness_srv.handlers->light_get(&srv->lightness_srv, NULL, &light_status);
-	}
-
 	srv->xy_last.x = xy_set.params.x;
 	srv->xy_last.y = xy_set.params.y;
 	store_state(srv);
 
+	if (atomic_test_bit(&srv->lightness_srv.flags,
+			    LIGHTNESS_SRV_FLAG_EXTENDED_BY_LIGHT_CTRL)) {
+		return;
+	}
+
+	struct bt_mesh_lightness_status light_status = { 0 };
+	struct bt_mesh_lightness_set light = {
+		.lvl = repr_to_light(scene->light, ACTUAL),
+		.transition = transition,
+	};
+
+	lightness_srv_change_lvl(&srv->lightness_srv, NULL, &light, &light_status, false);
+}
+
+static void scene_recall_complete(struct bt_mesh_model *model)
+{
+	struct bt_mesh_light_xyl_srv *srv = model->user_data;
+	struct bt_mesh_light_xyl_status xyl_status = { 0 };
+	struct bt_mesh_lightness_status light_status = { 0 };
+	struct bt_mesh_light_xy_status xy_status = { 0 };
+
+	srv->handlers->xy_get(srv, NULL, &xy_status);
+	srv->lightness_srv.handlers->light_get(&srv->lightness_srv, NULL, &light_status);
+
 	xyl_status.params.xy = xy_status.current;
 	xyl_status.params.lightness = light_status.current;
 	xyl_status.remaining_time = xy_status.remaining_time;
+
 	(void)bt_mesh_light_xyl_srv_pub(srv, NULL, &xyl_status);
 }
 
-static const struct bt_mesh_scene_entry_type scene_type = {
+BT_MESH_SCENE_ENTRY_SIG(light_xyl) = {
+	.id.sig = BT_MESH_MODEL_ID_LIGHT_XYL_SRV,
 	.maxlen = sizeof(struct scene_data),
 	.store = scene_store,
 	.recall = scene_recall,
+	.recall_complete = scene_recall_complete,
 };
 
 static int update_handler(struct bt_mesh_model *model)
@@ -552,10 +559,6 @@ static int bt_mesh_light_xyl_srv_init(struct bt_mesh_model *model)
 			       bt_mesh_model_elem(model),
 			       BT_MESH_MODEL_ID_LIGHT_XYL_SETUP_SRV));
 
-	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-		bt_mesh_scene_entry_add(model, &srv->scene, &scene_type, false);
-	}
-
 	return 0;
 }
 
@@ -581,7 +584,7 @@ static int bt_mesh_light_xyl_srv_settings_set(struct bt_mesh_model *model,
 static int bt_mesh_light_xyl_srv_start(struct bt_mesh_model *model)
 {
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
-	struct bt_mesh_light_xy_status xy_dummy;
+	struct bt_mesh_light_xy_status status;
 	struct bt_mesh_model_transition transition = {
 		.time = srv->lightness_srv.ponoff.dtt.transition_time,
 		.delay = 0,
@@ -603,7 +606,16 @@ static int bt_mesh_light_xyl_srv_start(struct bt_mesh_model *model)
 		return -EINVAL;
 	}
 
-	srv->handlers->xy_set(srv, NULL, &set, &xy_dummy);
+	srv->handlers->xy_set(srv, NULL, &set, &status);
+
+	struct bt_mesh_light_xyl_status xyl_status;
+
+	xyl_get(srv, NULL, &xyl_status);
+
+	/* Ignore error: Will fail if there are no publication parameters, but
+	 * it doesn't matter for the startup procedure.
+	 */
+	(void)bt_mesh_light_xyl_srv_pub(srv, NULL, &xyl_status);
 	return 0;
 }
 

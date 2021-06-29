@@ -10,7 +10,8 @@ nRF Pelion Client
 The nRF Pelion Client application demonstrates the integration of the Pelion Device Management library within the |NCS|.
 The application constructs Open Mobile Alliance (OMA) objects, connects to the Pelion Device Management platform, and sends data to the web server over either LTE or OpenThread.
 
-Pelion is an IoT cloud platform that offers services in the fields of connectivity, device management, and edge computing, which allow you to remotely manage and update your IoT devices.
+Pelion is an IoT cloud platform that offers services in the fields of connectivity, device management, and edge computing.
+It allows you to remotely manage and update your IoT devices.
 To read more, see the `Pelion website`_ and the `Pelion Device Management documentation`_.
 
 .. note::
@@ -22,7 +23,7 @@ Overview
 
 The application integrates `Pelion Device Management`_ features and is based on the `Pelion Device Management Client library reference example`_.
 It establishes a secure connection with the Pelion Device Management, starts the Pelion Device Management library, and initializes the Pelion Device Management Client.
-The Device Management Client creates standard OMA objects that you can interact with from the `Pelion Device Management Portal`_.
+The Device Management Client creates standard OMA objects that you can interact with from `Pelion Device Management Portal`_.
 It then communicates with the network using sockets.
 
 .. _pelion_client_device_provisioning:
@@ -30,7 +31,7 @@ It then communicates with the network using sockets.
 Device provisioning
 ===================
 
-You must provision the device before it can connect with the Pelion Device Management Portal.
+You must provision the device before it can connect with Pelion Device Management Portal.
 
 When using Pelion, you can complete the provisioning process using either a production tool (Factory Configurator Utility for factory provisioning) or the developer flow process.
 For more information about the provisioning process, see `Provisioning devices for Pelion Device Management`_ in the Pelion documentation.
@@ -43,7 +44,7 @@ Upon first boot, or whenever the Pelion storage partition is erased (:c:func:`fc
 The application does this by calling :c:func:`fcc_developer_flow` right after the Factory Configurator Client (FCC) is initialized (:c:func:`fcc_init`).
 For more information about these functions, see the `Pelion's factory_configurator_client.h`_ file reference page.
 
-Using a valid certificate allows the device to successfully register (connect) to the Pelion Device Management Portal.
+Using a valid certificate allows the device to successfully register (connect) to Pelion Device Management Portal.
 At this stage, the device is assigned a new device identity.
 
 .. note::
@@ -71,7 +72,7 @@ Network back end initialization
 -------------------------------
 
 In parallel to the FCC initialization, the application initializes the network back end.
-The appropriate net module connects the required callbacks and starts either OpenThread (``net_ot``, using Zephyr's :ref:`zephyr:thread_protocol_interface`) or the link control (``net_lte``, using the :ref:`lte_lc_readme`).
+The appropriate net module connects the required callbacks and starts either OpenThread (``net_ot``, using Zephyr's :ref:`zephyr:thread_protocol_interface`) or the link control (``net_lte``, using the :ref:`nrf_modem_lib_readme`).
 
 The network module tracks the connection state and informs the rest of the application if the connection is established or the network is disconnected.
 
@@ -79,7 +80,7 @@ Pelion Device Management library initialization
 -----------------------------------------------
 
 The Device Management Client object is initialized from the Pelion Device Management library when the FCC is initialized.
-The library attaches several client callbacks that are required for informing the application about the connection status with the Pelion Device Management Portal.
+The library attaches several client callbacks that are required for informing the application about the connection status with Pelion Device Management Portal.
 
 OMA object creation
 -------------------
@@ -101,8 +102,8 @@ Network communication
 ---------------------
 
 The Device Management Client starts communicating with the servers, either over LTE or OpenThread.
-The device registers with the Pelion Device Management Portal, if a valid certificate was provided at build time.
-Information about all resources added to the Device Management Client is passed to the Pelion Device Management Portal.
+The device registers with Pelion Device Management Portal, if a valid certificate was provided at build time.
+Information about all resources added to the Device Management Client is passed to Pelion Device Management Portal.
 
 This completes the run time operational flow of the device.
 You can now locate the device in the device directory of the Device Management and start interacting with it.
@@ -133,7 +134,7 @@ The following table lists modules that are part of the application.
 +-------------------------------+---------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------+
 | ``oma_digital_input``         | Reacts to ``pelion_create_objects_event``, ``button_event``, ``net_state_event``, and ``pelion_state_event``. | Registers the respective Open Mobile Alliance object resources, which work as an example of the device communication with the cloud.   |
 |                               |                                                                                                               | This resource enables buttons.                                                                                                         |
-|                               |                                                                                                               | When starting the board, the firmware registers four buttons in the Pelion Device Management Portal.                                   |
+|                               |                                                                                                               | When starting the board, the firmware registers four buttons in Pelion Device Management Portal.                                       |
 |                               |                                                                                                               | It then registers the status of the button (pushed or unpushed) and the number of pushes.                                              |
 +-------------------------------+---------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------+
 | ``oma_stopwatch``             | Reacts to ``pelion_create_objects_event``, ``net_state_event``, and  ``pelion_state_event``.                  | Registers the respective Open Mobile Alliance object resources, which work as an example of the device communication with the cloud.   |
@@ -238,7 +239,7 @@ Network back ends
 
 The application supports the following network back ends:
 
-* LTE using the :ref:`lte_lc_readme` for the nRF9160 DK
+* LTE using the :ref:`nrf_modem_lib_readme` for the nRF9160 DK
 * OpenThread using Zephyr's :ref:`zephyr:thread_protocol_interface` for the nRF52840 DK and nRF5340 DK
 
 Transport structure
@@ -271,7 +272,7 @@ Device firmware update
 The application is updatable.
 The new image is transmitted to the device using the Pelion infrastructure.
 
-You can configure the update by starting an update campaign on the `Pelion Device Management Portal`_.
+You can configure the update by starting an update campaign on `Pelion Device Management Portal`_.
 All devices for the given campaign receive the update image.
 If the update manifest attached to the image is valid, the new image is stored by the Pelion Device Management library into the MCUboot secondary application slot.
 When the entire image is stored, the device reboots and MCUboot completes the device update by swapping the application images.
@@ -285,7 +286,7 @@ For details, see the `Device Management Update`_ guide in the Pelion documentati
 Application states
 ==================
 
-The following diagram shows the application states for the connection to the network and the Pelion Device Management Portal.
+The following diagram shows the application states for the connection to the network and Pelion Device Management Portal.
 
 .. figure:: /images/pelion_client_states.svg
    :alt: Application states
@@ -294,7 +295,7 @@ The following diagram shows the application states for the connection to the net
 
 The internal procedures refer to situations where both connection types interact with each other:
 
-* The setup procedure takes place when the network connection is established, but the application has not yet connected to the Pelion Device Management Portal.
+* The setup procedure takes place when the network connection is established, but the application has not yet connected to Pelion Device Management Portal.
 * The pause procedure takes place when the network connection is failing for a known reason.
 * The resume procedure takes place when the network connection is restored.
 
@@ -319,7 +320,7 @@ The application uses the following buttons on the supported development kits:
 Pressing each of these buttons updates the respective object's state resource.
 Each button press is counted and the count value is reflected onto the respective object's counter resource.
 
-You can reset Digital Input objects' counters by putting zero into their respective values in the Pelion Device Management Portal.
+You can reset Digital Input objects' counters by putting zero into their respective values in Pelion Device Management Portal.
 
 .. note::
    |factory_reset_note|
@@ -361,7 +362,31 @@ Therefore, it automatically includes the :ref:`secure_partition_manager` that pr
 Pelion Device Management requirements
 =====================================
 
-You need a developer account on the `Pelion Device Management Portal`_.
+You need a developer account on `Pelion Device Management Portal`_.
+
+.. _pelion_client_reqs_build_types:
+
+nRF Pelion Client build types
+=============================
+
+The nRF Pelion Client application does not use a single :file:`prj.conf` file.
+Configuration files are provided for different build types for each supported board.
+
+.. include:: /gs_modifying.rst
+   :start-after: build_types_overview_start
+   :end-before: build_types_overview_end
+
+Before you start testing the application, you can select one of the build types supported by nRF Pelion Client application, depending on your development kit and the building method.
+The application supports the following build types:
+
+* ``ZDebug`` -- Debug version of the application - can be used to verify if the application works correctly.
+* ``ZRelease`` -- Release version of the application - can be used to achieve better performance and reduce memory consumption.
+
+.. note::
+    `Selecting a build type`_ is optional.
+    The ``ZDebug`` build type is used by default if no build type is explicitly selected.
+
+For more information, see the `Configuration files`_ section.
 
 Configuration
 *************
@@ -370,7 +395,7 @@ Configuration
 The Pelion Device Management library is enabled with :option:`CONFIG_PELION_CLIENT` configuration option.
 
 For the library to work, you must enable and properly configure the Mbed TLS library.
-To connect to the Pelion Device Management Portal, the device must be provisioned with valid credentials.
+To connect to Pelion Device Management Portal, the device must be provisioned with valid credentials.
 For the firmware update procedure to work, you must provision the device with valid update resources.
 
 For more information about Pelion configuration options, read the `Zephyr integration tutorial`_ in the Pelion documentation.
@@ -385,9 +410,9 @@ Set compatible with :ref:`nrfxlib:nrf_security` can be enabled using :option:`CO
 Pelion credentials
 ==================
 
-To be able to connect to the Pelion Device Management Portal, you need to complete the following configuration:
+To be able to connect to Pelion Device Management Portal, you need to complete the following configuration:
 
-1. Generate and download a developer certificate file from the `Pelion Device Management Portal`_.
+1. Generate and download a developer certificate file from `Pelion Device Management Portal`_.
    This file contains keys used for securing connection with the Pelion network.
 #. Copy the downloaded file to :file:`applications/pelion_client/configuration/common/`, replacing the default :file:`mbed_cloud_dev_credentials.c` file.
 #. The file is used according to the developer flow provisioning (see :ref:`pelion_client_device_provisioning`).
@@ -398,7 +423,7 @@ For details steps, see the `Provisioning development devices`_ guide in the Peli
 Firmware update
 ===============
 
-You can provide the devices with the new version of the firmware image over-the-air from the Pelion Device Management Portal (see :ref:`pelion_client_dfu`).
+You can provide the devices with the new version of the firmware image over-the-air from Pelion Device Management Portal (see :ref:`pelion_client_dfu`).
 
 Before the update, you must enable a compatible bootloader.
 The Pelion Device Management library is compatible with MCUboot.
@@ -431,16 +456,9 @@ Configuration files
 
 You can find the configuration files in the :file:`applications/pelion_client/configuration` directory.
 For each supported build target, you can find a subdirectory that contains all configuration files for the given target.
+Configuration files are provided for different `nRF Pelion Client build types`_ for each supported build target.
 
-The application does not use a single :file:`prj.conf` file.
-Configuration files are provided for different build types for each supported build target.
-
-The following build types are available for various build targets:
-
-* ``ZRelease`` -- Release version of the application with no debugging features.
-* ``ZDebug`` -- Debug version of the application; the same as the ``ZRelease`` build type, but with debug options enabled.
-
-These build types names are replacing the *${CMAKE_BUILD_TYPE}* variable in the configuration file names (for example, :file:`pm_static_ZDebug.yml`).
+The build types names are replacing the *${CMAKE_BUILD_TYPE}* variable in the configuration file names (for example, :file:`pm_static_ZDebug.yml`).
 If the given build type is not supported on the selected build target, an error message appears when `Building and running`_.
 In addition to the build types mentioned above, some build targets can provide more build types, which can be used to generate an application in a specific variant.
 The selected build type impacts the configuration of all system elements that are enabled (application, bootloader, partition layout).
@@ -456,10 +474,6 @@ Additionally, each build target directory contains the following configuration f
 * :file:`mcuboot_private.pem` - Private signature used for binary image signing.
 * :file:`dts.overlay` - The DTS overlay used to adjust the DTS for needs of the application (that is, enable and configure the required hardware).
 * ``_def`` files - Configuration files for application modules.
-
-The :file:`nrf52840dk_nrf52840` directory also includes the following optional file:
-
-* :file:`config-tls-pelion.h` - Mbed TLS configuration overlay; used when Zephyr's default Mbed TLS version is selected (this is a different Mbed TLS version than the one provided by :ref:`nrfxlib:nrf_security`).
 
 Building and running
 ********************
@@ -480,7 +494,7 @@ The application is built the same way to any other |NCS| application or sample.
 Selecting a build type
 ======================
 
-Before you start testing the application, you can select one of the build types, depending on your development kit and building method.
+Before you start testing the application, you can select one of the :ref:`pelion_client_reqs_build_types`, depending on your development kit and building method.
 
 Selecting a build type in SES
 -----------------------------
@@ -508,7 +522,7 @@ After programming the application and all the prerequisites to your development 
    **LED1** and **LED2** start slowly breathing, which indicates the network is connecting to the Pelion Device Management.
    After several seconds, both LEDs stop blinking and remain turned on.
    This indicates that the device has established connection to the network back end and the Pelion server.
-#. Log in to the `Pelion Device Management Portal`_.
+#. Log in to `Pelion Device Management Portal`_.
 #. In the left pane, select :guilabel:`Device directory`.
    The list of all available devices is displayed.
 
@@ -532,7 +546,7 @@ After programming the application and all the prerequisites to your development 
       Pelion's device directory with the resources tab selected (click to enlarge)
 
 #. Press **Button 1**.
-   The Digital Input instance 0 value in the Pelion Device Management Portal increases.
+   The Digital Input instance 0 value in Pelion Device Management Portal increases.
 #. Scroll down to the value for the ``Stopwatch`` resource.
 #. Wait for a couple of seconds to see the value increase.
 
@@ -548,6 +562,7 @@ This application uses the following |NCS| libraries and drivers:
 * :ref:`lib_caf`
 * :ref:`event_manager`
 * :ref:`lte_lc_readme`
+* :ref:`nrf_modem_lib_readme`
 * :ref:`partition_manager`
 
 It uses the following `sdk-nrfxlib`_ libraries:

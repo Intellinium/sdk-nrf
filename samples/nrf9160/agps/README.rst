@@ -112,6 +112,25 @@ Building and running
 The configuration file for this sample is located in :file:`samples/nrf9160/agps`.
 See :ref:`configure_application` for information on how to configure the parameters.
 
+Using nRF Cloud A-GPS or P-GPS
+==============================
+
+By default, this sample enables :ref:`lib_nrf_cloud_agps` (Assisted GPS) support.
+Each time the GPS unit attempts to get a location fix, it might require additional information from  `nRF Cloud`_ to speed up the time to get the fix.
+
+Alternatively, :ref:`lib_nrf_cloud_pgps` (Predicted GPS) downloads and stores assistance predictions in flash for one or two weeks, and does not require cloud support for each fix.
+
+To use P-GPS instead of A-GPS, add the following parameter to your build command:
+``-DOVERLAY_CONFIG=overlay-pgps.conf``
+
+To use A-GPS and P-GPS simultaneously, use the following parameter:
+``-DOVERLAY_CONFIG=overlay-agps-pgps.conf``
+
+In |SES|, select :guilabel:`Tools` > :guilabel:`Options` > :guilabel:`nRF Connect` to add the above CMake parameter.
+See :ref:`cmake_options` for more information.
+
+Alternatively, you can manually set the configuration options to match the contents of the overlay config file.
+
 Testing
 =======
 

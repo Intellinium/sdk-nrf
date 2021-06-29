@@ -30,7 +30,7 @@ import utils
 project = "nRF Connect SDK"
 copyright = "2019-2021, Nordic Semiconductor"
 author = "Nordic Semiconductor"
-version = release = "1.5.99"
+version = release = "1.6.99"
 
 sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
@@ -137,7 +137,6 @@ html_redirect_pages = [
     ("gs_ins_windows", "gs_installing"),
     ("gs_ins_linux", "gs_installing"),
     ("gs_ins_mac", "gs_installing"),
-    ("samples/nrf9160/at_client/README", "samples/nrf9160/at_host/README")
 ]
 
 # -- Options for zephyr.warnings_filter ----------------------------------------

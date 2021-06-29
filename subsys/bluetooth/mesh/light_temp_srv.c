@@ -64,17 +64,6 @@ static void encode_status(struct net_buf_simple *buf,
 	}
 }
 
-static void rsp_status(struct bt_mesh_model *model,
-		       struct bt_mesh_msg_ctx *rx_ctx,
-		       struct bt_mesh_light_temp_status *status)
-{
-	BT_MESH_MODEL_BUF_DEFINE(msg, BT_MESH_LIGHT_TEMP_STATUS,
-				 BT_MESH_LIGHT_CTL_MSG_MAXLEN_TEMP_STATUS);
-	encode_status(&msg, status);
-
-	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
-}
-
 static void temp_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		     struct net_buf_simple *buf, bool ack)
 {
@@ -86,9 +75,7 @@ static void temp_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	struct bt_mesh_light_temp_srv *srv = model->user_data;
 	struct bt_mesh_light_temp_status status = { 0 };
 	struct bt_mesh_model_transition transition;
-	struct bt_mesh_light_temp_set set = {
-		.transition = &transition,
-	};
+	struct bt_mesh_light_temp_set set;
 
 	set.params.temp = net_buf_simple_pull_le16(buf);
 	set.params.delta_uv = net_buf_simple_pull_le16(buf);
@@ -107,21 +94,17 @@ static void temp_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		goto respond;
 	}
 
-	if (buf->len == 2) {
-		model_transition_buf_pull(buf, &transition);
-	} else {
-		bt_mesh_dtt_srv_transition_get(srv->model, &transition);
-	}
+	set.transition = model_transition_get(srv->model, &transition, buf);
 
 	bt_mesh_light_temp_srv_set(srv, ctx, &set, &status);
 
 	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-		bt_mesh_scene_invalidate(&srv->scene);
+		bt_mesh_scene_invalidate(srv->model);
 	}
 
 respond:
 	if (ack) {
-		rsp_status(model, ctx, &status);
+		(void)bt_mesh_light_temp_srv_pub(srv, ctx, &status);
 	}
 }
 
@@ -137,7 +120,7 @@ static void temp_get_handle(struct bt_mesh_model *model,
 	struct bt_mesh_light_temp_status status = { 0 };
 
 	srv->handlers->get(srv, ctx, &status);
-	rsp_status(model, ctx, &status);
+	(void)bt_mesh_light_temp_srv_pub(srv, ctx, &status);
 }
 
 static void temp_set_handle(struct bt_mesh_model *model,
@@ -271,12 +254,10 @@ static void lvl_move_set(struct bt_mesh_lvl_srv *lvl_srv,
 	struct bt_mesh_light_temp_srv *srv =
 		CONTAINER_OF(lvl_srv, struct bt_mesh_light_temp_srv, lvl);
 	struct bt_mesh_light_temp_status status = { 0 };
-	struct bt_mesh_model_transition transition = {
-		.delay = move_set->transition->delay,
-	};
+	struct bt_mesh_model_transition transition;
 	struct bt_mesh_light_temp_set set = {
 		.params = srv->last,
-		.transition = &transition,
+		.transition = NULL,
 	};
 
 	srv->handlers->get(srv, NULL, &status);
@@ -291,10 +272,15 @@ static void lvl_move_set(struct bt_mesh_lvl_srv *lvl_srv,
 
 	if (move_set->delta != 0 && move_set->transition) {
 		uint64_t distance = abs(set.params.temp - status.current.temp);
-
-		transition.time =
+		uint32_t time_to_edge =
 			(distance * (uint64_t)move_set->transition->time) /
 			abs(move_set->delta);
+
+		if (time_to_edge > 0) {
+			transition.time = time_to_edge;
+			transition.delay = move_set->transition->delay;
+			set.transition = &transition;
+		}
 	}
 
 	bt_mesh_light_temp_srv_set(srv, ctx, &set, &status);
@@ -337,12 +323,26 @@ static ssize_t scene_store(struct bt_mesh_model *model, uint8_t data[])
 	return sizeof(struct scene_data);
 }
 
+static void temp_srv_set(struct bt_mesh_light_temp_srv *srv,
+			 struct bt_mesh_msg_ctx *ctx,
+			 struct bt_mesh_light_temp_set *set,
+			 struct bt_mesh_light_temp_status *status)
+{
+	set->params.temp = MIN(MAX(set->params.temp, srv->range.min), srv->range.max);
+
+	srv->last = set->params;
+	store_state(srv);
+
+	srv->handlers->set(srv, ctx, set, status);
+}
+
 static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 			 size_t len,
 			 struct bt_mesh_model_transition *transition)
 {
 	struct bt_mesh_light_temp_srv *srv = model->user_data;
 	struct scene_data *scene = (struct scene_data *)&data[0];
+	struct bt_mesh_light_temp_status status = { 0 };
 	struct bt_mesh_light_temp_set set = {
 		.params = {
 			.temp = scene->temp,
@@ -351,12 +351,24 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 		.transition = transition,
 	};
 
-	bt_mesh_light_temp_srv_set(srv, NULL, &set, NULL);
+	temp_srv_set(srv, NULL, &set, &status);
 }
 
-static const struct bt_mesh_scene_entry_type scene_type = {
+static void scene_recall_complete(struct bt_mesh_model *model)
+{
+	struct bt_mesh_light_temp_srv *srv = model->user_data;
+	struct bt_mesh_light_temp_status status = { 0 };
+
+	srv->handlers->get(srv, NULL, &status);
+
+	(void)bt_mesh_light_temp_srv_pub(srv, NULL, &status);
+}
+
+BT_MESH_SCENE_ENTRY_SIG(light_temp) = {
+	.id.sig = BT_MESH_MODEL_ID_LIGHT_CTL_TEMP_SRV,
 	.store = scene_store,
 	.recall = scene_recall,
+	.recall_complete = scene_recall_complete,
 	.maxlen = sizeof(struct scene_data),
 };
 
@@ -383,10 +395,6 @@ static int bt_mesh_light_temp_srv_init(struct bt_mesh_model *model)
 #endif
 
 	bt_mesh_model_extend(model, srv->lvl.model);
-
-	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-		bt_mesh_scene_entry_add(model, &srv->scene, &scene_type, false);
-	}
 
 	return 0;
 }
@@ -435,25 +443,14 @@ void bt_mesh_light_temp_srv_set(struct bt_mesh_light_temp_srv *srv,
 				struct bt_mesh_light_temp_set *set,
 				struct bt_mesh_light_temp_status *rsp)
 {
-	struct bt_mesh_light_temp_status status = { 0 };
+	temp_srv_set(srv, ctx, set, rsp);
 
-	set->params.temp =
-		MIN(MAX(set->params.temp, srv->range.min), srv->range.max);
-
-	srv->last = set->params;
-	store_state(srv);
-
-	srv->handlers->set(srv, ctx, set, &status);
-	if (rsp) {
-		*rsp = status;
-	}
-
-	(void)bt_mesh_light_temp_srv_pub(srv, NULL, &status);
+	(void)bt_mesh_light_temp_srv_pub(srv, NULL, rsp);
 
 	struct bt_mesh_lvl_status lvl_status = {
-		.current = temp_to_lvl(srv, status.current.temp),
-		.target = temp_to_lvl(srv, status.target.temp),
-		.remaining_time = status.remaining_time,
+		.current = temp_to_lvl(srv, rsp->current.temp),
+		.target = temp_to_lvl(srv, rsp->target.temp),
+		.remaining_time = rsp->remaining_time,
 	};
 
 	(void)bt_mesh_lvl_srv_pub(&srv->lvl, NULL, &lvl_status);

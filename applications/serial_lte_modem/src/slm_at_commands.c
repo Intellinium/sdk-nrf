@@ -15,6 +15,7 @@
 #include <modem/at_cmd.h>
 #include <modem/at_cmd_parser.h>
 #include <sys/reboot.h>
+#include "ncs_version.h"
 
 #include "slm_util.h"
 #include "slm_at_host.h"
@@ -25,6 +26,7 @@
 #include "slm_at_cmng.h"
 #endif
 #include "slm_at_icmp.h"
+#include "slm_at_sms.h"
 #include "slm_at_fota.h"
 #if defined(CONFIG_SLM_GPS)
 #include "slm_at_gps.h"
@@ -74,12 +76,6 @@ void rsp_send(const uint8_t *str, size_t len);
 int poweroff_uart(void);
 bool verify_datamode_control(uint16_t time_limit, uint16_t *time_limit_min);
 
-#if defined(CONFIG_SLM_CUSTOMIZED)
-#define SLM_VERSION	"\r\n#XSLMVER: \"1.6-CUSTOMIZED\"\r\n"
-#else
-#define SLM_VERSION	"\r\n#XSLMVER: \"1.6\"\r\n"
-#endif
-
 static void modem_power_off(void)
 {
 	/*
@@ -105,7 +101,14 @@ static int handle_at_slmver(enum at_cmd_type type)
 	int ret = -EINVAL;
 
 	if (type == AT_CMD_TYPE_SET_COMMAND) {
-		rsp_send(SLM_VERSION, sizeof(SLM_VERSION) - 1);
+#if defined(CONFIG_SLM_CUSTOMIZED)
+		sprintf(rsp_buf, "\r\n#XSLMVER: %s-CUSTOMIZED\r\n",
+			STRINGIFY(NCS_VERSION_STRING));
+#else
+		sprintf(rsp_buf, "\r\n#XSLMVER: %s\r\n",
+			STRINGIFY(NCS_VERSION_STRING));
+#endif
+		rsp_send(rsp_buf, strlen(rsp_buf));
 		ret = 0;
 	}
 
@@ -329,6 +332,11 @@ int handle_at_xcmng(enum at_cmd_type cmd_type);
 /* ICMP commands */
 int handle_at_icmp_ping(enum at_cmd_type cmd_type);
 
+#if defined(CONFIG_SLM_SMS)
+/* SMS commands */
+int handle_at_sms(enum at_cmd_type cmd_type);
+#endif
+
 /* FOTA commands */
 int handle_at_fota(enum at_cmd_type cmd_type);
 
@@ -402,6 +410,11 @@ static struct slm_at_cmd {
 #endif
 	/* ICMP commands */
 	{"AT#XPING", handle_at_icmp_ping},
+
+#if defined(CONFIG_SLM_SMS)
+	/* SMS commands */
+	{"AT#XSMS", handle_at_sms},
+#endif
 
 	/* FOTA commands */
 	{"AT#XFOTA", handle_at_fota},
@@ -508,6 +521,13 @@ int slm_at_init(void)
 		LOG_ERR("ICMP could not be initialized: %d", err);
 		return -EFAULT;
 	}
+#if defined(CONFIG_SLM_GPS)
+	err = slm_at_sms_init();
+	if (err) {
+		LOG_ERR("SMS could not be initialized: %d", err);
+		return -EFAULT;
+	}
+#endif
 	err = slm_at_fota_init();
 	if (err) {
 		LOG_ERR("FOTA could not be initialized: %d", err);
@@ -578,6 +598,12 @@ void slm_at_uninit(void)
 	if (err) {
 		LOG_WRN("ICMP could not be uninitialized: %d", err);
 	}
+#if defined(CONFIG_SLM_GPS)
+	err = slm_at_sms_uninit();
+	if (err) {
+		LOG_WRN("SMS could not be uninitialized: %d", err);
+	}
+#endif
 	err = slm_at_fota_uninit();
 	if (err) {
 		LOG_WRN("FOTA could not be uninitialized: %d", err);
