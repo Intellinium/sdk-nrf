@@ -7,7 +7,7 @@ nRF9160: Asset Tracker v2
    :local:
    :depth: 2
 
-The Asset Tracker v2 is a real-time configurable ultra-low-power capable application firmware for the nRF9160 System in Package (SiP).
+The Asset Tracker v2 is a real-time configurable ultra-low power capable application firmware for the nRF9160 System in Package (SiP).
 It is a complete rework of the :ref:`asset_tracker` application.
 This application introduces a set of new features, which are not present in the :ref:`asset_tracker` application:
 
@@ -27,8 +27,17 @@ Overview
 ********
 
 The application samples sensor data and publishes the data to a connected cloud service over TCP/IP via LTE.
-As of now, the application supports `AWS IoT Core`_.
-The application is intended to be used with an instance of the `nRF Asset Tracker for AWS`_ running on the cloud side.
+As of now, the application supports the following cloud services and the corresponding cloud-side instances:
+
++---------------------------+---------------------------------------------------------------------------------------+
+| Cloud service             | Cloud-side instance                                                                   |
++===========================+=======================================================================================+
+| `AWS IoT Core`_           | `nRF Asset Tracker for AWS`_                                                          |
++---------------------------+---------------------------------------------------------------------------------------+
+| `Azure IoT Hub`_          | `nRF Asset Tracker for Azure`_                                                        |
++---------------------------+---------------------------------------------------------------------------------------+
+| `nRF Cloud`_              | `nRF Cloud Device API`_ (See `nRF Cloud documentation`_.)                             |
++---------------------------+---------------------------------------------------------------------------------------+
 
 Firmware architecture
 =====================
@@ -99,6 +108,8 @@ The device modes and their descriptions are listed in the following table:
 | Accelerometer threshold             | Accelerometer threshold in m/s². Minimal absolute value in m/s² for the accelerometer readings to be considered as a valid movement.        | 10 m/s²        |
 +-------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------+----------------+
 
+See :ref:`Kconfig options for default device configuration values <default_config_values>` for a list of configuration options that can set the default values of the device configuration parameters.
+
 .. note::
    The configurations that are used depend on the application state.
    For instance, in active mode, the ``Movement resolution`` and the ``Movement timeout`` parameters are not used.
@@ -148,7 +159,7 @@ Newly sampled data is always published prior to the old, buffered data.
 The application has LTE and cloud connection awareness.
 Upon a disconnect from the cloud service, the application keeps the sensor data that has been buffered and empty the buffers in batch messages when the application reconnects to the cloud service.
 
-User Interface
+User interface
 **************
 
 The application uses the following buttons on the nRF9160-based development kits:
@@ -211,22 +222,54 @@ Setup
 =====
 
 The application is designed to support communication with different cloud services, a single service at a time.
-Currently, the application supports Amazon Web Services IoT Core cloud service and the following technologies in the cloud connection:
+Currently, the application supports the following services and technologies in the connection:
 
-* `MQTT <AWS IoT MQTT_>`_
-* `TLS`_
-* :ref:`FOTA <nrf9160_ug_fota>`
++--------------------------+---------------------------------+
+| Service                  | Technologies                    |
++==========================+=================================+
+| `AWS IoT Core`_          |   `MQTT`_                       |
+|                          +---------------------------------+
+|                          |   `TLS`_                        |
+|                          +---------------------------------+
+|                          |   :ref:`FOTA <nrf9160_ug_fota>` |
++--------------------------+---------------------------------+
+| `Azure IoT Hub`_         |   `MQTT`_                       |
+|                          +---------------------------------+
+|                          |   `TLS`_                        |
+|                          +---------------------------------+
+|                          |   :ref:`FOTA <nrf9160_ug_fota>` |
++--------------------------+---------------------------------+
+| `nRF Cloud`_             |   `MQTT`_                       |
+|                          +---------------------------------+
+|                          |   `TLS`_                        |
+|                          +---------------------------------+
+|                          |   :ref:`FOTA <nrf9160_ug_fota>` |
++                          +---------------------------------+
+|                          |   :ref:`lib_nrf_cloud_agps`     |
++--------------------------+---------------------------------+
+|                          |   :ref:`lib_nrf_cloud_pgps`     |
++--------------------------+---------------------------------+
 
-`Azure support for Asset Tracker v2`_ is currently under implementation.
+By default, the application is configured to communicate with `nRF Cloud`_ using the factory-provisioned certificates on Thingy:91 and nRF9160 DK.
+This enables the application to function out-of-the-box with nRF Cloud.
+However, nRF Cloud does not fully support the application firmware and has limitations.
+For more information, see :ref:`nRF Cloud implementation limitations <nrf_cloud_limitations>`.
+To enable all features of the Asset Tracker v2, use the other supported cloud service implementations.
 
-Setting up the nRF Asset Tracker for AWS
-----------------------------------------
+.. note::
+   The Azure FOTA process is expected to change in the near future depending on the new `Azure Device Update for IoT Hub`_ that is currently in preview.
 
-The application is compatible with the `nRF Asset Tracker for AWS`_, which is an open source reference implementation of a serverless backend for an IoT product.
-To set up the application to work with the nRF Asset Tracker for AWS, see the `Getting started guide for nRF Asset Tracker for AWS`_.
+Setting up the Asset Tracker cloud example
+------------------------------------------
 
-Once you have finished the setup, you must provide the broker hostname to the firmware using the :option:`CONFIG_AWS_IOT_BROKER_HOST_NAME` Kconfig option.
-Configure the secTag using the :option:`CONFIG_AWS_IOT_SEC_TAG` Kconfig option. For example, you can use the default value of ``42`` that is used in the nRF Asset Tracker for AWS .
+To set up the application to work with a specific cloud example, see the following documentation:
+
+* nRF Cloud - `Creating an nRF Cloud account`_ and `Connecting your device to nRF Cloud`_.
+* AWS IoT Core - `Getting started guide for nRF Asset Tracker for AWS`_
+* Azure IoT Hub - `Getting started guide for nRF Asset Tracker for Azure`_
+
+For every cloud service that is supported by this application, you must configure the corresponding *cloud library* by setting certain mandatory Kconfig options that are specific to the cloud library.
+For more information, see :ref:`Cloud-specific mandatory Kconfig options <mandatory_config>`.
 
 Configuration options
 =====================
@@ -235,7 +278,7 @@ Check and configure the following configuration options for the application:
 
 .. option:: CONFIG_ASSET_TRACKER_V2_APP_VERSION - Configuration for providing the application version
 
-   The application publishes its version number as a part of the static device data. The default value for the application version is ``0.0.0-development``. To configure the application version, set :option:`CONFIG_ASSET_TRACKER_V2_APP_VERSION` to the desired ``app-version``.
+   The application publishes its version number as a part of the static device data. The default value for the application version is ``0.0.0-development``. To configure the application version, set :option:`CONFIG_ASSET_TRACKER_V2_APP_VERSION` to the desired version.
 
 .. option:: CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM - Configuration for enabling the use of custom cloud client ID
 
@@ -245,22 +288,75 @@ Check and configure the following configuration options for the application:
 
    This application configuration sets a custom client ID for the respective cloud. For setting a custom client ID, you need to set :option:`CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM` to ``y``.
 
-Additional configuration
-========================
 
-To get the application to communicate with a specified cloud service, configure the Kconfig options specific to each *cloud library*.
-Every cloud service supported in |NCS| has a corresponding *cloud library* that needs to be selected and properly configured.
+.. _default_config_values:
 
-You must check and configure the following :ref:`lib_aws_iot` library options that are used by the application:
+The default values for the device configuration parameters can be set by manipulating the following configurations:
+
+.. option:: CONFIG_DATA_DEVICE_MODE - Configuration for the device mode
+
+   This application configuration sets the device mode.
+
+.. option:: CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS - Configuration for Active mode
+
+   This application configuration sets the Active mode timeout value.
+
+.. option:: CONFIG_DATA_MOVEMENT_RESOLUTION_SECONDS - Configuration for Movement resolution
+
+   This configuration sets the Movement resolution timeout value.
+
+.. option:: CONFIG_DATA_MOVEMENT_TIMEOUT_SECONDS - Configuration for Movement timeout
+
+   This configuration sets the Movement timeout value.
+
+.. option:: CONFIG_DATA_ACCELEROMETER_THRESHOLD - Configuration for Accelerometer threshold
+
+   This configuration sets the Accelerometer threshold value.
+
+.. option:: CONFIG_DATA_GPS_TIMEOUT_SECONDS - Configuration for GPS timeout
+
+   This configuration sets the GPS timeout value.
+
+
+.. _mandatory_config:
+
+Mandatory library configuration
+===============================
+
+You can set the mandatory library-specific Kconfig options in the :file:`prj.conf` file of the application.
+
+Configurations for AWS IoT library
+----------------------------------
 
 * :option:`CONFIG_AWS_IOT_BROKER_HOST_NAME`
 * :option:`CONFIG_AWS_IOT_SEC_TAG`
 
-Additionally, you can add the following optional configurations to configure the heap or to provide additional information such as APN to the modem for registering with an LTE network:
+
+Configurations for Azure IoT Hub library
+----------------------------------------
+
+* :option:`CONFIG_AZURE_IOT_HUB_DPS_HOSTNAME`
+* :option:`CONFIG_AZURE_IOT_HUB_DPS_ID_SCOPE`
+* :option:`CONFIG_AZURE_IOT_HUB_SEC_TAG`
+* :option:`CONFIG_AZURE_FOTA_SEC_TAG`
+
+.. note:
+   The nRF Cloud library does not require any library-specific Kconfig options to be set.
+
+Optional library configurations
+===============================
+
+You can add the following optional configurations to configure the heap or to provide additional information such as APN to the modem for registering with an LTE network:
 
 * :option:`CONFIG_HEAP_MEM_POOL_SIZE` - Configures the size of the heap that is used by the application when encoding and sending data to the cloud. More information can be found in :ref:`memory_allocation`.
 * :option:`CONFIG_PDN_DEFAULTS_OVERRIDE` - Used for manual configuration of the APN. Set the option to ``y`` to override the default PDP context configuration.
 * :option:`CONFIG_PDN_DEFAULT_APN` - Used for manual configuration of the APN. An example is ``apn.example.com``.
+
+The application supports Assisted GPS.
+To set the source of the A-GPS data, set the following options:
+
+* :option:`CONFIG_AGPS_SRC_SUPL` - Sets the external SUPL Client library as A-GPS data source. See the documentation on :ref:`supl_client_lib`.
+* :option:`CONFIG_AGPS_SRC_NRF_CLOUD` - Sets nRF Cloud as A-GPS data source. You must set nRF Cloud as the firmware cloud backend.
 
 Configuration files
 ===================
@@ -310,7 +406,7 @@ Building with overlays
 
 To build with Kconfig overlay, it must be based to the build system, as shown in the following example:
 
-    ``west build -b nrf9160dk_nrf9160ns -- -DOVERLAY_CONFIG=overlay-low-power.conf``
+``west build -b nrf9160dk_nrf9160ns -- -DOVERLAY_CONFIG=overlay-low-power.conf``
 
 The above command will build for nRF9160 DK using the configurations found in :file:`overlay-low-power.conf`, in addition to the configurations found in :file:`prj_nrf9160dk_nrf9160ns.conf`.
 If some options are defined in both files, the options set in the overlay take precedence.
@@ -356,6 +452,44 @@ After programming the application and all the prerequisites to your development 
     <wrn> data_module: No batch data to encode, ringbuffers empty
     <inf> event_manager: CLOUD_EVT_DATA_ACK
 
+Known issues and limitations
+****************************
+
+.. _nrf_cloud_limitations:
+
+Enabling full support for nRF Cloud is currently a work in progress.
+Following are the current limitations in the nRF Cloud implementation of the Asset Tracker v2:
+
+* Data that is sampled by the device must ideally be addressed to the cloud-side device state and published in a single packet for regular device updates.
+  This is to avoid the unnecessary stack overhead associated with splitting the payload and the additional current consumption that might result from splitting and sending the data as separate packets.
+  However, in the case of nRF Cloud implementation, the nRF Cloud front end supports only the display of APP_DATA_MODEM_DYNAMIC (networkInfo) and APP_DATA_MODEM_STATIC (deviceInfo) through the device shadow.
+  The other supported data types (GPS, temperature, and humidity) must be sent in a specified format to a separate message endpoint for the front end to graphically represent the data.
+  You can find the JSON protocol definitions for data sent to the message endpoint in `nRF Cloud JSON protocol schemas`_.
+
+* The nRF Cloud web application does not support the manipulation of real-time configurations.
+  However, this is possible by using the REST API calls described in `nRF Cloud Patch Device State`_.
+  To manipulate the device configuration, the ``desired`` section of the device state must be populated with the desired configuration of the device.
+  The following schema sets the various device configuration parameters to their default values:
+
+   .. parsed-literal::
+      :class: highlight
+
+	{
+		"desired":{
+			"config":{
+				"activeMode":true,
+				"activeWaitTime":120,
+				"movementTimeout":3600,
+				"movementResolution":120,
+				"gpsTimeout":60,
+				"movementThreshold":10
+			}
+		}
+	}
+
+* nRF Cloud does not support a separate endpoint for *batch* data updates. To temporarily circumvent this, batched data updates are sent to the message endpoint.
+
+
 Dependencies
 ************
 
@@ -363,6 +497,12 @@ This application uses the following |NCS| libraries and drivers:
 
 * :ref:`event_manager`
 * :ref:`lib_aws_iot`
+* :ref:`lib_aws_fota`
+* :ref:`lib_azure_iot_hub`
+* :ref:`lib_azure_fota`
+* :ref:`lib_nrf_cloud`
+* :ref:`lib_nrf_cloud_fota`
+* :ref:`lib_nrf_cloud_agps`
 * :ref:`lib_date_time`
 * :ref:`lte_lc_readme`
 * :ref:`modem_info_readme`

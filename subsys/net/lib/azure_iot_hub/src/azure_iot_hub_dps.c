@@ -20,7 +20,6 @@ LOG_MODULE_REGISTER(azure_iot_hub_dps, CONFIG_AZURE_IOT_HUB_LOG_LEVEL);
 
 #define DPS_REG_STATUS_UPDATE_MAX_RETRIES	10
 #define DPS_OPERATION_ID_MAX_LEN		60
-#define DPS_TOPIC_OPERATION_ID_MAX_LEN		(DPS_OPERATION_ID_MAX_LEN + 100)
 #define DPS_REGISTERED_HUB_MAX_LEN		100
 #define DPS_SETTINGS_KEY			"azure_iot_hub"
 #define DPS_SETTINGS_HOSTNAME_LEN_KEY		"hostname_len"
@@ -33,6 +32,9 @@ LOG_MODULE_REGISTER(azure_iot_hub_dps, CONFIG_AZURE_IOT_HUB_LOG_LEVEL);
 #define DPS_TOPIC_REG_STATUS	\
 	"$dps/registrations/GET/iotdps-get-operationstatus/" \
 	"?$rid=%s&operationId=%s"
+#define DPS_TOPIC_OPERATION_ID_MAX_LEN (DPS_OPERATION_ID_MAX_LEN + \
+					sizeof(DPS_TOPIC_REG_STATUS) + \
+					CONFIG_AZURE_IOT_HUB_DEVICE_ID_MAX_LEN)
 #define DPS_TOPIC_REG		"$dps/registrations/res/"
 #define DPS_TOPIC_REG_SUB	DPS_TOPIC_REG "#"
 #define DPS_TOPIC_REG_PUB	"$dps/registrations/PUT/iotdps-register/" \
@@ -64,6 +66,16 @@ static char dps_topic_reg_pub[sizeof(DPS_TOPIC_REG_PUB) +
 /* If DPS is enabled, the ID scope must be defined */
 BUILD_ASSERT(sizeof(CONFIG_AZURE_IOT_HUB_DPS_ID_SCOPE) - 1 > 0,
 	     "The DPS ID scope must be defined");
+
+/* The device ID is used as DPS registration ID, and will be received back
+ * in response to registration request. Therefore the size of a property bag
+ * must be at least as large as the maximum device ID.
+ */
+BUILD_ASSERT(CONFIG_AZURE_IOT_HUB_TOPIC_ELEMENT_MAX_LEN >=
+	     CONFIG_AZURE_IOT_HUB_DEVICE_ID_MAX_LEN,
+	     "CONFIG_AZURE_IOT_HUB_TOPIC_ELEMENT_MAX_LEN must be at least as "
+	     "large as CONFIG_AZURE_IOT_HUB_DEVICE_ID_MAX_LEN "
+	     "when DPS is enabled");
 
 /* Forward declarations */
 static int dps_on_settings_loaded(void);

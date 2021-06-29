@@ -65,7 +65,6 @@ static int nfds;
 void rsp_send(const uint8_t *str, size_t len);
 int enter_datamode(slm_datamode_handler_t handler);
 bool exit_datamode(void);
-bool check_uart_flowcontrol(void);
 
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
@@ -81,7 +80,7 @@ static int do_tcp_server_start(uint16_t port)
 	int ret = 0;
 	struct sockaddr_in local;
 	int addr_len;
-	char ipv4_addr[NET_IPV4_ADDR_LEN];
+	char ipv4_addr[NET_IPV4_ADDR_LEN] = {0};
 #if SLM_TCP_PROXY_FUTURE_FEATURE
 	int addr_reuse = 1;
 #endif
@@ -139,7 +138,8 @@ static int do_tcp_server_start(uint16_t port)
 	/* Bind to local port */
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
-	if (!util_get_ipv4_addr(ipv4_addr)) {
+	util_get_ip_addr(ipv4_addr, NULL);
+	if (strlen(ipv4_addr) == 0) {
 		LOG_ERR("Unable to obtain local IPv4 address");
 		ret = -ENETUNREACH;
 		goto exit;
@@ -813,12 +813,6 @@ int handle_at_tcp_server(enum at_cmd_type cmd_type)
 			if (param_count > 3) {
 				at_params_unsigned_int_get(&at_param_list, 3, &proxy.sec_tag);
 			}
-#if defined(CONFIG_SLM_DATAMODE_HWFC)
-			if (op == AT_SERVER_START_WITH_DATAMODE && !check_uart_flowcontrol()) {
-				LOG_ERR("Data mode requires HWFC.");
-				return -EINVAL;
-			}
-#endif
 			err = do_tcp_server_start((uint16_t)port);
 			if (err == 0 && op == AT_SERVER_START_WITH_DATAMODE) {
 				proxy.datamode = true;
@@ -885,12 +879,6 @@ int handle_at_tcp_client(enum at_cmd_type cmd_type)
 			if (param_count > 4) {
 				at_params_unsigned_int_get(&at_param_list, 4, &proxy.sec_tag);
 			}
-#if defined(CONFIG_SLM_DATAMODE_HWFC)
-			if (op == AT_CLIENT_CONNECT_WITH_DATAMODE && !check_uart_flowcontrol()) {
-				LOG_ERR("Data mode requires HWFC.");
-				return -EINVAL;
-			}
-#endif
 			err = do_tcp_client_connect(url, (uint16_t)port);
 			if (err == 0 && op == AT_CLIENT_CONNECT_WITH_DATAMODE) {
 				proxy.datamode = true;

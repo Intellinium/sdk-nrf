@@ -9,15 +9,17 @@
 #include <drivers/gps.h>
 #include <net/socket.h>
 #include <nrf_socket.h>
-
 #include <cJSON.h>
 #include <cJSON_os.h>
 #include <modem/modem_info.h>
 #include <net/nrf_cloud_agps.h>
-
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+#include <net/nrf_cloud_pgps.h>
+#endif
+#include <stdio.h>
 #include <logging/log.h>
 
-LOG_MODULE_REGISTER(nrf_cloud_agps, CONFIG_NRF_CLOUD_AGPS_LOG_LEVEL);
+LOG_MODULE_REGISTER(nrf_cloud_agps, CONFIG_NRF_CLOUD_GPS_LOG_LEVEL);
 
 #include "nrf_cloud_transport.h"
 #include "nrf_cloud_agps_schema_v1.h"
@@ -37,29 +39,17 @@ LOG_MODULE_REGISTER(nrf_cloud_agps, CONFIG_NRF_CLOUD_AGPS_LOG_LEVEL);
 
 #define AGPS_JSON_APPID_KEY		"appId"
 #define AGPS_JSON_APPID_VAL_AGPS	"AGPS"
-#define AGPS_JSON_APPID_VAL_SINGLE_CELL	"SCELL"
-#define AGPS_JSON_APPID_VAL_MULTI_CELL	"MCELL"
-#define AGPS_JSON_CELL_LOC_KEY_LAT	"lat"
-#define AGPS_JSON_CELL_LOC_KEY_LON	"lon"
-#define AGPS_JSON_CELL_LOC_KEY_UNCERT	"uncertainty"
 
 extern void agps_print(enum nrf_cloud_agps_type type, void *data);
+
+static K_SEM_DEFINE(agps_injection_active, 1, 1);
 
 static int fd = -1;
 static bool agps_print_enabled;
 static const struct device *gps_dev;
 static bool json_initialized;
-
-struct cell_based_loc_data {
-	enum cell_based_location_type type;
-	double lat;
-	double lon;
-	uint32_t unc;
-};
-
-static struct cell_based_loc_data cell_based_loc = {
-	.type = CELL_LOC_TYPE_SINGLE
-};
+static struct gps_agps_request processed;
+static atomic_t request_in_progress;
 
 static enum gps_agps_type type_lookup_socket2gps[] = {
 	[NRF_GNSS_AGPS_UTC_PARAMETERS]	= GPS_AGPS_UTC_PARAMETERS,
@@ -229,6 +219,11 @@ static int json_send_to_cloud(cJSON *const agps_request)
 	return err;
 }
 
+bool nrf_cloud_agps_request_in_progress(void)
+{
+	return atomic_get(&request_in_progress) != 0;
+}
+
 int nrf_cloud_agps_request(const struct gps_agps_request request)
 {
 	int err;
@@ -237,51 +232,42 @@ int nrf_cloud_agps_request(const struct gps_agps_request request)
 	cJSON *data_obj;
 	cJSON *agps_req_obj;
 
-#if defined(CONFIG_NRF_CLOUD_AGPS_SINGLE_CELL_ONLY)
-	return nrf_cloud_agps_request_cell_location(CELL_LOC_TYPE_SINGLE,
-		(bool)IS_ENABLED(CONFIG_NRF_CLOUD_AGPS_REQ_CELL_BASED_LOC));
-#endif
+	atomic_set(&request_in_progress, 0);
+	memset(&processed, 0, sizeof(processed));
 
 	if (request.utc) {
-		types[type_count] = GPS_AGPS_UTC_PARAMETERS;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_UTC_PARAMETERS;
 	}
 
+#if !defined(CONFIG_NRF_CLOUD_PGPS)
 	if (request.sv_mask_ephe) {
-		types[type_count] = GPS_AGPS_EPHEMERIDES;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_EPHEMERIDES;
 	}
 
 	if (request.sv_mask_alm) {
-		types[type_count] = GPS_AGPS_ALMANAC;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_ALMANAC;
 	}
+#endif
 
 	if (request.klobuchar) {
-		types[type_count] = GPS_AGPS_KLOBUCHAR_CORRECTION;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_KLOBUCHAR_CORRECTION;
 	}
 
 	if (request.nequick) {
-		types[type_count] = GPS_AGPS_NEQUICK_CORRECTION;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_NEQUICK_CORRECTION;
 	}
 
 	if (request.system_time_tow) {
-		types[type_count] = GPS_AGPS_GPS_TOWS;
-		type_count += 1;
-		types[type_count] = GPS_AGPS_GPS_SYSTEM_CLOCK_AND_TOWS;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_GPS_TOWS;
+		types[type_count++] = GPS_AGPS_GPS_SYSTEM_CLOCK_AND_TOWS;
 	}
 
 	if (request.position) {
-		types[type_count] = GPS_AGPS_LOCATION;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_LOCATION;
 	}
 
 	if (request.integrity) {
-		types[type_count] = GPS_AGPS_INTEGRITY;
-		type_count += 1;
+		types[type_count++] = GPS_AGPS_INTEGRITY;
 	}
 
 	if (type_count == 0) {
@@ -312,120 +298,14 @@ int nrf_cloud_agps_request(const struct gps_agps_request request)
 	}
 
 	err = json_send_to_cloud(agps_req_obj);
+	if (!err) {
+		atomic_set(&request_in_progress, 1);
+	}
 
 cleanup:
 	cJSON_Delete(agps_req_obj);
 
 	return err;
-}
-
-bool json_item_string_exists(const cJSON *const obj,
-				 const char *const key,
-				 const char *const val)
-{
-	__ASSERT_NO_MSG(obj != NULL);
-	__ASSERT_NO_MSG(key != NULL);
-
-	char *str_val;
-	cJSON *item = cJSON_GetObjectItem(obj, key);
-
-	if (!item) {
-		return false;
-	}
-
-	if (!val) {
-		return cJSON_IsNull(item);
-	}
-
-	str_val = cJSON_GetStringValue(item);
-	if (!str_val) {
-		return false;
-	}
-
-	return (strcmp(str_val, val) == 0);
-}
-
-static int json_parse_cell_location(const cJSON *const cell_loc_obj,
-				    const enum cell_based_location_type type)
-{
-	__ASSERT_NO_MSG(cell_loc_obj);
-
-	cJSON *lat, *lon, *unc;
-
-	lat = cJSON_GetObjectItem(cell_loc_obj,
-				  AGPS_JSON_CELL_LOC_KEY_LAT);
-	lon = cJSON_GetObjectItem(cell_loc_obj,
-				  AGPS_JSON_CELL_LOC_KEY_LON);
-	unc = cJSON_GetObjectItem(cell_loc_obj,
-				  AGPS_JSON_CELL_LOC_KEY_UNCERT);
-
-	if (!cJSON_IsNumber(lat) || !cJSON_IsNumber(lon) ||
-	    !cJSON_IsNumber(unc)) {
-		LOG_DBG("Expected items not found in cell-based location msg");
-		return -EBADMSG;
-	}
-
-	cell_based_loc.lat = lat->valuedouble;
-	cell_based_loc.lon = lon->valuedouble;
-	cell_based_loc.unc = unc->valueint;
-	cell_based_loc.type = type;
-
-	LOG_DBG("Cell location: (%lf, %lf), unc: %d, type: %d",
-		cell_based_loc.lat, cell_based_loc.lon,
-		cell_based_loc.unc, cell_based_loc.type);
-
-	return 0;
-}
-
-static int parse_cell_location_response(const char *const buf)
-{
-	int ret;
-	cJSON *cell_loc_obj;
-	cJSON *data_obj;
-	enum cell_based_location_type cell_loc_type;
-
-	if (buf == NULL) {
-		return -EINVAL;
-	}
-
-	cell_loc_obj = cJSON_Parse(buf);
-	if (!cell_loc_obj) {
-		LOG_DBG("No JSON found for cell location");
-		return 1;
-	}
-
-	ret = -ENOTSUP;
-
-	/* Check for valid appId and msgType */
-	if (!json_item_string_exists(cell_loc_obj, AGPS_JSON_MSG_TYPE_KEY,
-				     AGPS_JSON_MSG_TYPE_VAL_DATA)) {
-		LOG_DBG("Wrong msg type for cell location");
-		goto cleanup;
-	}
-
-	if (json_item_string_exists(cell_loc_obj, AGPS_JSON_APPID_KEY,
-				    AGPS_JSON_APPID_VAL_SINGLE_CELL)) {
-		cell_loc_type = CELL_LOC_TYPE_SINGLE;
-	} else if (json_item_string_exists(cell_loc_obj, AGPS_JSON_APPID_KEY,
-					   AGPS_JSON_APPID_VAL_MULTI_CELL)) {
-		cell_loc_type = CELL_LOC_TYPE_MULTI;
-	} else {
-		LOG_DBG("Wrong app id for cell location");
-		goto cleanup;
-	}
-
-	data_obj = cJSON_GetObjectItem(cell_loc_obj, AGPS_JSON_DATA_KEY);
-	if (!data_obj) {
-		LOG_DBG("Data object not found in cell-based location msg.");
-		ret = -EBADMSG;
-		goto cleanup;
-	}
-
-	ret = json_parse_cell_location(data_obj, cell_loc_type);
-
-cleanup:
-	cJSON_Delete(cell_loc_obj);
-	return ret;
 }
 
 int nrf_cloud_agps_request_all(void)
@@ -626,11 +506,17 @@ static int copy_time_and_tow(nrf_gnss_agps_data_system_time_and_sv_tow_t *dst,
 
 static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 {
+	atomic_set(&request_in_progress, 0);
+
 	switch (agps_data->type) {
 	case NRF_CLOUD_AGPS_UTC_PARAMETERS: {
 		nrf_gnss_agps_data_utc_t utc;
 
+		processed.utc = true;
 		copy_utc(&utc, agps_data);
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+		nrf_cloud_pgps_set_leap_seconds(utc.delta_tls);
+#endif
 		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_UTC_PARAMETERS");
 
 		return send_to_modem(&utc, sizeof(utc),
@@ -639,8 +525,18 @@ static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 	case NRF_CLOUD_AGPS_EPHEMERIDES: {
 		nrf_gnss_agps_data_ephemeris_t ephemeris;
 
+		processed.sv_mask_ephe |= (1 << (agps_data->ephemeris->sv_id - 1));
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+		if (agps_data->ephemeris->health ==
+		    NRF_CLOUD_PGPS_EMPTY_EPHEM_HEALTH) {
+			LOG_DBG("Skipping empty ephemeris for sv %u",
+				agps_data->ephemeris->sv_id);
+			return 0;
+		}
+#endif
 		copy_ephemeris(&ephemeris, agps_data);
-		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_EPHEMERIDES");
+		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_EPHEMERIDES %d",
+			agps_data->ephemeris->sv_id);
 
 		return send_to_modem(&ephemeris, sizeof(ephemeris),
 				     NRF_GNSS_AGPS_EPHEMERIDES);
@@ -648,8 +544,10 @@ static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 	case NRF_CLOUD_AGPS_ALMANAC: {
 		nrf_gnss_agps_data_almanac_t almanac;
 
+		processed.sv_mask_alm |= (1 << (agps_data->almanac->sv_id - 1));
 		copy_almanac(&almanac, agps_data);
-		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_ALMANAC");
+		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_ALMANAC %d",
+			agps_data->almanac->sv_id);
 
 		return send_to_modem(&almanac, sizeof(almanac),
 				     NRF_GNSS_AGPS_ALMANAC);
@@ -657,6 +555,7 @@ static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 	case NRF_CLOUD_AGPS_KLOBUCHAR_CORRECTION: {
 		nrf_gnss_agps_data_klobuchar_t klobuchar;
 
+		processed.klobuchar = true;
 		copy_klobuchar(&klobuchar, agps_data);
 		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_KLOBUCHAR_CORRECTION");
 
@@ -666,6 +565,7 @@ static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 	case NRF_CLOUD_AGPS_GPS_SYSTEM_CLOCK: {
 		nrf_gnss_agps_data_system_time_and_sv_tow_t time_and_tow;
 
+		processed.system_time_tow = true;
 		copy_time_and_tow(&time_and_tow, agps_data);
 		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_GPS_SYSTEM_CLOCK");
 
@@ -675,7 +575,12 @@ static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 	case NRF_CLOUD_AGPS_LOCATION: {
 		nrf_gnss_agps_data_location_t location = {0};
 
+		processed.position = true;
 		copy_location(&location, agps_data);
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+		nrf_cloud_pgps_set_location_normalized(location.latitude,
+						  location.longitude);
+#endif
 		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_LOCATION");
 
 		return send_to_modem(&location, sizeof(location),
@@ -684,6 +589,7 @@ static int agps_send_to_modem(struct nrf_cloud_apgs_element *agps_data)
 	case NRF_CLOUD_AGPS_INTEGRITY:
 		LOG_DBG("A-GPS type: NRF_CLOUD_AGPS_INTEGRITY");
 
+		processed.integrity = true;
 		return send_to_modem(agps_data->integrity,
 				     sizeof(agps_data->integrity),
 				     NRF_GNSS_AGPS_INTEGRITY);
@@ -765,93 +671,30 @@ static size_t get_next_agps_element(struct nrf_cloud_apgs_element *element,
 	return len;
 }
 
-int nrf_cloud_agps_request_cell_location(enum cell_based_location_type type,
-					 const bool request_loc)
-{
-	int err;
-	cJSON *data_obj;
-	cJSON *agps_req_obj;
-
-	/* TODO: currently single cell only */
-	ARG_UNUSED(type);
-	agps_req_obj = json_create_req_obj(AGPS_JSON_APPID_VAL_SINGLE_CELL,
-					   AGPS_JSON_MSG_TYPE_VAL_DATA);
-	data_obj = cJSON_AddObjectToObject(agps_req_obj, AGPS_JSON_DATA_KEY);
-
-	if (!agps_req_obj || !data_obj) {
-		err = -ENOMEM;
-		goto cleanup;
-	}
-
-	/* Add modem info to the data object */
-	err = json_add_modem_info(data_obj);
-	if (err) {
-		LOG_ERR("Failed to add modem info to cell loc req: %d", err);
-		goto cleanup;
-	}
-
-	/* By default, nRF Cloud will send the location to the device */
-	if (!request_loc) {
-		/* Specify that location should not be sent to the device */
-		cJSON_AddNumberToObject(data_obj,
-					AGPS_JSON_CELL_LOC_KEY_DOREPLY,
-					0);
-	}
-
-	err = json_send_to_cloud(agps_req_obj);
-
-cleanup:
-	cJSON_Delete(agps_req_obj);
-
-	return err;
-}
-
-int nrf_cloud_agps_get_last_cell_location(double *const lat,
-					  double *const lon)
-{
-	if (!lat && !lon) {
-		return -EINVAL;
-	}
-
-	if (lat) {
-		*lat = cell_based_loc.lat;
-	}
-
-	if (lon) {
-		*lon = cell_based_loc.lon;
-	}
-
-	return 0;
-}
-
 int nrf_cloud_agps_process(const char *buf, size_t buf_len, const int *socket)
 {
 	int err;
-	struct nrf_cloud_apgs_element element = {};
-	struct nrf_cloud_agps_system_time sys_time = {};
+	struct nrf_cloud_apgs_element element = {0};
+	struct nrf_cloud_agps_system_time sys_time = {0};
 	uint32_t sv_mask = 0;
 	size_t parsed_len = 0;
 	uint8_t version;
 
-	err = parse_cell_location_response(buf);
-	if (err <= 0) {
-		if (err && err != -ENOTSUP) {
-			LOG_ERR("Error processing cell-based location: %d",
-				err);
-		}
-		/* Do not continue, this is JSON or cell-based location */
+
+	err = k_sem_take(&agps_injection_active, K_FOREVER);
+	if (err) {
+		LOG_ERR("A-GPS injection already active.");
 		return err;
 	}
-#if defined(CONFIG_NRF_CLOUD_AGPS_SINGLE_CELL_ONLY)
-	LOG_ERR("Single-cell only is enabled, ignoring binary A-GPS data");
-	return -EOPNOTSUPP;
-#endif
+	LOG_DBG("A-GPS_injection_active LOCKED");
 
 	version = buf[NRF_CLOUD_AGPS_BIN_SCHEMA_VERSION_INDEX];
 	parsed_len += NRF_CLOUD_AGPS_BIN_SCHEMA_VERSION_SIZE;
 
-	__ASSERT(version == NRF_CLOUD_AGPS_BIN_SCHEMA_VERSION,
-		 "Cannot parse schema version: %d", version);
+	if (version != NRF_CLOUD_AGPS_BIN_SCHEMA_VERSION) {
+		LOG_ERR("Cannot parse schema version: %d", version);
+		return -EBADMSG;
+	}
 
 	LOG_DBG("Received AGPS data. Schema version: %d, length: %d",
 		version, buf_len);
@@ -865,6 +708,8 @@ int nrf_cloud_agps_process(const char *buf, size_t buf_len, const int *socket)
 		gps_dev = device_get_binding("NRF9160_GPS");
 		if (gps_dev == NULL) {
 			LOG_ERR("GPS is not enabled, A-GPS response unhandled");
+			LOG_DBG("A-GPS_inject_active UNLOCKED");
+			k_sem_give(&agps_injection_active);
 			return -ENODEV;
 		}
 	}
@@ -905,9 +750,19 @@ int nrf_cloud_agps_process(const char *buf, size_t buf_len, const int *socket)
 		err = agps_send_to_modem(&element);
 		if (err) {
 			LOG_ERR("Failed to send data to modem, error: %d", err);
-			return err;
+			break;
 		}
 	}
 
-	return 0;
+	LOG_DBG("A-GPS_inject_active UNLOCKED");
+	k_sem_give(&agps_injection_active);
+
+	return err;
+}
+
+void nrf_cloud_agps_processed(struct gps_agps_request *received_elements)
+{
+	if (received_elements) {
+		memcpy(received_elements, &processed, sizeof(struct gps_agps_request));
+	}
 }

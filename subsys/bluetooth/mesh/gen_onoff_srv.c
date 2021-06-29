@@ -60,7 +60,7 @@ static void onoff_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	struct bt_mesh_onoff_srv *srv = model->user_data;
 	struct bt_mesh_onoff_status status = { 0 };
 	struct bt_mesh_model_transition transition;
-	struct bt_mesh_onoff_set set = { .transition = &transition };
+	struct bt_mesh_onoff_set set;
 
 	uint8_t on_off = net_buf_simple_pull_u8(buf);
 	uint8_t tid = net_buf_simple_pull_u8(buf);
@@ -81,8 +81,10 @@ static void onoff_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 
 	if (buf->len == 2) {
 		model_transition_buf_pull(buf, &transition);
+		set.transition = &transition;
 	} else if (!atomic_test_bit(&srv->flags, GEN_ONOFF_SRV_NO_DTT)) {
 		bt_mesh_dtt_srv_transition_get(srv->model, &transition);
+		set.transition = &transition;
 	} else {
 		set.transition = NULL;
 	}
@@ -90,7 +92,7 @@ static void onoff_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	srv->handlers->set(srv, ctx, &set, &status);
 
 	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-		bt_mesh_scene_invalidate(&srv->scene);
+		bt_mesh_scene_invalidate(srv->model);
 	}
 
 	(void)bt_mesh_onoff_srv_pub(srv, NULL, &status);
@@ -158,14 +160,24 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 	};
 
 	srv->handlers->set(srv, NULL, &set, &status);
+}
+
+static void scene_recall_complete(struct bt_mesh_model *model)
+{
+	struct bt_mesh_onoff_srv *srv = model->user_data;
+	struct bt_mesh_onoff_status status = { 0 };
+
+	srv->handlers->get(srv, NULL, &status);
 
 	(void)bt_mesh_onoff_srv_pub(srv, NULL, &status);
 }
 
-static const struct bt_mesh_scene_entry_type scene_type = {
+BT_MESH_SCENE_ENTRY_SIG(onoff) = {
+	.id.sig = BT_MESH_MODEL_ID_GEN_ONOFF_SRV,
 	.maxlen = 1,
 	.store = scene_store,
 	.recall = scene_recall,
+	.recall_complete = scene_recall_complete,
 };
 /* .. include_endpoint_scene_srv_rst_1 */
 
@@ -189,10 +201,6 @@ static int bt_mesh_onoff_srv_init(struct bt_mesh_model *model)
 	srv->pub.update = update_handler;
 	net_buf_simple_init_with_data(&srv->pub_buf, srv->pub_data,
 				      sizeof(srv->pub_data));
-
-	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-		bt_mesh_scene_entry_add(model, &srv->scene, &scene_type, false);
-	}
 
 	return 0;
 }

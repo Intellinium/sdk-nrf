@@ -247,74 +247,133 @@ static int do_socket_close(int error)
 	return ret;
 }
 
-static int do_socketopt_set(int name, int value)
+static int do_socketopt_set_str(int option, const char *value)
 {
 	int ret = -ENOTSUP;
 
-	switch (name) {
-	case SO_REUSEADDR:	/* Ignored by Zephyr */
-	case SO_ERROR:		/* Ignored by Zephyr */
-		sprintf(rsp_buf, "\r\n#XSOCKETOPT: \"ignored\"\r\n");
-		rsp_send(rsp_buf, strlen(rsp_buf));
-		ret = 0;
+	switch (option) {
+	case SO_BINDTODEVICE:
+		ret = setsockopt(client.sock, SOL_SOCKET, option, value, strlen(value));
+		if (ret < 0) {
+			LOG_ERR("setsockopt(%d) error: %d", option, -errno);
+		}
 		break;
 
-	case SO_RCVTIMEO: {
-		struct timeval tmo = { .tv_sec = value };
+	default:
+		LOG_WRN("Unknown option %d", option);
+		break;
+	}
 
-		ret = setsockopt(client.sock, SOL_SOCKET, SO_RCVTIMEO,
-				&tmo, sizeof(struct timeval));
+	return ret;
+
+}
+
+static int do_socketopt_set_int(int option, int value)
+{
+	int ret = -ENOTSUP;
+
+	switch (option) {
+	case SO_REUSEADDR:
+		ret = setsockopt(client.sock, SOL_SOCKET, option, &value, sizeof(int));
 		if (ret < 0) {
-			LOG_ERR("setsockopt() error: %d", -errno);
+			LOG_ERR("setsockopt(%d) error: %d", option, -errno);
+		}
+		break;
+
+	case SO_RCVTIMEO:
+	case SO_SNDTIMEO: {
+		struct timeval tmo = { .tv_sec = value };
+		socklen_t len = sizeof(struct timeval);
+
+		ret = setsockopt(client.sock, SOL_SOCKET, option, &tmo, len);
+		if (ret < 0) {
+			LOG_ERR("setsockopt(%d) error: %d", option, -errno);
 		}
 	} break;
 
-	case SO_BINDTODEVICE:	/* Not supported by SLM for now */
-	case SO_TIMESTAMPING:	/* Not supported by SLM for now */
-	case SO_TXTIME:		/* Not supported by SLM for now */
-	case SO_SOCKS5:		/* Not supported by SLM for now */
-	default:
+	/** NCS extended socket options */
+	case SO_SILENCE_ALL:
+	case SO_IP_ECHO_REPLY:
+	case SO_IPV6_ECHO_REPLY:
+	case SO_TCP_SRV_SESSTIMEO:
+		ret = setsockopt(client.sock, SOL_SOCKET, option, &value, sizeof(int));
+		if (ret < 0) {
+			LOG_ERR("setsockopt(%d) error: %d", option, -errno);
+		}
+		break;
+
+	/* RAI-related */
+	case SO_RAI_LAST:
+	case SO_RAI_NO_DATA:
+	case SO_RAI_ONE_RESP:
+	case SO_RAI_ONGOING:
+	case SO_RAI_WAIT_MORE:
+		ret = setsockopt(client.sock, SOL_SOCKET, option, NULL, 0);
+		if (ret < 0) {
+			LOG_ERR("setsockopt(%d) error: %d", option, -errno);
+		}
+		break;
+
+
+	case SO_PRIORITY:
+	case SO_TIMESTAMPING:
 		sprintf(rsp_buf, "\r\n#XSOCKETOPT: \"not supported\"\r\n");
 		rsp_send(rsp_buf, strlen(rsp_buf));
+		break;
+
+	default:
+		LOG_WRN("Unknown option %d", option);
 		break;
 	}
 
 	return ret;
 }
 
-static int do_socketopt_get(int name)
+static int do_socketopt_get(int option)
 {
 	int ret = 0;
 
-	switch (name) {
-	case SO_REUSEADDR:	/* Ignored by Zephyr */
-	case SO_ERROR:		/* Ignored by Zephyr */
-		sprintf(rsp_buf, "\r\n#XSOCKETOPT: \"ignored\"\r\n");
-		rsp_send(rsp_buf, strlen(rsp_buf));
-		break;
+	switch (option) {
+	case SO_SILENCE_ALL:
+	case SO_IP_ECHO_REPLY:
+	case SO_IPV6_ECHO_REPLY:
+	case SO_TCP_SRV_SESSTIMEO:
+	case SO_ERROR: {
+		int value;
+		socklen_t len = sizeof(int);
 
-	case SO_RCVTIMEO: {
-		struct timeval tmo;
-		socklen_t len = sizeof(struct timeval);
-
-		ret = getsockopt(client.sock, SOL_SOCKET, SO_RCVTIMEO,
-				&tmo, &len);
+		ret = getsockopt(client.sock, SOL_SOCKET, option, &value, &len);
 		if (ret) {
-			LOG_ERR("getsockopt() error: %d", -errno);
+			LOG_ERR("getsockopt(%d) error: %d", option, -errno);
 		} else {
-			sprintf(rsp_buf, "\r\n#XSOCKETOPT: \"%d sec\"\r\n",
-				(int)tmo.tv_sec);
+			sprintf(rsp_buf, "\r\n#XSOCKETOPT: %d\r\n", value);
 			rsp_send(rsp_buf, strlen(rsp_buf));
 		}
 	} break;
 
-	case SO_BINDTODEVICE:	/* Not supported by SLM for now */
-	case SO_TIMESTAMPING:	/* Not supported by SLM for now */
-	case SO_TXTIME:		/* Not supported by SLM for now */
-	case SO_SOCKS5:		/* Not supported by SLM for now */
-	default:
+	case SO_RCVTIMEO:
+	case SO_SNDTIMEO: {
+		struct timeval tmo;
+		socklen_t len = sizeof(struct timeval);
+
+		ret = getsockopt(client.sock, SOL_SOCKET, option, &tmo, &len);
+		if (ret) {
+			LOG_ERR("getsockopt(%d) error: %d", option, -errno);
+		} else {
+			sprintf(rsp_buf, "\r\n#XSOCKETOPT: \"%d sec\"\r\n", (int)tmo.tv_sec);
+			rsp_send(rsp_buf, strlen(rsp_buf));
+		}
+	} break;
+
+	case SO_TYPE:
+	case SO_PRIORITY:
+	case SO_PROTOCOL:
 		sprintf(rsp_buf, "\r\n#XSOCKETOPT: \"not supported\"\r\n");
 		rsp_send(rsp_buf, strlen(rsp_buf));
+		break;
+
+	default:
+		LOG_WRN("Unknown option %d", option);
 		break;
 	}
 
@@ -325,24 +384,14 @@ static int do_bind(uint16_t port)
 {
 	int ret;
 	struct sockaddr_in local;
-	int addr_len;
-	char ipv4_addr[NET_IPV4_ADDR_LEN];
+	char ipv4_addr[NET_IPV4_ADDR_LEN] = {0};
 
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
 
-	if (!util_get_ipv4_addr(ipv4_addr)) {
+	util_get_ip_addr(ipv4_addr, NULL);
+	if (strlen(ipv4_addr) == 0) {
 		LOG_ERR("Unable to obtain local IPv4 address");
-		return -1;
-	}
-	/* Check network connection status by checking local IP address */
-	addr_len = strlen(ipv4_addr);
-	if (addr_len == 0) {
-		LOG_ERR("LTE not connected yet");
-		return -1;
-	}
-	if (!check_for_ipv4(ipv4_addr, addr_len)) {
-		LOG_ERR("Invalid local address");
 		return -1;
 	}
 
@@ -352,8 +401,7 @@ static int do_bind(uint16_t port)
 		return -EINVAL;
 	}
 
-	ret = bind(client.sock, (struct sockaddr *)&local,
-		 sizeof(struct sockaddr_in));
+	ret = bind(client.sock, (struct sockaddr *)&local, sizeof(struct sockaddr_in));
 	if (ret) {
 		LOG_ERR("bind() failed: %d", -errno);
 		do_socket_close(-errno);
@@ -743,15 +791,12 @@ int handle_at_socketopt(enum at_cmd_type cmd_type)
 	int err = -EINVAL;
 	uint16_t op;
 	uint16_t name;
+	enum at_param_type type = AT_PARAM_TYPE_NUM_INT;
 
 	switch (cmd_type) {
 	case AT_CMD_TYPE_SET_COMMAND:
 		if (client.sock < 0) {
 			LOG_ERR("Socket not opened yet");
-			return err;
-		}
-		if (client.role != AT_SOCKET_ROLE_CLIENT) {
-			LOG_ERR("Invalid role");
 			return err;
 		}
 		err = at_params_unsigned_short_get(&at_param_list, 1, &op);
@@ -763,13 +808,31 @@ int handle_at_socketopt(enum at_cmd_type cmd_type)
 			return err;
 		}
 		if (op == AT_SOCKETOPT_SET) {
-			int value;
+			int value_int  = 0;
+			char value_str[IFNAMSIZ] = {0};
+			int size = IFNAMSIZ;
 
-			err = at_params_int_get(&at_param_list, 3, &value);
-			if (err) {
-				return err;
+			if (at_params_valid_count_get(&at_param_list) > 3) {
+				type = at_params_type_get(&at_param_list, 3);
+				if (type == AT_PARAM_TYPE_NUM_INT) {
+					err = at_params_int_get(&at_param_list, 3, &value_int);
+					if (err) {
+						return err;
+					}
+				} else if (type == AT_PARAM_TYPE_STRING) {
+					err = util_string_get(&at_param_list, 3, value_str, &size);
+					if (err) {
+						return err;
+					}
+				} else {
+					return -EINVAL;
+				}
 			}
-			err = do_socketopt_set(name, value);
+			if (type == AT_PARAM_TYPE_NUM_INT) {
+				err = do_socketopt_set_int(name, value_int);
+			} else if (type == AT_PARAM_TYPE_STRING) {
+				err = do_socketopt_set_str(name, value_str);
+			}
 		} else if (op == AT_SOCKETOPT_GET) {
 			err = do_socketopt_get(name);
 		} break;
@@ -1134,28 +1197,21 @@ int handle_at_recvfrom(enum at_cmd_type cmd_type)
 int handle_at_getaddrinfo(enum at_cmd_type cmd_type)
 {
 	int err = -EINVAL;
-	char url[TCPIP_MAX_URL];
+	char hostname[NI_MAXHOST];
+	char host[TCPIP_MAX_URL];
 	int size = TCPIP_MAX_URL;
 	struct addrinfo *result;
-	struct addrinfo hints = {
-		.ai_family = AF_INET
-	};
-	struct sockaddr_in *host;
-	char ipv4addr[NET_IPV4_ADDR_LEN];
+	struct addrinfo *res;
 
 	switch (cmd_type) {
 	case AT_CMD_TYPE_SET_COMMAND:
-		err = util_string_get(&at_param_list, 1, url, &size);
+		err = util_string_get(&at_param_list, 1, host, &size);
 		if (err) {
 			return err;
 		}
-		if (check_for_ipv4(url, strlen(url))) {
-			LOG_ERR("already IPv4 address");
-			return -EINVAL;
-		}
-		err = getaddrinfo(url, NULL, &hints, &result);
+		err = getaddrinfo(host, NULL, NULL, &result);
 		if (err) {
-			sprintf(rsp_buf, "\r\n#XGETADDRINFO: %d\r\n", -err);
+			sprintf(rsp_buf, "\r\n#XGETADDRINFO: \"%s\"\r\n", gai_strerror(err));
 			rsp_send(rsp_buf, strlen(rsp_buf));
 			return err;
 		} else if (result == NULL) {
@@ -1164,10 +1220,29 @@ int handle_at_getaddrinfo(enum at_cmd_type cmd_type)
 			return -ENOENT;
 		}
 
-		host = (struct sockaddr_in *)result->ai_addr;
-		inet_ntop(AF_INET, &(host->sin_addr.s_addr),
-			ipv4addr, sizeof(ipv4addr));
-		sprintf(rsp_buf, "\r\n#XGETADDRINFO: \"%s\"\r\n", ipv4addr);
+		sprintf(rsp_buf, "\r\n#XGETADDRINFO: \"");
+		/* loop over all returned results and do inverse lookup */
+		for (res = result; res != NULL; res = res->ai_next) {
+			if (res->ai_family == AF_INET) {
+				struct sockaddr_in *host = (struct sockaddr_in *)result->ai_addr;
+
+				(void)inet_ntop(AF_INET, &(host->sin_addr.s_addr),
+					hostname, sizeof(hostname));
+			} else if (res->ai_family == AF_INET6) {
+				struct sockaddr_in6 *host = (struct sockaddr_in6 *)result->ai_addr;
+
+				(void)inet_ntop(AF_INET6, &(host->sin6_addr.s6_addr),
+					hostname, sizeof(hostname));
+			} else {
+				continue;
+			}
+
+			strcat(rsp_buf, hostname);
+			if (res->ai_next) {
+				strcat(rsp_buf, " ");
+			}
+		}
+		strcat(rsp_buf, "\"\r\n");
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		freeaddrinfo(result);
 		break;

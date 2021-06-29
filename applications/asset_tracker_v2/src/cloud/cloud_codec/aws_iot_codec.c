@@ -65,6 +65,11 @@ int cloud_codec_decode_config(char *input, struct cloud_data_cfg *data)
 		return -ENOENT;
 	}
 
+	/* Verify that the incoming JSON string is an object. */
+	if (!cJSON_IsObject(root_obj)) {
+		return -ENOENT;
+	}
+
 	if (has_shadow_update_been_handled(root_obj)) {
 		err = -ECANCELED;
 		goto exit;
