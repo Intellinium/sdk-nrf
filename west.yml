@@ -79,7 +79,6 @@ manifest:
           - civetweb
           - edtt
           - fatfs
-          - hal_nordic
           - hal_st
           - libmetal
           - littlefs
@@ -177,11 +176,11 @@ manifest:
       path: modules/lib/cddl-gen
     - name: hal_intellinium
       remote: intellinium
-      revision: 717108899ed0b1a6e2685b412c24e5e31b1e3821
+      revision: c0c98c85342cbfae16f9036785242c2e87bd3cc4
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium
-      revision: gauge_multi_inst
+      revision: sequence-using-event
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium
@@ -209,6 +208,10 @@ manifest:
       path: modules/lib/memfault-firmware-sdk
       revision: 0.21.1
       remote: memfault
+    - name: hal_nordic
+      remote: intellinium
+      revision: 646a89a20397bd81d54440889dc34e94fd335d1b
+      path: modules/hal/nordic
 
   # West-related configuration for the nrf repository.
   self:
