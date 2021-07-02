@@ -467,8 +467,8 @@ static int float32_decode(const struct bt_mesh_sensor_format *format,
 	memcpy(&fvalue, net_buf_simple_pull_mem(buf, sizeof(float)),
 	       sizeof(float));
 
-	val->val1 = (uint32_t)fvalue;
-	val->val2 = ((uint32_t)(fvalue * 1000000.0f)) / 1000000L;
+	val->val1 = (int32_t)fvalue;
+	val->val2 = ((int64_t)(fvalue * 1000000.0f)) % 1000000L;
 	return 0;
 }
 
@@ -596,14 +596,16 @@ FORMAT(time_exp_8)	    = {
 /*******************************************************************************
  * Electrical formats
  ******************************************************************************/
-FORMAT(electric_current) = SCALAR_FORMAT(2,
+FORMAT(electric_current) = SCALAR_FORMAT_MAX(2,
 					 (UNSIGNED | HAS_UNDEFINED),
 					 ampere,
-					 SCALAR(1e-2, 0));
-FORMAT(voltage)		 = SCALAR_FORMAT(2,
+					 SCALAR(1e-2, 0),
+					 65534);
+FORMAT(voltage)		 = SCALAR_FORMAT_MAX(2,
 					 (UNSIGNED | HAS_UNDEFINED),
 					 volt,
-					 SCALAR(1, -6));
+					 SCALAR(1, -6),
+					 10220);
 FORMAT(energy32)	 = SCALAR_FORMAT(4,
 					 UNSIGNED | HAS_INVALID | HAS_UNDEFINED,
 					 kwh,

@@ -61,11 +61,6 @@ static struct tcp_proxy_t {
 static struct pollfd fds[MAX_POLL_FD];
 static int nfds;
 
-/* global functions defined in different files */
-void rsp_send(const uint8_t *str, size_t len);
-int enter_datamode(slm_datamode_handler_t handler);
-bool exit_datamode(void);
-
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
 extern char rsp_buf[CONFIG_SLM_SOCKET_RX_MAX * 2];
@@ -81,9 +76,7 @@ static int do_tcp_server_start(uint16_t port)
 	struct sockaddr_in local;
 	int addr_len;
 	char ipv4_addr[NET_IPV4_ADDR_LEN] = {0};
-#if SLM_TCP_PROXY_FUTURE_FEATURE
-	int addr_reuse = 1;
-#endif
+	int reuseaddr = 1;
 
 #if defined(CONFIG_SLM_NATIVE_TLS)
 	if (proxy.sec_tag != INVALID_SEC_TAG) {
@@ -95,11 +88,14 @@ static int do_tcp_server_start(uint16_t port)
 		}
 	}
 #else
+#if !SLM_TCP_PROXY_FUTURE_FEATURE
+/* TLS server not officially supported by modem yet */
 	if (proxy.sec_tag != INVALID_SEC_TAG) {
 		LOG_ERR("Not supported");
 		ret = -EINVAL;
 		goto exit;
 	}
+#endif
 #endif
 	/* Open socket */
 	if (proxy.sec_tag == INVALID_SEC_TAG) {
@@ -125,16 +121,14 @@ static int do_tcp_server_start(uint16_t port)
 		}
 	}
 
-#if SLM_TCP_PROXY_FUTURE_FEATURE
 	/* Allow reuse of local addresses */
-	ret = setsockopt(proxy.sock, SOL_SOCKET, SO_REUSEADDR,
-			 &addr_reuse, sizeof(addr_reuse));
-	if (ret != 0) {
+	ret = setsockopt(proxy.sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int));
+	if (ret < 0) {
 		LOG_ERR("set reuse addr failed: %d", -errno);
 		ret = -errno;
 		goto exit;
 	}
-#endif
+
 	/* Bind to local port */
 	local.sin_family = AF_INET;
 	local.sin_port = htons(port);
@@ -161,8 +155,7 @@ static int do_tcp_server_start(uint16_t port)
 		goto exit;
 	}
 
-	ret = bind(proxy.sock, (struct sockaddr *)&local,
-		 sizeof(struct sockaddr_in));
+	ret = bind(proxy.sock, (struct sockaddr *)&local, sizeof(struct sockaddr_in));
 	if (ret) {
 		LOG_ERR("bind() failed: %d", -errno);
 		ret = -errno;
@@ -411,33 +404,16 @@ static int tcp_data_save(uint8_t *data, uint32_t length)
 
 static void tcp_data_handle(uint8_t *data, uint32_t length)
 {
-	int ret;
-
 	if (proxy.datamode) {
 		rsp_send(data, length);
-	} else if (slm_util_hex_check(data, length)) {
-		uint8_t data_hex[length * 2];
-
-		ret = slm_util_htoa(data, length, data_hex, length * 2);
-		if (ret < 0) {
-			LOG_ERR("hex convert error: %d", ret);
-			return;
-		}
-		if (tcp_data_save(data_hex, ret) < 0) {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: \"overrun\"\r\n");
-		} else {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_HEXADECIMAL, ret);
-		}
-		rsp_send(rsp_buf, strlen(rsp_buf));
 	} else {
 		if (tcp_data_save(data, length) < 0) {
 			sprintf(rsp_buf, "\r\n#XTCPDATA: \"overrun\"\r\n");
 		} else {
-			sprintf(rsp_buf, "\r\n#XTCPDATA: %d,%d\r\n", DATATYPE_PLAINTEXT, length);
+			sprintf(rsp_buf, "\r\n#XTCPDATA: %d\r\n", length);
 		}
 		rsp_send(rsp_buf, strlen(rsp_buf));
 	}
-
 }
 
 static void tcp_terminate_connection(int cause)
@@ -909,37 +885,23 @@ int handle_at_tcp_client(enum at_cmd_type cmd_type)
 }
 
 /**@brief handle AT#XTCPSEND commands
- *  AT#XTCPSEND=<datatype>,<data>
+ *  AT#XTCPSEND=<data>
  *  AT#XTCPSEND? READ command not supported
  *  AT#XTCPSEND=? TEST command not supported
  */
 int handle_at_tcp_send(enum at_cmd_type cmd_type)
 {
 	int err = -EINVAL;
-	uint16_t datatype;
 	char data[NET_IPV4_MTU];
 	int size = NET_IPV4_MTU;
 
 	switch (cmd_type) {
 	case AT_CMD_TYPE_SET_COMMAND:
-		err = at_params_unsigned_short_get(&at_param_list, 1, &datatype);
+		err = util_string_get(&at_param_list, 1, data, &size);
 		if (err) {
 			return err;
 		}
-		err = util_string_get(&at_param_list, 2, data, &size);
-		if (err) {
-			return err;
-		}
-		if (datatype == DATATYPE_HEXADECIMAL) {
-			uint8_t data_hex[size / 2];
-
-			err = slm_util_atoh(data, size, data_hex, size / 2);
-			if (err > 0) {
-				err = do_tcp_send(data_hex, err);
-			}
-		} else {
-			err = do_tcp_send(data, size);
-		}
+		err = do_tcp_send(data, size);
 		break;
 
 	default:

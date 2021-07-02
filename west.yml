@@ -114,12 +114,12 @@ manifest:
     # changes.
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: 9afbc97d02a33d587fdc258895822a1d00f6d065
+      revision: 5a6bf2fa11503ea0a3ef2b42a8afeed43053b6b9
       path: bootloader/mcuboot
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: 98dc97fe88e22604c165a17ca81e7fbd5d69f82b
+      revision: 1f3ad531bf48d4241b6c60f5c521364a0785bfa7
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tfm
@@ -193,7 +193,7 @@ manifest:
       path: modules/itl-ml/ppg_ct
     - name: homekit
       repo-path: sdk-homekit
-      revision: v1.6.0
+      revision: b3ded70c721b3ebee3756db5032ea5c55a85797d
       groups:
       - homekit
     - name: find-my
