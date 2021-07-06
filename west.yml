@@ -39,6 +39,8 @@ manifest:
       url-base: git@github.com:Intellinium
     - name: intellinium-space-ml
       url-base: git@git.jetbrains.space:intellinium/pod-machine-learning
+    - name: intellinium-space-embedded
+      url-base: git@git.jetbrains.space:intellinium/embedded
 
   # If not otherwise specified, the projects below should be obtained
   # from the ncs remote.
@@ -209,6 +211,10 @@ manifest:
       remote: intellinium-space-ml
       revision: functionality_optimization
       path: modules/itl-ml/ml-tflite-toolbox
+    - name: itl-hazard-mgr
+      remote: intellinium-space-embedded
+      revision: 7aa7514280d3987befa35df78399e8c8cb8f9f0a
+      path: modules/itl-hazard-mgr
 
   # West-related configuration for the nrf repository.
   self:
