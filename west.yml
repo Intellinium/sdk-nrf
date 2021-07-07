@@ -213,7 +213,7 @@ manifest:
       path: modules/itl-ml/ml-tflite-toolbox
     - name: itl-hazard-mgr
       remote: intellinium-space-embedded
-      revision: db31ecfefab3de8f379c6507802a93b8be44d237
+      revision: dev-stable
       path: modules/itl-hazard-mgr
 
   # West-related configuration for the nrf repository.
