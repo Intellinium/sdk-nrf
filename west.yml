@@ -193,7 +193,7 @@ manifest:
       remote: memfault
     - name: hal_intellinium
       remote: intellinium-github
-      revision: 4075d9581d0e970b0315027ab40e0cf3a6c9a433
+      revision: f8792a9e0fd48df8240d8846c51dcb63821bb24e
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
