@@ -193,11 +193,11 @@ manifest:
       remote: memfault
     - name: hal_intellinium
       remote: intellinium-github
-      revision: c77a40d29b6902ed015d48fd81848a475db6b2e4
+      revision: be284a732befe882c46b692426f95c8f2383fc7f
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: 212c6e3920885c0335451987f6fcaa0d85d26ea3
+      revision: 5c908f822ad5d8dd95113f57ae335db1af09b54d
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
