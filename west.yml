@@ -211,10 +211,10 @@ manifest:
       remote: intellinium-space-ml
       revision: functionality_optimization
       path: modules/itl-ml/ml-tflite-toolbox
-    - name: itl-hazard-mgr
+    - name: itl-poa-mgr
       remote: intellinium-space-embedded
       revision: dev-stable
-      path: modules/itl-hazard-mgr
+      path: modules/itl-poa-mgr
 
 
   # West-related configuration for the nrf repository.
