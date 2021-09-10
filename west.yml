@@ -197,7 +197,7 @@ manifest:
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: gauge_multi_inst
+      revision: rdd_merge
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
@@ -213,7 +213,7 @@ manifest:
       path: modules/itl-ml/ml-tflite-toolbox
     - name: itl-poa-mgr
       remote: intellinium-space-embedded
-      revision: dev-stable
+      revision: dev
       path: modules/itl-poa-mgr
 
 
