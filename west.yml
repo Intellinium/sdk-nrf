@@ -197,7 +197,7 @@ manifest:
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: rdd_merge
+      revision: doc_merge
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
