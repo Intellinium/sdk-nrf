@@ -20,6 +20,12 @@ if not NRFX_BUILD:
     raise FileNotFoundError("NRFX_BUILD not defined")
 NRFX_BUILD = Path(NRFX_BUILD)
 
+# -- Intellinium addition
+ITL_LIB_BASE = os.environ.get("ITL_LIB_BASE")
+if not ITL_LIB_BASE:
+    raise FileNotFoundError("ITL_LIB_BASE not defined")
+ITL_LIB_BASE = Path(ITL_LIB_BASE)
+
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
 
@@ -35,6 +41,11 @@ sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
 extensions.extend(["external_content", "doxyrunner"])
 
 # Options for HTML output ------------------------------------------------------
+
+# -- Intellinium addition
+# This replaces variables defined and imported from `conf`
+html_theme = "sphinx_itl_theme"
+html_theme_path = [str(ITL_LIB_BASE / "doc" / "_themes")]
 
 html_static_path.append(str(NRF_BASE / "doc" / "_static"))
 html_theme_options = {"docsets": utils.get_docsets("nrfx")}
