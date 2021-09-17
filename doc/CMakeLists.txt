@@ -196,8 +196,15 @@ if(NOT DEFINED ENV{NRFX_BASE})
   set(ENV{NRFX_BASE} ${NRFX_BASE})
 endif()
 
+# -- Intellinium addition
+if(NOT DEFINED ENV{ITL_LIB_BASE})
+  get_filename_component(ITL_LIB_BASE ${CMAKE_CURRENT_LIST_DIR}/../../modules/itl-lib/ REALPATH)
+  set(ENV{ITL_LIB_BASE} ${ITL_LIB_BASE})
+endif()
+
 message(STATUS "ZEPHYR_BASE: ${ZEPHYR_BASE}")
 message(STATUS "NRF_BASE: $ENV{NRF_BASE}")
+message(STATUS "ITL_LIB_BASE: $ENV{ITL_LIB_BASE}") # -- Intellinium addition
 message(STATUS "MCUBOOT_BASE: $ENV{MCUBOOT_BASE}")
 message(STATUS "NRFXLIB_BASE: $ENV{NRFXLIB_BASE}")
 message(STATUS "NRFX_BASE: $ENV{NRFX_BASE}")
@@ -206,6 +213,7 @@ set(ZEPHYR_BINARY_DIR ${CMAKE_BINARY_DIR}/zephyr)
 set(NRF_BINARY_DIR ${CMAKE_BINARY_DIR}/nrf)
 set(NRFXLIB_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfxlib)
 set(NRFX_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfx)
+set(ITL_LIB_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_lib) # -- Intellinium addition
 
 # HTML output directory
 set(HTML_DIR ${CMAKE_BINARY_DIR}/html)
@@ -231,6 +239,7 @@ add_custom_target(
 set(zephyr_env
   ZEPHYR_BASE=${ZEPHYR_BASE}
   ZEPHYR_BUILD=${ZEPHYR_BINARY_DIR}
+  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
 )
 
@@ -280,6 +289,7 @@ set(nrf_env
   ZEPHYR_BASE=${ZEPHYR_BASE}
   NRF_BASE=${NRF_BASE}
   NRF_BUILD=${NRF_BINARY_DIR}
+  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
 )
 
@@ -298,6 +308,7 @@ add_dependencies(nrf-html-all nrf-versions)
 
 set(mcuboot_env
   NRF_BASE=${NRF_BASE}
+  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   MCUBOOT_BASE=${MCUBOOT_BASE}
 )
 
@@ -309,6 +320,7 @@ add_docset(mcuboot "${mcuboot_env}")
 set(nrfx_env
   NRF_BASE=${NRF_BASE}
   NRFX_BASE=${NRFX_BASE}
+  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   NRFX_BUILD=${NRFX_BINARY_DIR}
 )
 
@@ -321,10 +333,24 @@ set(nrfxlib_env
   NRF_BASE=${NRF_BASE}
   NRFXLIB_BASE=${NRFXLIB_BASE}
   NRFXLIB_BUILD=${NRFXLIB_BINARY_DIR}
+  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
 )
 
 add_docset(nrfxlib "${nrfxlib_env}")
+
+#-------------------------------------------------------------------------------
+# -- Intellinium addition
+# docset: itl_lib
+
+set(itl_lib_env
+  ZEPHYR_BASE=${ZEPHYR_BASE}
+  NRF_BASE=${NRF_BASE}
+  ITL_LIB_BASE=${ITL_LIB_BASE}
+  ITL_LIB_BUILD=${ITL_LIB_BINARY_DIR}
+)
+
+add_docset(itl_lib "${itl_lib_env}")
 
 #-------------------------------------------------------------------------------
 # docset: kconfig
@@ -385,12 +411,20 @@ add_custom_target(
         --modules Zephyr,zephyr,${ZEPHYR_BASE}
                   nRF,nrf,${NRF_BASE}
                   nrfxlib,nrfxlib,${NRFXLIB_BASE}
+                  itl-lib,itl_lib,${ITL_LIB_BASE} # -- Intellinium addition
         --no-index-modules BuildDir,${CMAKE_BINARY_DIR}
                            MCUboot,${MCUBOOT_BASE}
   VERBATIM
 )
 
-add_docset(kconfig "")
+# -- Intellinium addition
+set(kconfig_env
+  ITL_LIB_BASE=${ITL_LIB_BASE}
+)
+
+# -- Intellinium modification
+# add_docset(kconfig "")
+add_docset(kconfig "${kconfig_env}")
 add_dependencies(kconfig-html kconfig-content)
 add_dependencies(kconfig-html-all kconfig-content)
 
@@ -408,6 +442,8 @@ add_dependencies(mcuboot-html-all kconfig-html-all)
 add_dependencies(nrfxlib-inventory-all kconfig-html-all)
 add_dependencies(nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html-all kconfig-html-all)
 add_dependencies(nrfxlib-html-all nrf-html-all)
+# -- Intellinium addition
+add_dependencies(itl_lib-html-all nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html-all kconfig-html-all)
 
 add_custom_target(build-all ALL)
 add_dependencies(build-all
@@ -418,6 +454,7 @@ add_dependencies(build-all
     zephyr-html-all
     mcuboot-html-all
     kconfig-html-all
+    itl_lib-html-all # -- Intellinium addition
 )
 
 add_custom_target(linkcheck)
@@ -425,4 +462,5 @@ add_dependencies(linkcheck
     nrf-linkcheck
     nrfxlib-linkcheck
     mcuboot-linkcheck
+    itl_lib-linkcheck # -- Intellinium addition
 )
