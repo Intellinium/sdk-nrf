@@ -210,7 +210,7 @@ manifest:
       path: modules/itl-ml/ppg_ct
     - name: ml-tflite-toolbox
       remote: intellinium-space-ml
-      revision: add_multiple_model_support
+      revision: add_python_script
       path: modules/itl-ml/ml-tflite-toolbox
 
 
