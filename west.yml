@@ -211,10 +211,6 @@ manifest:
       remote: intellinium-space-ml
       revision: functionality_optimization
       path: modules/itl-ml/ml-tflite-toolbox
-    - name: itl-poa-mgr
-      remote: intellinium-space-embedded
-      revision: dev
-      path: modules/itl-poa-mgr
 
 
   # West-related configuration for the nrf repository.
