@@ -6,12 +6,14 @@ from typing import Dict, Tuple, Optional
 
 ALL_DOCSETS = {
     "nrf": ("nRF Connect SDK", "index"),
-    "itl_lib": ("Intellinium", "index"),  # -- Intellinium addition
     "nrfx": ("nrfx", "index"),
     "nrfxlib": ("nrfxlib", "README"),
     "zephyr": ("Zephyr Project", "index"),
     "mcuboot": ("MCUboot", "wrapper"),
     "kconfig": ("Kconfig Reference", "index"),
+    "itl_lib": ("Intellinium libraries", "index"),  # -- Intellinium addition
+    "itl_mat_pod": ("Mat Pod", "index"),  # -- Intellinium addition
+    "itl_tfl": ("TFLite app", "index"),  # -- Intellinium addition
 }
 """All supported docsets (name: title, home page)."""
 

@@ -7,11 +7,6 @@
     background-color: #a67dfb;
 }
 
-/* -- Intellinium addition */
-.itl_lib {
-    background-color: #4d6575;
-}
-
 .mcuboot {
     background-color: #159957;
 }
@@ -26,4 +21,19 @@
 
 .kconfig {
     background-color: #e82424;
+}
+
+
+/* -- Intellinium additions */
+
+.itl_lib {
+    background-color: #4d6575;
+}
+
+.itl_mat_pod {
+    background-color: #6c6c9e;
+}
+
+.itl_tfl {
+    background-color: #348780;
 }

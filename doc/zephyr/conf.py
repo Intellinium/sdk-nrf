@@ -15,12 +15,6 @@ if not ZEPHYR_BASE:
     raise FileNotFoundError("ZEPHYR_BASE not defined")
 ZEPHYR_BASE = Path(ZEPHYR_BASE)
 
-# -- Intellinium addition
-ITL_LIB_BASE = os.environ.get("ITL_LIB_BASE")
-if not ITL_LIB_BASE:
-    raise FileNotFoundError("ITL_LIB_BASE not defined")
-ITL_LIB_BASE = Path(ITL_LIB_BASE)
-
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
 
@@ -42,7 +36,7 @@ extensions.extend(["sphinx.ext.intersphinx", "external_content"])
 # html_theme = "sphinx_ncs_theme"
 # html_theme_path = []
 html_theme = "sphinx_itl_theme"
-html_theme_path = [str(ITL_LIB_BASE / "doc" / "_themes")]
+html_theme_path = [str(NRF_BASE / "doc" / "_themes")]
 
 html_favicon = None
 html_static_path.append(str(NRF_BASE / "doc" / "_static"))
