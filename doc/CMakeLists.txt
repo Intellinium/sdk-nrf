@@ -47,9 +47,41 @@ file(MAKE_DIRECTORY ${KCONFIG_BINARY_DIR})
 
 include(${ZEPHYR_BASE}/cmake/extensions.cmake)
 include(${ZEPHYR_BASE}/cmake/zephyr_module.cmake)
+# -- Intellinium addition
+include(${CMAKE_CURRENT_LIST_DIR}/../cmake/GitUtils.cmake)
 
 #-------------------------------------------------------------------------------
 # Functions
+
+# -- Intellinium addition
+# Add an external docset
+#
+# Args:
+# - name: Docset name.
+# - env: Environment passed to the Sphinx build.
+# - repo: The repository of the project
+# - branch: The branch of the repo to clone
+#
+# This function adds a docset whose documentation content is located on a
+# separate git repository.
+# The content of the repository will be cloned or updated on the configuration
+# of the cmake project.
+#
+# The cloned repository will be located under the {NRF_BASE}/_external/ folder
+# which is excluded from git.
+#
+function(add_external_docset name env repo branch)
+  file(MAKE_DIRECTORY ${DOCSET_EXT_DIR})
+
+  git_clone(
+    PROJECT_NAME    ${name}
+    GIT_URL         ${repo}
+    GIT_BRANCH      ${branch}
+    DIRECTORY       ${DOCSET_EXT_DIR}
+  )
+
+  add_docset(${name} "${env}")
+endfunction()
 
 # Add a new docset.
 #
@@ -181,6 +213,9 @@ endfunction()
 get_filename_component(NRF_BASE ${CMAKE_CURRENT_LIST_DIR}../ DIRECTORY)
 set(ENV{NRF_BASE} ${NRF_BASE})
 
+# -- Intellinium addition
+set(DOCSET_EXT_DIR ${CMAKE_CURRENT_LIST_DIR}/_external)
+
 if(NOT DEFINED ENV{MCUBOOT_BASE})
   get_filename_component(MCUBOOT_BASE ${CMAKE_CURRENT_LIST_DIR}/../../bootloader/mcuboot/ REALPATH)
   set(ENV{MCUBOOT_BASE} ${MCUBOOT_BASE})
@@ -202,18 +237,34 @@ if(NOT DEFINED ENV{ITL_LIB_BASE})
   set(ENV{ITL_LIB_BASE} ${ITL_LIB_BASE})
 endif()
 
+# -- Intellinium addition
+if(NOT DEFINED ENV{ITL_MAT_POD_BASE})
+  get_filename_component(ITL_MAT_POD_BASE ${DOCSET_EXT_DIR}/itl_mat_pod/ REALPATH)
+  set(ENV{ITL_MAT_POD_BASE} ${ITL_MAT_POD_BASE})
+endif()
+
+# -- Intellinium addition
+if(NOT DEFINED ENV{ITL_TFL_BASE})
+  get_filename_component(ITL_TFL_BASE ${DOCSET_EXT_DIR}/itl_tfl/ REALPATH)
+  set(ENV{ITL_TFL_BASE} ${ITL_TFL_BASE})
+endif()
+
 message(STATUS "ZEPHYR_BASE: ${ZEPHYR_BASE}")
 message(STATUS "NRF_BASE: $ENV{NRF_BASE}")
-message(STATUS "ITL_LIB_BASE: $ENV{ITL_LIB_BASE}") # -- Intellinium addition
 message(STATUS "MCUBOOT_BASE: $ENV{MCUBOOT_BASE}")
 message(STATUS "NRFXLIB_BASE: $ENV{NRFXLIB_BASE}")
 message(STATUS "NRFX_BASE: $ENV{NRFX_BASE}")
+message(STATUS "ITL_LIB_BASE: $ENV{ITL_LIB_BASE}") # -- Intellinium addition
+message(STATUS "ITL_MAT_POD_BASE: $ENV{ITL_MAT_POD_BASE}") # -- Intellinium addition
+message(STATUS "ITL_TFL_BASE: $ENV{ITL_TFL_BASE}") # -- Intellinium addition
 
 set(ZEPHYR_BINARY_DIR ${CMAKE_BINARY_DIR}/zephyr)
 set(NRF_BINARY_DIR ${CMAKE_BINARY_DIR}/nrf)
 set(NRFXLIB_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfxlib)
 set(NRFX_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfx)
 set(ITL_LIB_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_lib) # -- Intellinium addition
+set(ITL_MAT_POD_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_mat_pod) # -- Intellinium addition
+set(ITL_TFL_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_tfl) # -- Intellinium addition
 
 # HTML output directory
 set(HTML_DIR ${CMAKE_BINARY_DIR}/html)
@@ -239,7 +290,6 @@ add_custom_target(
 set(zephyr_env
   ZEPHYR_BASE=${ZEPHYR_BASE}
   ZEPHYR_BUILD=${ZEPHYR_BINARY_DIR}
-  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
 )
 
@@ -289,7 +339,6 @@ set(nrf_env
   ZEPHYR_BASE=${ZEPHYR_BASE}
   NRF_BASE=${NRF_BASE}
   NRF_BUILD=${NRF_BINARY_DIR}
-  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
 )
 
@@ -308,7 +357,6 @@ add_dependencies(nrf-html-all nrf-versions)
 
 set(mcuboot_env
   NRF_BASE=${NRF_BASE}
-  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   MCUBOOT_BASE=${MCUBOOT_BASE}
 )
 
@@ -320,7 +368,6 @@ add_docset(mcuboot "${mcuboot_env}")
 set(nrfx_env
   NRF_BASE=${NRF_BASE}
   NRFX_BASE=${NRFX_BASE}
-  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   NRFX_BUILD=${NRFX_BINARY_DIR}
 )
 
@@ -333,7 +380,6 @@ set(nrfxlib_env
   NRF_BASE=${NRF_BASE}
   NRFXLIB_BASE=${NRFXLIB_BASE}
   NRFXLIB_BUILD=${NRFXLIB_BINARY_DIR}
-  ITL_LIB_BASE=${ITL_LIB_BASE} # -- Intellinium addition
   DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
 )
 
@@ -351,6 +397,40 @@ set(itl_lib_env
 )
 
 add_docset(itl_lib "${itl_lib_env}")
+
+#-------------------------------------------------------------------------------
+# -- Intellinium addition
+# docset: itl_mat_pod
+
+set(itl_mat_pod_env
+  ZEPHYR_BASE=${ZEPHYR_BASE}
+  NRF_BASE=${NRF_BASE}
+  ITL_LIB_BASE=${ITL_LIB_BASE}
+  ITL_MAT_POD_BASE=${ITL_MAT_POD_BASE}
+  ITL_MAT_POD_BUILD=${ITL_MAT_POD_BINARY_DIR}
+)
+
+add_external_docset(itl_mat_pod
+  "${itl_mat_pod_env}"
+  ssh://git@git.jetbrains.space/intellinium/mobility-pod/embedded-mat-pod.git
+  develop)
+
+#-------------------------------------------------------------------------------
+# -- Intellinium addition
+# docset: itl_tfl
+
+set(itl_tfl_env
+  ZEPHYR_BASE=${ZEPHYR_BASE}
+  NRF_BASE=${NRF_BASE}
+  ITL_LIB_BASE=${ITL_LIB_BASE}
+  ITL_TFL_BASE=${ITL_TFL_BASE}
+  ITL_TFL_BUILD=${ITL_TFL_BINARY_DIR}
+)
+
+add_external_docset(itl_tfl
+  "${itl_tfl_env}"
+  ssh://git@git.jetbrains.space/intellinium/pod-machine-learning/ml-tflite-zephyr-application.git
+  develop)
 
 #-------------------------------------------------------------------------------
 # docset: kconfig
@@ -417,14 +497,7 @@ add_custom_target(
   VERBATIM
 )
 
-# -- Intellinium addition
-set(kconfig_env
-  ITL_LIB_BASE=${ITL_LIB_BASE}
-)
-
-# -- Intellinium modification
-# add_docset(kconfig "")
-add_docset(kconfig "${kconfig_env}")
+add_docset(kconfig "")
 add_dependencies(kconfig-html kconfig-content)
 add_dependencies(kconfig-html-all kconfig-content)
 
@@ -442,8 +515,11 @@ add_dependencies(mcuboot-html-all kconfig-html-all)
 add_dependencies(nrfxlib-inventory-all kconfig-html-all)
 add_dependencies(nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html-all kconfig-html-all)
 add_dependencies(nrfxlib-html-all nrf-html-all)
-# -- Intellinium addition
-add_dependencies(itl_lib-html-all nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html-all kconfig-html-all)
+
+# -- Intellinium additions
+add_dependencies(itl_lib-html-all nrf-html-all)
+add_dependencies(itl_mat_pod-html-all itl_lib-html-all)
+add_dependencies(itl_tfl-html-all itl_lib-html-all)
 
 add_custom_target(build-all ALL)
 add_dependencies(build-all
@@ -455,6 +531,8 @@ add_dependencies(build-all
     mcuboot-html-all
     kconfig-html-all
     itl_lib-html-all # -- Intellinium addition
+    itl_mat_pod-html-all # -- Intellinium addition
+    itl_tfl-html-all # -- Intellinium addition
 )
 
 add_custom_target(linkcheck)
@@ -463,4 +541,6 @@ add_dependencies(linkcheck
     nrfxlib-linkcheck
     mcuboot-linkcheck
     itl_lib-linkcheck # -- Intellinium addition
+    itl_mat_pod-linkcheck # -- Intellinium addition
+    itl_tfl-linkcheck # -- Intellinium addition
 )
