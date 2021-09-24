@@ -70,7 +70,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/../cmake/GitUtils.cmake)
 # The cloned repository will be located under the {NRF_BASE}/_external/ folder
 # which is excluded from git.
 #
-function(add_external_docset name env repo branch)
+function(add_external_docset name repo branch)
   file(MAKE_DIRECTORY ${DOCSET_EXT_DIR})
 
   git_clone(
@@ -80,7 +80,7 @@ function(add_external_docset name env repo branch)
     DIRECTORY       ${DOCSET_EXT_DIR}
   )
 
-  add_docset(${name} "${env}")
+  add_docset(${name})
 endfunction()
 
 # Add a new docset.
@@ -226,6 +226,9 @@ set(ZEPHYR_BINARY_DIR ${CMAKE_BINARY_DIR}/zephyr)
 set(HTML_DIR ${CMAKE_BINARY_DIR}/html)
 file(MAKE_DIRECTORY ${HTML_DIR})
 
+# -- Intellinium addition
+set(DOCSET_EXT_DIR ${CMAKE_CURRENT_LIST_DIR}/_external)
+
 #-------------------------------------------------------------------------------
 # docset: Zephyr
 
@@ -324,16 +327,7 @@ add_docset(nrfxlib DODGY)
 # -- Intellinium addition
 # docset: itl_car_pod
 
-set(itl_car_pod_env
-  ZEPHYR_BASE=${ZEPHYR_BASE}
-  NRF_BASE=${NRF_BASE}
-  ITL_LIB_BASE=${ITL_LIB_BASE}
-  ITL_CAR_POD_BASE=${ITL_CAR_POD_BASE}
-  ITL_CAR_POD_BUILD=${ITL_CAR_POD_BINARY_DIR}
-)
-
 add_external_docset(itl_car_pod
-  "${itl_car_pod_env}"
   ssh://git@git.jetbrains.space/intellinium/mobility-pod/embedded-car-pod.git
   develop
 )
@@ -342,29 +336,13 @@ add_external_docset(itl_car_pod
 # -- Intellinium addition
 # docset: itl_lib
 
-set(itl_lib_env
-  ZEPHYR_BASE=${ZEPHYR_BASE}
-  NRF_BASE=${NRF_BASE}
-  ITL_LIB_BASE=${ITL_LIB_BASE}
-  ITL_LIB_BUILD=${ITL_LIB_BINARY_DIR}
-)
-
-add_docset(itl_lib "${itl_lib_env}")
+add_docset(itl_lib)
 
 #-------------------------------------------------------------------------------
 # -- Intellinium addition
 # docset: itl_mat_pod
 
-set(itl_mat_pod_env
-  ZEPHYR_BASE=${ZEPHYR_BASE}
-  NRF_BASE=${NRF_BASE}
-  ITL_LIB_BASE=${ITL_LIB_BASE}
-  ITL_MAT_POD_BASE=${ITL_MAT_POD_BASE}
-  ITL_MAT_POD_BUILD=${ITL_MAT_POD_BINARY_DIR}
-)
-
 add_external_docset(itl_mat_pod
-  "${itl_mat_pod_env}"
   ssh://git@git.jetbrains.space/intellinium/mobility-pod/embedded-mat-pod.git
   develop
 )
@@ -373,16 +351,7 @@ add_external_docset(itl_mat_pod
 # -- Intellinium addition
 # docset: itl_tfl
 
-set(itl_tfl_env
-  ZEPHYR_BASE=${ZEPHYR_BASE}
-  NRF_BASE=${NRF_BASE}
-  ITL_LIB_BASE=${ITL_LIB_BASE}
-  ITL_TFL_BASE=${ITL_TFL_BASE}
-  ITL_TFL_BUILD=${ITL_TFL_BINARY_DIR}
-)
-
 add_external_docset(itl_tfl
-  "${itl_tfl_env}"
   ssh://git@git.jetbrains.space/intellinium/pod-machine-learning/ml-tflite-zephyr-application.git
   develop
 )
@@ -446,6 +415,7 @@ add_custom_target(
         --modules Zephyr,zephyr,${ZEPHYR_BASE}
                   nRF,nrf,${NRF_BASE}
                   nrfxlib,nrfxlib,${ZEPHYR_NRFXLIB_MODULE_DIR}
+                  itl-lib,itl_lib,${ZEPHYR_ITL_LIB_MODULE_DIR} # -- Intellinium addition
         --no-index-modules BuildDir,${CMAKE_BINARY_DIR}
                            MCUboot,${ZEPHYR_MCUBOOT_MODULE_DIR}
   VERBATIM
@@ -481,6 +451,10 @@ add_dependencies(merge-search-indexes
     mcuboot-html-all
     tfm-html-all
     kconfig-html-all
+    itl_car_pod-html-all # -- Intellinium addition
+    itl_lib-html-all # -- Intellinium addition
+    itl_mat_pod-html-all # -- Intellinium addition
+    itl_tfl-html-all # -- Intellinium addition
 )
 
 add_dependencies(zephyr-html-all kconfig-html-all)
