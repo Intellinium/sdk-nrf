@@ -21,6 +21,12 @@ ALL_DOCSETS = {
     "tfm": ("Trusted Firmware-M", "index", "trusted-firmware-m"),
     "matter": ("Matter", "index", "matter"),
     "kconfig": ("Kconfig Reference", "index", None),
+
+    # -- Intellinium additions
+    "itl_lib": ("Intellinium libraries", "index", "embedded-itl-lib"),
+    "itl_car_pod": ("Intellinium Car Pod", "index", None),
+    "itl_mat_pod": ("Intellinium Mat Pod", "index", None),
+    "itl_tfl": ("Intellinium TFLite app", "index", None),
 }
 """All supported docsets (name: title, home page, manifest project name)."""
 
