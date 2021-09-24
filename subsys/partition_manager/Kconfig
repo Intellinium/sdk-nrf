@@ -34,7 +34,7 @@ config SRAM_BASE_ADDRESS
 
 menu "Zephyr subsystem configurations"
 
-if FILE_SYSTEM_LITTLEFS
+if FILE_SYSTEM_LITTLEFS && !PM_EXTERNAL_FLASH
 partition=LITTLEFS
 partition-size=0x6000
 rsource "Kconfig.template.partition_size"

@@ -10,7 +10,9 @@
 #include <sys/slist.h>
 #include <event_manager.h>
 #include <logging/log.h>
-
+#if defined(CONFIG_EVENT_MANAGER_STORAGE)
+#include "event_manager_storage_priv.h"
+#endif
 LOG_MODULE_REGISTER(event_manager, CONFIG_EVENT_MANAGER_LOG_LEVEL);
 
 
@@ -283,6 +285,9 @@ static void event_processor_fn(struct k_work *work)
 
 				if (consumed) {
 					log_event_consumed(et);
+#if defined(CONFIG_EVENT_MANAGER_STORAGE)
+					event_store_remove(eh);
+#endif
 				}
 			}
 		}
@@ -292,6 +297,10 @@ static void event_processor_fn(struct k_work *work)
 		k_free(eh);
 	}
 }
+
+
+K_THREAD_STACK_DEFINE(my_stack_area, CONFIG_EVENT_MANAGER_WORKQ_STACK_SIZE);
+struct k_work_q my_work_q;
 
 void _event_submit(struct event_header *eh)
 {
@@ -304,12 +313,43 @@ void _event_submit(struct event_header *eh)
 	sys_slist_append(&eventq, &eh->node);
 	k_spin_unlock(&lock, key);
 
-	k_work_submit(&event_processor);
+	k_work_submit_to_queue(&my_work_q, &event_processor);
 }
 
 int event_manager_init(void)
 {
+	int err;
+
 	log_event_init();
 
-	return trace_event_init();
+	err = trace_event_init();
+	if (err) {
+		return err;
+	}
+
+	k_work_queue_start(&my_work_q, my_stack_area,
+			K_THREAD_STACK_SIZEOF(my_stack_area), 0, NULL);
+
+#if defined(CONFIG_EVENT_MANAGER_STORAGE)
+	err = event_store_init();
+	if (err) {
+		return err;
+	}
+#endif
+
+	return 0;
+}
+
+int event_manager_clear_storage(void)
+{
+#if defined(CONFIG_EVENT_MANAGER_STORAGE)
+	int err;
+
+	err = event_store_clear();
+	if (err) {
+		return err;
+	}
+#endif
+
+	return 0;
 }

@@ -53,7 +53,7 @@ if (CONFIG_SETTINGS_FCB OR CONFIG_SETTINGS_NVS)
   ncs_add_partition_manager_config(pm.yml.settings)
 endif()
 
-if (CONFIG_FILE_SYSTEM)
+if (CONFIG_FILE_SYSTEM AND NOT CONFIG_PM_EXTERNAL_FLASH)
   ncs_add_partition_manager_config(pm.yml.file_system)
 endif()
 
