@@ -71,6 +71,9 @@ partition=EVENTS_STORAGE
 partition-size=0x10000
 source "${ZEPHYR_BASE}/../nrf/subsys/partition_manager/Kconfig.template.partition_size"
 
+config EVENT_STORAGE_EXT_FLASH
+	bool "Event storage partition on external flash"
+
 choice EVENT_MANAGER_STORAGE_BACKEND
 	bool "Event storage backend"
 	default EVENT_MANAGER_STORAGE_BACKEND_LITTLEFS if FILE_SYSTEM_LITTLEFS
@@ -91,5 +94,9 @@ endif # EVENT_MANAGER_STORAGE
 config EVENT_MANAGER_STORAGE_PAYLOAD_MAX_SIZE
 	int "Maximum size of event payload"
 	default 64
+
+config EVENT_MANAGER_WORKQ_STACK_SIZE
+	int "Event manager work queue tack size"
+	default 2048
 
 endif # EVENT_MANAGER

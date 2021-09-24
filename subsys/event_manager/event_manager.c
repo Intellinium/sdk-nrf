@@ -298,6 +298,10 @@ static void event_processor_fn(struct k_work *work)
 	}
 }
 
+
+K_THREAD_STACK_DEFINE(my_stack_area, CONFIG_EVENT_MANAGER_WORKQ_STACK_SIZE);
+struct k_work_q my_work_q;
+
 void _event_submit(struct event_header *eh)
 {
 	__ASSERT_NO_MSG(eh);
@@ -309,7 +313,7 @@ void _event_submit(struct event_header *eh)
 	sys_slist_append(&eventq, &eh->node);
 	k_spin_unlock(&lock, key);
 
-	k_work_submit(&event_processor);
+	k_work_submit_to_queue(&my_work_q, &event_processor);
 }
 
 int event_manager_init(void)
@@ -322,6 +326,9 @@ int event_manager_init(void)
 	if (err) {
 		return err;
 	}
+
+	k_work_queue_start(&my_work_q, my_stack_area,
+			K_THREAD_STACK_SIZEOF(my_stack_area), 0, NULL);
 
 #if defined(CONFIG_EVENT_MANAGER_STORAGE)
 	err = event_store_init();

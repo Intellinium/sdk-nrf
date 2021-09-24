@@ -2,4 +2,7 @@
 
 events_storage:
   placement: {before: [end]}
+#ifdef CONFIG_EVENT_STORAGE_EXT_FLASH
+  region: external_flash
+#endif
   size: CONFIG_PM_PARTITION_SIZE_EVENTS_STORAGE
