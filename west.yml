@@ -207,10 +207,6 @@ manifest:
       remote: intellinium-github
       revision: 7ca9059aa507dc7b57bad150c8fc101d935968f1
       path: modules/itl-ml/ppg_ct
-    - name: itl-hazard-mgr
-      remote: intellinium-space-embedded
-      revision: dev-stable
-      path: modules/itl-hazard-mgr
 
 
   # West-related configuration for the nrf repository.
