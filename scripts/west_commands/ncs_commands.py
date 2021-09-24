@@ -487,5 +487,4 @@ _BLOCKED_PROJECTS = set(
      'modules/hal/stm32',
      'modules/hal/ti',
      'modules/hal/xtensa',
-     'modules/lib/tensorflow',
      ])
