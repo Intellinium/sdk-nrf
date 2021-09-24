@@ -60,7 +60,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: 89993ec13b469b298d15aa9def5efea8a8d9f76e
+      revision: 035b805f0cee750d74955f1cd833c7ccf89544da
       remote: intellinium-github
       import:
         # In addition to the zephyr repository itself, NCS also
