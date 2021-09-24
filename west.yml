@@ -60,7 +60,8 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: v2.6.99-ncs1
+      revision: 89993ec13b469b298d15aa9def5efea8a8d9f76e
+      remote: intellinium-github
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -186,11 +187,11 @@ manifest:
       remote: memfault
     - name: hal_intellinium
       remote: intellinium-github
-      revision: 24639339833af8b59279bb724fbbf3162020ab88
+      revision: 7e31d42460467ab1097a58dd291a2d84b93236ea
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: 5c908f822ad5d8dd95113f57ae335db1af09b54d
+      revision: 2c608e939c67f40828855fb910a777395cfe307a
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
@@ -200,10 +201,6 @@ manifest:
       remote: intellinium-github
       revision: 7ca9059aa507dc7b57bad150c8fc101d935968f1
       path: modules/itl-ml/ppg_ct
-    - name: itl-hazard-mgr
-      remote: intellinium-space-embedded
-      revision: dev-stable
-      path: modules/itl-hazard-mgr
 
 
   # West-related configuration for the nrf repository.
