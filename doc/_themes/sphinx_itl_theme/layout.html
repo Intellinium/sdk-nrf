@@ -1,0 +1,8 @@
+{% extends "sphinx_rtd_theme/layout.html" %}
+{% block scripts %}
+  {{ super() }}
+  <script type="text/javascript" src="{{ pathto('_static/js/ncs.js', 1) }}"></script>
+{% endblock %}
+{% block extrahead %}
+  <link rel="shortcut icon" href="{{ pathto('_static/images/favicon.ico', 1) }}"/>
+{% endblock %}

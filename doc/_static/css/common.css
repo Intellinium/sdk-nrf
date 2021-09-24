@@ -22,3 +22,22 @@
 .kconfig {
     background-color: #e82424;
 }
+
+
+/* -- Intellinium additions */
+
+.itl_car_pod {
+    background-color: #59630e;
+}
+
+.itl_lib {
+    background-color: #4d6575;
+}
+
+.itl_mat_pod {
+    background-color: #6c6c9e;
+}
+
+.itl_tfl {
+    background-color: #348780;
+}
