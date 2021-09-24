@@ -22,7 +22,7 @@ Behavior
 
 The HID feature reports are used for transporting information between the host and the connected embedded device.
 The cross-platform `HIDAPI library`_ is used for exchanging the reports.
-The library supports both Bluetooth LE and USB.
+The library supports both Bluetooth® Low Energy and USB.
 
 The host computer can set configuration values of the embedded device.
 It can also request fetching a value, for example in order to display it to the user.
@@ -46,7 +46,7 @@ Fetching a configuration value
        Host<<Device      [label="get report: value 1600, SUCCESS"];
 
     Data from the host can be forwarded through a USB dongle to the connected device.
-    The device must act as a Bluetooth LE peripheral in such case.
+    The device must act as a Bluetooth® LE peripheral in such case.
 
 Setting a configuration value of a device, forwarded by the dongle to a paired device
     .. msc::
@@ -88,7 +88,7 @@ Each feature report contains the following components:
 * Data - Arbitrary length data connected to the request/response.
 
 .. note::
-   Bluetooth LE HID Service removes the leading report ID byte, resulting in firmware obtaining a data frame 1 byte shorter.
+   Bluetooth® LE HID Service removes the leading report ID byte, resulting in firmware obtaining a data frame one byte shorter.
 
    The USB HID class transmits the whole report, including the report ID byte.
 
@@ -96,7 +96,7 @@ Each feature report contains the following components:
 Handling configuration channel in firmware
 ==========================================
 
-To enable the configuration channel in the nRF Desktop firmware, set the :option:`CONFIG_DESKTOP_CONFIG_CHANNEL_ENABLE` Kconfig option.
+To enable the configuration channel in the nRF Desktop firmware, set the :kconfig:`CONFIG_DESKTOP_CONFIG_CHANNEL_ENABLE` Kconfig option.
 This option also enables the mandatory :ref:`nrf_desktop_info`.
 
 Make sure you also configure the following configuration channel elements:
@@ -129,7 +129,7 @@ Depending on the connection method:
 
    The GATT write without response operation cannot be performed on HID feature report.
    To allow GATT write without response, the peripheral must provide an additional HID output report.
-   Use the :option:`CONFIG_DESKTOP_CONFIG_CHANNEL_OUT_REPORT` Kconfig option in nRF Desktop peripheral configuration to add the mentioned HID output report.
+   Use the :kconfig:`CONFIG_DESKTOP_CONFIG_CHANNEL_OUT_REPORT` Kconfig option in nRF Desktop peripheral configuration to add the mentioned HID output report.
    Disabling this option reduces the memory consumption.
 
 The :c:struct:`config_event` is used to propagate the configuration channel data.

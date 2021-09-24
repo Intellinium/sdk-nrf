@@ -28,33 +28,118 @@
 #include "link_api.h"
 #include "link.h"
 
+#include "uart/uart_shell.h"
+
 #if defined(CONFIG_MOSH_SMS)
 #include "sms.h"
 #endif
 
-#if defined(CONFIG_MODEM_INFO)
 #include <modem/at_cmd_parser.h>
 #include <modem/at_params.h>
-#endif
 
 static bool link_subscribe_for_rsrp;
 
 extern const struct shell *shell_global;
 
-#if defined(CONFIG_MODEM_INFO)
-/* System work queue for getting the modem info that ain't in lte connection ind: */
-static struct k_work modem_info_work;
+extern bool uart_disable_during_sleep_requested;
 
-/* Work queue for signal info: */
+struct pdn_activation_status_info {
+	bool activated;
+	uint8_t cid;
+};
+
+/* Work for getting the modem info that ain't in lte connection ind: */
+static struct k_work registered_work;
+
+/* Work for a signal info: */
 static struct k_work modem_info_signal_work;
+
 #define LINK_RSRP_VALUE_NOT_KNOWN -999
 static int32_t modem_rsrp = LINK_RSRP_VALUE_NOT_KNOWN;
 
+/* Work for continuous neighbor cell measurements: */
+static struct k_work continuous_ncellmeas_work;
+
+enum link_ncellmeas_modes ncellmeas_mode = LINK_NCELLMEAS_MODE_NONE;
+
+static void link_continuous_ncellmeas(struct k_work *work)
+{
+	if (ncellmeas_mode == LINK_NCELLMEAS_MODE_CONTINUOUS) {
+		link_ncellmeas_start(true, LINK_NCELLMEAS_MODE_CONTINUOUS);
+	}
+}
+
 /******************************************************************************/
 
-static void link_modem_info_work(struct k_work *unused)
+static void link_api_activate_mosh_contexts(
+	struct pdn_activation_status_info pdn_act_status_arr[], int size)
 {
+	int i, esm;
+
+	/* Check that all context created by mosh link connect are active and if not,
+	 * then activate:
+	 */
+	for (i = 0; i < size; i++) {
+		if (pdn_act_status_arr[i].activated == false &&
+		    link_shell_pdn_info_is_in_list(pdn_act_status_arr[i].cid)) {
+			(void)pdn_activate(pdn_act_status_arr[i].cid, &esm);
+		}
+	}
+}
+
+/* ****************************************************************************/
+#define AT_CMD_PDP_CONTEXTS_ACT_READ "AT+CGACT?"
+
+static void link_api_get_pdn_activation_status(
+	struct pdn_activation_status_info pdn_act_status_arr[], int size)
+{
+	char buf[16] = { 0 };
+	const char *p;
+	char at_response_str[256];
+	int ret;
+
+	ret = at_cmd_write(AT_CMD_PDP_CONTEXTS_ACT_READ, at_response_str,
+			   sizeof(at_response_str), NULL);
+	if (ret) {
+		shell_error(
+			shell_global,
+			"Cannot get PDP contexts activation states, err: %d",
+			ret);
+		return;
+	}
+
+	/* For each contexts, fill the activation status into given array: */
+	for (int i = 0; i < size; i++) {
+		/* Search for a string +CGACT: <cid>,<state> */
+		snprintf(buf, sizeof(buf), "+CGACT: %d,1", i);
+		pdn_act_status_arr[i].cid = i;
+		p = strstr(at_response_str, buf);
+		if (p) {
+			pdn_act_status_arr[i].activated = true;
+		}
+	}
+}
+
+/* ****************************************************************************/
+
+static void link_registered_work(struct k_work *unused)
+{
+	struct pdn_activation_status_info
+		pdn_act_status_arr[CONFIG_PDN_CONTEXTS_MAX];
+
 	ARG_UNUSED(unused);
+
+	memset(pdn_act_status_arr, 0,
+	       CONFIG_PDN_CONTEXTS_MAX *
+		       sizeof(struct pdn_activation_status_info));
+
+	/* Get PDN activation status for each: */
+	link_api_get_pdn_activation_status(pdn_act_status_arr,
+					   CONFIG_PDN_CONTEXTS_MAX);
+
+	/* Activate the deactive ones that have been connected by us: */
+	link_api_activate_mosh_contexts(pdn_act_status_arr,
+					CONFIG_PDN_CONTEXTS_MAX);
 
 	/* Seems that 1st info read fails without this. Thus, let modem have some time: */
 	k_sleep(K_MSEC(1500));
@@ -88,17 +173,16 @@ static void link_rsrp_signal_update(struct k_work *work)
 	}
 	timestamp_prev = k_uptime_get_32();
 }
-#endif
 
 /******************************************************************************/
 
 void link_init(void)
 {
-#if defined(CONFIG_MODEM_INFO)
-	k_work_init(&modem_info_work, link_modem_info_work);
+	k_work_init(&registered_work, link_registered_work);
 	k_work_init(&modem_info_signal_work, link_rsrp_signal_update);
 	modem_info_rsrp_register(link_rsrp_signal_handler);
-#endif
+
+	k_work_init(&continuous_ncellmeas_work, link_continuous_ncellmeas);
 
 	/* TODO CHECK THIS */
 	//shell_global = shell_backend_uart_get_ptr();
@@ -139,32 +223,41 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		struct lte_lc_cells_info cells = evt->cells_info;
 		struct lte_lc_cell cur_cell = cells.current_cell;
 
+		shell_print(shell_global, "Neighbor cell measurement results:");
+
 		/* Current cell: */
 		if (cur_cell.id) {
-			shell_print(shell_global, "Current cell:");
+			char tmp_ta_str[12];
 
+			if (cur_cell.timing_advance == 65535) {
+				sprintf(tmp_ta_str, "\"not valid\"");
+			} else {
+				sprintf(tmp_ta_str, "%d", cur_cell.timing_advance);
+			}
+
+			shell_print(shell_global, "  Current cell:");
 			shell_print(
 				shell_global,
-				"    ID %d, phy ID %d, MCC %d MNC %d, RSRP %d : %ddBm, RSRQ %d, TAC %d, earfcn %d, meas time %lld, TA %d",
+				"    ID %d, phy ID %d, MCC %d MNC %d, RSRP %d : %ddBm, RSRQ %d, TAC %d, earfcn %d, meas time %lld, TA %s",
 				cur_cell.id, cur_cell.phys_cell_id,
 				cur_cell.mcc, cur_cell.mnc, cur_cell.rsrp,
 				cur_cell.rsrp - MODEM_INFO_RSRP_OFFSET_VAL,
 				cur_cell.rsrq, cur_cell.tac, cur_cell.earfcn,
 				cur_cell.measurement_time,
-				cur_cell.timing_advance);
+				tmp_ta_str);
 		} else {
 			shell_print(shell_global,
-				    "No current cell information from modem.");
+				    "  No current cell information from modem.");
 		}
 
 		if (!cells.ncells_count) {
 			shell_print(shell_global,
-				    "No neighbor cell information from modem.");
+				    "  No neighbor cell information from modem.");
 		}
 
 		for (i = 0; i < cells.ncells_count; i++) {
 			/* Neighbor cells: */
-			shell_print(shell_global, "Neighbor cell %d", i + 1);
+			shell_print(shell_global, "  Neighbor cell %d", i + 1);
 			shell_print(
 				shell_global,
 				"    phy ID %d, RSRP %d : %ddBm, RSRQ %d, earfcn %d, timediff %d",
@@ -178,9 +271,15 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		}
 	} break;
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT_PRE_WARNING:
+		link_shell_print_modem_sleep_notif(shell_global, evt);
+		break;
 	case LTE_LC_EVT_MODEM_SLEEP_ENTER:
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT:
 		link_shell_print_modem_sleep_notif(shell_global, evt);
+
+		if (uart_disable_during_sleep_requested) {
+			uart_toggle_power_state_at_event(shell_global, evt);
+		}
 		break;
 	case LTE_LC_EVT_LTE_MODE_UPDATE:
 		/** The currently active LTE mode is updated. If a system mode that
@@ -196,18 +295,19 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 	case LTE_LC_EVT_NW_REG_STATUS:
 		link_shell_print_reg_status(shell_global, evt->nw_reg_status);
 
-#if defined(CONFIG_MODEM_INFO)
 		if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_EMERGENCY ||
 		    evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME ||
 		    evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_ROAMING) {
-			k_work_submit(&modem_info_work);
+			k_work_submit(&registered_work);
 		}
-#endif
 		break;
 	case LTE_LC_EVT_CELL_UPDATE:
 		shell_print(shell_global,
 			    "LTE cell changed: Cell ID: %d, Tracking area: %d",
 			    evt->cell.id, evt->cell.tac);
+		if (ncellmeas_mode == LINK_NCELLMEAS_MODE_CONTINUOUS) {
+			k_work_submit(&continuous_ncellmeas_work);
+		}
 		break;
 	case LTE_LC_EVT_RRC_UPDATE:
 		shell_print(shell_global, "RRC mode: %s",
@@ -255,6 +355,7 @@ static int link_default_pdp_context_set(void)
 	}
 	return 0;
 }
+
 static int link_default_pdp_context_auth_set(void)
 {
 	int ret;
@@ -269,6 +370,21 @@ static int link_default_pdp_context_auth_set(void)
 				    "pdn_ctx_auth_set returned err  %d", ret);
 			return ret;
 		}
+	}
+	return 0;
+}
+
+static int link_enable_rel14_features(void)
+{
+	static const char rel14feat_at_cmd[] = "AT%REL14FEAT=1,1,1,1,1";
+	enum at_cmd_state state = AT_CMD_OK;
+
+	at_cmd_write(rel14feat_at_cmd, NULL, 0, &state);
+	if (state != AT_CMD_OK) {
+		shell_warn(
+			shell_global,
+			"Release 14 features AT-command \"%s\" returned: ERROR",
+			rel14feat_at_cmd);
 	}
 	return 0;
 }
@@ -321,14 +437,12 @@ void link_rsrp_subscribe(bool subscribe)
 	}
 }
 
-void link_ncellmeas_start(bool start)
+void link_ncellmeas_start(bool start, enum link_ncellmeas_modes mode)
 {
 	int ret;
 
+	ncellmeas_mode = mode;
 	if (start) {
-		shell_print(
-			shell_global,
-			"Neighbor cell measurements and reporting starting");
 		ret = lte_lc_neighbor_cell_measurement();
 		if (shell_global != NULL) {
 			if (ret) {
@@ -450,6 +564,12 @@ int link_func_mode_set(enum lte_lc_func_mode fun)
 		return_value = lte_lc_offline();
 		break;
 	case LTE_LC_FUNC_MODE_NORMAL:
+		/* Enable Rel14 features before going to normal mode */
+		link_enable_rel14_features();
+
+		/* (Re)register for rsrp notifications: */
+		modem_info_rsrp_register(link_rsrp_signal_handler);
+
 		/* Run custom at cmds from settings (link nmodeat -mosh command): */
 		link_normal_mode_at_cmds_run();
 
@@ -503,4 +623,41 @@ int link_func_mode_set(enum lte_lc_func_mode fun)
 	}
 
 	return return_value;
+}
+
+void link_rai_read(void)
+{
+	bool rai_status = false;
+	int err;
+
+	err = link_api_rai_status(&rai_status);
+	if (err == 0) {
+		shell_print(
+			shell_global,
+			"Release Assistance Indication status is enabled=%d",
+			rai_status);
+	} else {
+		shell_error(shell_global, "Reading RAI failed with error code %d", err);
+	}
+}
+
+int link_rai_enable(bool enable)
+{
+	enum at_cmd_state state = AT_CMD_ERROR;
+	char command[10];
+	int err;
+
+	sprintf(command, "AT%%RAI=%d", enable);
+	err = at_cmd_write(command, NULL, 0, &state);
+	if (state == AT_CMD_OK) {
+		shell_print(
+			shell_global,
+			"Release Assistance Indication functionality set to enabled=%d.\n"
+			"The change will be applied when going to normal mode for the next time.",
+			enable);
+	} else {
+		shell_error(shell_global, "Error state=%d, error=%d", state, err);
+		return -EFAULT;
+	}
+	return 0;
 }

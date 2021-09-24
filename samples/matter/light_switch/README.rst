@@ -19,7 +19,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp
+   :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp, nrf21540dk_nrf52840
 
 For this sample to work, you also need the :ref:`Matter light bulb <matter_light_bulb_sample>` sample programmed to another supported development kit.
 
@@ -36,7 +36,7 @@ The light switch must be put into the test mode and paired with a light bulb dev
 Test mode
 =========
 
-Unlike other samples, such as :ref:`Matter door lock <matter_lock_sample>`, the light switch sample does not support Matter commissioning over Bluetooth LE.
+Unlike other samples, such as :ref:`Matter door lock <matter_lock_sample>`, the light switch sample does not support Matter commissioning over Bluetooth® LE.
 To make the light switch and the light bulb devices able to communicate with each other, they must be initialized with the same static Thread network parameters and static Matter cryptographic keys.
 
 Pressing **Button 3** activates the test mode before enabling the pairing phase on the device.
@@ -49,6 +49,16 @@ Pairing
 After the test mode is activated and both devices are initialized with the same network parameters, the pairing phase starts.
 During this phase, the light bulb device periodically sends multicast messages with static content.
 Once such a message is intercepted by the light switch device, the light switch is made aware of the IP address of the nearby light bulb device and the pairing is done.
+
+Configuration
+*************
+
+|config|
+
+FEM support
+===========
+
+.. include:: /includes/sample_fem_support.txt
 
 User interface
 **************
@@ -76,8 +86,9 @@ Button 4:
     The brightness level is increased gradually while the button is being pressed.
     When the button is pressed for too long, the brightness level wraps around and becomes the lowest possible.
 
-SEGGER J-Link USB port:
-    Used for getting logs from the device or for communicating with it through the command-line interface.
+.. include:: ../lock/README.rst
+    :start-after: matter_door_lock_sample_jlink_start
+    :end-before: matter_door_lock_sample_jlink_end
 
 Building and running
 ********************

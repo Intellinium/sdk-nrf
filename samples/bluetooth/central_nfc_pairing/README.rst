@@ -7,7 +7,7 @@ Bluetooth: Central NFC pairing
    :local:
    :depth: 2
 
-The Central NFC pairing sample demonstrates Bluetooth LE out-of-band pairing using an :ref:`st25r3911b_nfc_readme` and the NFC TNEP protocol.
+The Central NFC pairing sample demonstrates Bluetooth® LE out-of-band pairing using an :ref:`st25r3911b_nfc_readme` and the NFC TNEP protocol.
 You can use it to test the touch-to-pair feature between Nordic Semiconductor's devices with :ref:`st25r3911b_nfc_readme` and an NFC Tag device with Bluetooth LE support.
 
 The sample shows the usage of NFC NDEF :ref:`nfc_ch` and :ref:`tnep_poller_readme` with the :ref:`Connection Handover service<nfc_tnep_ch_readme>`.
@@ -38,7 +38,7 @@ Static Handover
 ===============
 A tag in the Static Handover mode, contains a Handover Select Message with carrier information NDEF records or a single Carrier Configuration Record.
 
-.. figure:: /images/nfc_static_connection_handover.svg
+.. figure:: images/nfc_static_connection_handover.svg
    :alt: Static Handover
 
 Negotiated Handover
@@ -49,7 +49,7 @@ In case of the OOB data for Bluetooth LE the NFC Devices can exchange OOB data 2
 Handover messages are exchanged using the TNEP Single response communication mode.
 The NFC Poler Device can be the Handover Requester or Handover Selector Device, the role is taken based on the NFC Tag first NDEF message.
 
-.. figure:: /images/nfc_negotiated_connection_handover.svg
+.. figure:: images/nfc_negotiated_connection_handover.svg
    :alt: Negotiated Handover
 
 Requirements

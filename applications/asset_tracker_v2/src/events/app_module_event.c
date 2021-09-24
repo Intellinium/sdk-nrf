@@ -23,6 +23,8 @@ static char *type2str(enum app_module_data_type type)
 		return "BAT";
 	case APP_DATA_GNSS:
 		return "GNSS";
+	case APP_DATA_NEIGHBOR_CELLS:
+		return "NEIGHBOR_CELLS";
 	default:
 		return "Unknown type";
 	}
@@ -92,10 +94,9 @@ static void profile_event(struct log_event_buf *buf,
 	const struct app_module_event *event = cast_app_module_event(eh);
 
 #if defined(CONFIG_PROFILER_EVENT_TYPE_STRING)
-	profiler_log_encode_string(buf, get_evt_type_str(event->type),
-		strlen(get_evt_type_str(event->type)));
+	profiler_log_encode_string(buf, get_evt_type_str(event->type));
 #else
-	profiler_log_encode_u32(buf, event->type);
+	profiler_log_encode_uint8(buf, event->type);
 #endif
 }
 
@@ -103,7 +104,7 @@ EVENT_INFO_DEFINE(app_module_event,
 #if defined(CONFIG_PROFILER_EVENT_TYPE_STRING)
 		  ENCODE(PROFILER_ARG_STRING),
 #else
-		  ENCODE(PROFILER_ARG_U32),
+		  ENCODE(PROFILER_ARG_U8),
 #endif
 		  ENCODE("type"),
 		  profile_event);

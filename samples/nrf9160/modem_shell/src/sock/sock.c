@@ -28,6 +28,8 @@
 #include "net_utils.h"
 #include "str_utils.h"
 
+extern struct k_poll_signal mosh_signal;
+
 /* Maximum number of sockets takes into account AT command socket */
 #define MAX_SOCKETS (CONFIG_POSIX_MAX_FDS - 1)
 #define SOCK_SEND_BUFFER_SIZE_UDP 1200
@@ -329,12 +331,19 @@ static int sock_getaddrinfo(
 		};
 		err = getaddrinfo(address, NULL, &hints, &socket_info->addrinfo);
 		if (err) {
-			shell_error(
-				shell_global,
-				"getaddrinfo() failed, err %d errno %d",
-				err,
-				errno);
-			err = errno;
+			if (err == DNS_EAI_SYSTEM) {
+				shell_error(
+					shell_global,
+					"getaddrinfo() failed, err %d errno %d",
+					err,
+					errno);
+			} else {
+				shell_error(
+					shell_global,
+					"getaddrinfo() failed, err %d",
+					err);
+			}
+			err = -EADDRNOTAVAIL;
 			return err;
 		}
 
@@ -695,6 +704,15 @@ static int sock_send(
 {
 	int bytes;
 	int dest_addr_len = 0;
+	int set, res;
+
+	k_poll_signal_check(&mosh_signal, &set, &res);
+	if (set && res == MOSH_SIGNAL_KILL) {
+		k_poll_signal_reset(&mosh_signal);
+		shell_error(shell_global,
+			    "KILL signal received - exiting");
+		return -ECANCELED;
+	}
 
 	if (log_data) {
 		if (data_hex_format) {
@@ -741,6 +759,7 @@ static void data_send_work_handler(struct k_work *item)
 	struct data_transfer_info *data_send_info_ptr =
 		CONTAINER_OF(item, struct data_transfer_info, work);
 	struct sock_info *socket_info = data_send_info_ptr->parent;
+	int ret;
 
 	if (!socket_info->in_use) {
 		shell_print(
@@ -751,16 +770,17 @@ static void data_send_work_handler(struct k_work *item)
 		return;
 	}
 
-	sock_send(
+	ret = sock_send(
 		socket_info,
 		socket_info->send_buffer,
 		socket_info->send_buffer_size,
 		true,
 		data_send_info_ptr->data_format_hex);
 
-	k_work_schedule(
-		&socket_info->send_info.work,
-		K_SECONDS(socket_info->send_info.interval));
+	if (ret != -ECANCELED) {
+		k_work_schedule(&socket_info->send_info.work,
+				K_SECONDS(socket_info->send_info.interval));
+	}
 }
 
 static void sock_send_random_data_length(struct sock_info *socket_info)
@@ -778,6 +798,11 @@ static void sock_send_random_data_length(struct sock_info *socket_info)
 		}
 		bytes = sock_send(socket_info, socket_info->send_buffer,
 				  strlen(socket_info->send_buffer), false, false);
+
+		if (bytes == -ECANCELED) {
+			socket_info->send_poll = false;
+			break;
+		}
 
 		if (bytes < 0) {
 			/* Wait for socket to allow sending again */
@@ -1161,31 +1186,6 @@ int sock_close(int socket_id)
 	}
 	shell_print(shell_global, "Close socket id=%d, fd=%d", socket_info->id, socket_info->fd);
 	sock_info_clear(socket_info);
-	return 0;
-}
-
-int sock_rai_enable(int rai_enable)
-{
-	enum at_cmd_state state = AT_CMD_OK;
-	char command[] = "AT%%RAI=0";
-	int err;
-
-	if (rai_enable == SOCK_RAI_NONE) {
-		shell_error(shell_global, "No valid RAI options given");
-		return -EINVAL;
-	}
-	sprintf(command, "AT%%RAI=%d", rai_enable);
-	err = at_cmd_write(command, NULL, 0, &state);
-	if (state == AT_CMD_OK) {
-		shell_print(
-			shell_global,
-			"Release Assistance Indication functionality set to enabled=%d",
-			rai_enable);
-	} else {
-		shell_error(shell_global, "Error state=%d, error=%d",
-			    state, err);
-		return -EINVAL;
-	}
 	return 0;
 }
 

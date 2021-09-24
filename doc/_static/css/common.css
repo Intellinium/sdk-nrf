@@ -23,21 +23,10 @@
     background-color: #e82424;
 }
 
-
-/* -- Intellinium additions */
-
-.itl_car_pod {
-    background-color: #59630e;
+.tfm {
+    background-color: #2980b9;
 }
 
-.itl_lib {
-    background-color: #4d6575;
-}
-
-.itl_mat_pod {
-    background-color: #6c6c9e;
-}
-
-.itl_tfl {
-    background-color: #348780;
+.matter {
+    background-color: #6D42C8;
 }

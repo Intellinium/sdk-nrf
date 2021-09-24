@@ -59,7 +59,7 @@ The sleepy behavior can be enabled by pressing **Button 3** while the light swit
 Multiprotocol Bluetooth LE extension
 ====================================
 
-This optional extension demonstrates dynamic concurrent switching between two protocols, Bluetooth LE and Zigbee.
+This optional extension demonstrates dynamic concurrent switching between two protocols, Bluetooth® LE and Zigbee.
 It uses :ref:`nus_service_readme` library.
 
 When this extension is enabled, you can use:
@@ -118,8 +118,6 @@ For more information about using configuration overlay files, see :ref:`zephyr:i
 
 FEM support
 ===========
-
-.. |fem_file_path| replace:: :file:`samples/zigbee/common`
 
 .. include:: /includes/sample_fem_support.txt
 

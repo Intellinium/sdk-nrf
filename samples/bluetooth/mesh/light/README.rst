@@ -7,7 +7,7 @@ Bluetooth: Mesh light
    :local:
    :depth: 2
 
-The Bluetooth mesh light sample demonstrates how to set up a mesh server model application, and control LEDs with Bluetooth mesh using the :ref:`bt_mesh_onoff_readme`.
+The Bluetooth® mesh light sample demonstrates how to set up a mesh server model application, and control LEDs with Bluetooth mesh using the :ref:`bt_mesh_onoff_readme`.
 
 .. note::
    This sample is self-contained, and can be tested on its own.
@@ -20,13 +20,15 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf52833dk_nrf52820
-
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf52833dk_nrf52820, thingy53_nrf5340_cpuapp
 
 The sample also requires a smartphone with Nordic Semiconductor's nRF Mesh mobile app installed in one of the following versions:
 
   * `nRF Mesh mobile app for Android`_
   * `nRF Mesh mobile app for iOS`_
+
+.. note::
+   |thingy53_sample_note|
 
 Overview
 ********
@@ -34,11 +36,17 @@ Overview
 The mesh light sample is a Generic OnOff Server with a provisionee role in a mesh network.
 There can be one or more servers in the network, for example light bulbs.
 
-The sample instantiates four instances of the Generic OnOff Server model for controlling LEDs.
+The sample instantiates up to four instances of the Generic OnOff Server model for controlling LEDs.
+The number of OnOff Server instances depends on available LEDs, as defined in board DTS file.
 
 Provisioning is performed using the `nRF Mesh mobile app`_.
 This mobile application is also used to configure key bindings, and publication and subscription settings of the Bluetooth mesh model instances in the sample.
 After provisioning and configuring the mesh models supported by the sample in the `nRF Mesh mobile app`_, you can control the LEDs on the development kit from the app.
+
+.. note::
+   The Bluetooth mesh specification recommends that a status message is published at the end of transitions.
+   This behavior is not reflected in the light sample.
+   Make sure to implement the end-of-transition publication for your application.
 
 Provisioning
 ============
@@ -62,9 +70,13 @@ The following table shows the mesh light composition data for this sample:
    Gen. OnOff Server
    =================  =================  =================  =================
 
+.. note::
+   When used with :ref:`zephyr:thingy53_nrf5340`, Element 4 is not available.
+   :ref:`zephyr:thingy53_nrf5340` supports only one RGB LED, and treats each RGB LED channel as a separate LED.
+
 The models are used for the following purposes:
 
-* :ref:`bt_mesh_onoff_srv_readme` instances in elements 1 to 4 each control LEDs 1 to 4, respectively.
+* :ref:`bt_mesh_onoff_srv_readme` instances in elements 1 to N, where N is number of on board LEDs, each control LEDs 1 to N, respectively.
 * Config Server allows configurator devices to configure the node remotely.
 * Health Server provides ``attention`` callbacks that are used during provisioning to call your attention to the device.
   These callbacks trigger blinking of the LEDs.
@@ -92,8 +104,10 @@ Source file setup
 
 This sample is split into the following source files:
 
-* A :file:`main.c` file to handle initialization.
-* One additional file for handling mesh models, :file:`model_handler.c`.
+* :file:`main.c` used to handle initialization.
+* :file:`model_handler.c` used to handle mesh models.
+* :file:`thingy53.c` used to handle preinitialization of the :ref:`zephyr:thingy53_nrf5340` board.
+  Only compiled when the sample is built for :ref:`zephyr:thingy53_nrf5340` board.
 
 Building and running
 ********************

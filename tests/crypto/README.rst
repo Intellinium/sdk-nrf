@@ -19,7 +19,7 @@ See :ref:`crypto_test_ztest_custom` for details.
 
 The tests are executed if the cryptographic functionality is enabled in Kconfig.
 Make sure to configure :ref:`nrfxlib:nrf_security` and all available hardware or software backends to enable the tests.
-See :option:`CONFIG_NORDIC_SECURITY_BACKEND`.
+See :kconfig:`CONFIG_NORDIC_SECURITY_BACKEND`.
 
 +--------------------+-------------+----------------------------------------------------------------------------+----------------------------------------------------------------------------+
 | Cryptographic mode |   Sub-mode  |                          Link to standard                                  |                              Test Vector Source                            |
@@ -47,7 +47,7 @@ See :option:`CONFIG_NORDIC_SECURITY_BACKEND`.
 +--------------------+-------------+----------------------------------------------------------------------------+----------------------------------------------------------------------------+
 |                    | ChaCha-Poly | `RFC 7539 - ChaCha20 and Poly1305 for IETF Protocols`_                     | `RFC 7539 - ChaCha20 and Poly1305 for IETF Protocols`_                     |
 +--------------------+-------------+----------------------------------------------------------------------------+----------------------------------------------------------------------------+
-| ECDH               | secp160r1   | `NIST - ECDH`_                                                             | `GEC 2: Test Vectors for SEC 1`_                                           |
+| ECDH               | secp160r1   | `NIST - ECDH`_                                                             | GEC 2: Test Vectors for SEC 1                                              |
 +--------------------+-------------+----------------------------------------------------------------------------+----------------------------------------------------------------------------+
 |                    | secp160r2   |                                                                            | No test vectors                                                            |
 +--------------------+-------------+----------------------------------------------------------------------------+----------------------------------------------------------------------------+
@@ -129,7 +129,7 @@ The tests support the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns, nrf52840dk_nrf52840
+   :rows: nrf5340dk_nrf5340_cpuapp, nrf9160dk_nrf9160, nrf52840dk_nrf52840
 
 .. note::
    Nordic devices such as nRF51, nRF52810, or nRF52811 cannot run the full test suite because of limited flash capacity.
@@ -147,10 +147,15 @@ There are multiple ways to build the tests.
 See :ref:`nrf_security` for additional information about configuring the Nordic Security Module.
 You can use the following configuration files to build the test in a specific setup:
 
-* :file:`overlay-backend-sw.conf` - software only, except a hardware module to generate entropy for RNG
-* :file:`overlay-backend-hw.conf` - hardware-accelerated using the Arm CryptoCell accelerator (for cryptography and entropy for RNG)
-* :file:`overlay-backend-hw-sw.conf` - a combination of hardware acceleration using Arm CryptoCell and a software implementation that adds key sizes and algorithms not supported in CryptoCell (the setup uses hardware as much as possible)
-* :file:`overlay-backend-oberon.conf` - uses the Oberon software library only for all cryptographic operations
+* :file:`overlay-cc3xx.conf` - it uses hardware acceleration using the Arm CryptoCell accelerator (for cryptography and entropy for random number generation).
+* :file:`overlay-cc3xx-oberon.conf` - it uses a combination of hardware acceleration, using the Arm CryptoCell, and the Oberon software library, that adds key sizes and algorithms not supported in the CryptoCell.
+  This setup uses hardware acceleration as much as possible.
+* :file:`overlay-oberon.conf` - it uses only the Oberon software library for all cryptographic operations.
+* :file:`overlay-vanilla.conf` - it is software only, except for a hardware-accelerated module to generate entropy for random number generation.
+* :file:`overlay-multi.conf` - it uses a combination of hardware acceleration, using the Arm CryptoCell, and vanilla mbedtls and Oberon software implementations to support functionalities not supported by the CryptoCell.
+  This setup uses hardware acceleration as much as possible.
+
+You can use one of the listed overlay configurations by adding the ``-- -DOVERLAY_CONFIG=<overlay_config_file>`` flag to your build. Also see :ref:`cmake_options` for instructions on how to add this option.
 
 .. _crypto_test_ztest_custom:
 
@@ -158,9 +163,9 @@ Ztest custom log formatting
 ===========================
 
 Cryptography tests replace the standard Ztest formatting to assure more efficient reporting of running tests and test results.
-Set the configuration option :option:`CONFIG_ZTEST_TC_UTIL_USER_OVERRIDE` to replace the Ztest macros ``TC_START`` and ``Z_TC_END_RESULT`` with versions more suited for reporting results of cryptographic tests.
+Set the configuration option :kconfig:`CONFIG_ZTEST_TC_UTIL_USER_OVERRIDE` to replace the Ztest macros ``TC_START`` and ``Z_TC_END_RESULT`` with versions more suited for reporting results of cryptographic tests.
 
-:option:`CONFIG_ZTEST_TC_UTIL_USER_OVERRIDE` uses :file:`tests/crypto/include_override/tc_util_user_override.h` to define the custom formatting.
+:kconfig:`CONFIG_ZTEST_TC_UTIL_USER_OVERRIDE` uses :file:`tests/crypto/include_override/tc_util_user_override.h` to define the custom formatting.
 
 .. _crypto_test_testing:
 

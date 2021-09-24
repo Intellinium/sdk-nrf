@@ -7,7 +7,7 @@ Bluetooth: EnOcean
    :local:
    :depth: 2
 
-The Bluetooth EnOcean sample demonstrates the basic usage of the :ref:`bt_enocean_readme` library.
+The Bluetooth® EnOcean sample demonstrates the basic usage of the :ref:`bt_enocean_readme` library.
 
 Overview
 ********
@@ -18,7 +18,6 @@ The observer device forwards incoming advertisements to the EnOcean library for 
 The application receives events from the EnOcean library through callbacks, and prints the outcome to console.
 The LEDs of the kit also respond to button presses from an EnOcean switch.
 
-
 Requirements
 ************
 
@@ -26,7 +25,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52840dk_nrf52811, nrf52833dk_nrf52833, nrf52833dk_nrf52820, nrf52dk_nrf52832, nrf52dk_nrf52810
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52840dk_nrf52811, nrf52833dk_nrf52833, nrf52833dk_nrf52820, nrf52dk_nrf52832, nrf52dk_nrf52810
 
 The sample also requires at least one :ref:`supported EnOcean device <bt_enocean_devices>`.
 

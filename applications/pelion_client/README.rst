@@ -182,7 +182,7 @@ Zephyr's system heap
 --------------------
 
 Zephyr contains its own memory allocation algorithm that implements heap.
-To configure the heap memory size, use the :option:`CONFIG_HEAP_MEM_POOL_SIZE` Kconfig option.
+To configure the heap memory size, use the :kconfig:`CONFIG_HEAP_MEM_POOL_SIZE` Kconfig option.
 
 For more information about Zephyr's system heap, see the :ref:`zephyr:heap_v2` page in Zephyr's documentation.
 
@@ -199,7 +199,7 @@ The Mbed TLS library can use the libc heap for allocation.
 
 Alternatively, it can use the dedicated allocation area (see `mbedtls_memory_buffer_alloc_init`_ in the official Mbed TLS documentation).
 The :ref:`nrf_security` variant of the Mbed TLS library allows to set such dedicated allocation buffer.
-See :option:`CONFIG_MBEDTLS_ENABLE_HEAP` and :option:`CONFIG_MBEDTLS_HEAP_SIZE` for more details.
+See :kconfig:`CONFIG_MBEDTLS_ENABLE_HEAP` and :kconfig:`CONFIG_MBEDTLS_HEAP_SIZE` for more details.
 
 Flash memory layout
 ===================
@@ -354,7 +354,7 @@ The application supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns, nrf5340dk_nrf5340_cpuapp, nrf5340dk_nrf5340_cpuappns, nrf52840dk_nrf52840
+   :rows: nrf9160dk_nrf9160_ns, nrf5340dk_nrf5340_cpuapp, nrf5340dk_nrf5340_cpuapp_ns, nrf52840dk_nrf52840
 
 The nRF Pelion Client application is configured to compile and run as a non-secure application on nRF91's and nRF5340's Cortex-M33.
 Therefore, it automatically includes the :ref:`secure_partition_manager` that prepares the required peripherals to be available for the application.
@@ -392,7 +392,7 @@ Configuration
 *************
 
 |pelion_lib_explanation|
-The Pelion Device Management library is enabled with :option:`CONFIG_PELION_CLIENT` configuration option.
+The Pelion Device Management library is enabled with :kconfig:`CONFIG_PELION_CLIENT` configuration option.
 
 For the library to work, you must enable and properly configure the Mbed TLS library.
 To connect to Pelion Device Management Portal, the device must be provisioned with valid credentials.
@@ -405,7 +405,7 @@ Mbed TLS
 
 The Pelion Device Management library is depending on a properly configured Mbed TLS library.
 To simplify the development within the |NCS|, a predefined set of Mbed TLS configuration options was prepared.
-Set compatible with :ref:`nrfxlib:nrf_security` can be enabled using :option:`CONFIG_PELION_NRF_SECURITY` configuration option.
+Set compatible with :ref:`nrfxlib:nrf_security` can be enabled using :kconfig:`CONFIG_PELION_NRF_SECURITY` configuration option.
 
 Pelion credentials
 ==================
@@ -427,11 +427,11 @@ You can provide the devices with the new version of the firmware image over-the-
 
 Before the update, you must enable a compatible bootloader.
 The Pelion Device Management library is compatible with MCUboot.
-Enable it with the :option:`CONFIG_BOOTLOADER_MCUBOOT` Kconfig option.
-Along with the bootloader, you must also enable an image manager with the :option:`CONFIG_IMG_MANAGER` and :option:`CONFIG_MCUBOOT_IMG_MANAGER` Kconfig options.
+Enable it with the :kconfig:`CONFIG_BOOTLOADER_MCUBOOT` Kconfig option.
+Along with the bootloader, you must also enable an image manager with the :kconfig:`CONFIG_IMG_MANAGER` and :kconfig:`CONFIG_MCUBOOT_IMG_MANAGER` Kconfig options.
 
 When MCUboot is enabled the |NCS| build system generates the update image that can be uploaded to the secondary (update) slot.
-The resulting signed file named ``app_update.bin`` can be found in the build directory.
+The resulting signed file named :file:`app_update.bin` can be found in the build directory.
 For more information refer to :ref:`mcuboot_ncs`.
 This image is signed with MCUboot private key.
 By default, if private key is present at :file:`applications/pelion_client/configuration/${BOARD_NAME}/mcuboot_private.pem` it will be used for signing process.
@@ -440,12 +440,12 @@ If key is not present and configuration does not point to any specific key path,
 Additionally, if the application image is large, you may need to store the update image on an external flash device.
 In such case, enable the external flash support and correctly configure the partition layout.
 
-The Pelion Device Management library's update manager is enabled when you select the :option:`CONFIG_PELION_UPDATE` Kconfig option.
+The Pelion Device Management library's update manager is enabled when you select the :kconfig:`CONFIG_PELION_UPDATE` Kconfig option.
 This option enables components required for image transport and storage.
 
 For the update campaign to be recognized and the image be accepted, you need to provision the device with the valid update resources (device unique identifiers and certificate used for update process validation).
 These resources are normally stored on device at production time.
-To simplify the development process, you can have the update resources created by the update manifest generation tool (see `Pelion Manifest Tool`_ in the Pelion documentation).
+To simplify the development process, you can have the update resources created by the update manifest generation tool (see `Pelion Manifest Tool for version 4.7`_ in the Pelion documentation).
 The generated C file must be stored to the :file:`update_default_resources.c` file, located in the :file:`applications/pelion_client/configuration/common` directory.
 The update resources embedded into the application image are used to provision the device.
 

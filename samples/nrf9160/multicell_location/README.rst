@@ -17,7 +17,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: thingy91_nrf9160ns, nrf9160dk_nrf9160ns
+   :rows: thingy91_nrf9160_ns, nrf9160dk_nrf9160_ns
 
 
 .. include:: /includes/spm.txt
@@ -33,9 +33,11 @@ The cell information is passed on to the :ref:`lib_multicell_location` library, 
 Responses from location services are parsed and returned to the sample, which displays the responses on a terminal.
 
 Currently, the sample can be used with the location services supported by the :ref:`lib_multicell_location` library, which are `nRF Cloud Location Services`_, `HERE Positioning`_ and `Skyhook Precision Location`_.
-Note that nRF Cloud currently is a single-cell location service, and does not make use of neighboring cells in location resolution.
 Before you use the services, see the :ref:`lib_multicell_location` library documentation and the respective location service documentation for the required setup.
 
+.. include:: ../../../doc/nrf/libraries/networking/multicell_location.rst
+   :start-after: reprovision_cert_note_start
+   :end-before: reprovision_cert_note_end
 
 Trigger location requests
 *************************
@@ -109,15 +111,15 @@ Additional configuration
 Check and configure the following library options that are used by the sample:
 
 
-* :option:`CONFIG_MULTICELL_LOCATION_SERVICE_NRF_CLOUD`
-* :option:`CONFIG_MULTICELL_LOCATION_SERVICE_HERE`
-* :option:`CONFIG_MULTICELL_LOCATION_SERVICE_SKYHOOK`
+* :kconfig:`CONFIG_MULTICELL_LOCATION_SERVICE_NRF_CLOUD`
+* :kconfig:`CONFIG_MULTICELL_LOCATION_SERVICE_HERE`
+* :kconfig:`CONFIG_MULTICELL_LOCATION_SERVICE_SKYHOOK`
 
 For the location service that is used, the authorization method can be set with one of the following options:
 
-* :option:`CONFIG_MULTICELL_LOCATION_NRF_CLOUD_API_KEY`
-* :option:`CONFIG_MULTICELL_LOCATION_HERE_API_KEY`
-* :option:`CONFIG_MULTICELL_LOCATION_SKYHOOK_API_KEY`
+* :kconfig:`CONFIG_MULTICELL_LOCATION_NRF_CLOUD_API_KEY`
+* :kconfig:`CONFIG_MULTICELL_LOCATION_HERE_API_KEY`
+* :kconfig:`CONFIG_MULTICELL_LOCATION_SKYHOOK_API_KEY`
 
 See :ref:`lib_multicell_location` for more information on the various configuration options that exist for the services.
 
@@ -125,6 +127,10 @@ Building and running
 ********************
 
 .. |sample path| replace:: :file:`samples/nrf9160/multicell_location`
+
+.. note::
+
+   Before building the sample, you must configure a location provider and an API key as instructed in :ref:`lib_multicell_location`.
 
 .. include:: /includes/build_and_run_nrf9160.txt
 

@@ -113,7 +113,7 @@ static int network_data_add(struct network_param *network, cJSON *json_obj)
 	total_len += json_add_data(&network->ue_mode, json_obj);
 
 	len = modem_info_name_get(network->cellid_hex.type, data_name);
-	data_name[len] =  '\0';
+	data_name[len] = '\0';
 	ret = json_add_num(json_obj, data_name, network->cellid_dec);
 
 	if (ret) {
@@ -121,6 +121,8 @@ static int network_data_add(struct network_param *network, cJSON *json_obj)
 	} else {
 		total_len += sizeof(double);
 	}
+
+	network->network_mode[0] = '\0';
 
 	if (network->lte_mode.value == 1) {
 		strcat(network->network_mode, lte_string);
@@ -138,7 +140,7 @@ static int network_data_add(struct network_param *network, cJSON *json_obj)
 	ret = json_add_str(json_obj, "networkMode", network->network_mode);
 
 	if (ret) {
-		printk("Unable to add the network mode");
+		LOG_ERR("Unable to add the network mode");
 	}
 
 	return total_len;
@@ -198,21 +200,21 @@ int modem_info_json_object_encode(struct modem_param_info *modem,
 	if (IS_ENABLED(CONFIG_MODEM_INFO_ADD_NETWORK) &&
 	    (network_data_add(&modem->network, network_obj) > 0)) {
 
-		json_add_obj(root_obj, "networkInfo", network_obj);
+		json_add_obj(root_obj, MODEM_INFO_JSON_KEY_NET_INF, network_obj);
 		network_obj = NULL;
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_INFO_ADD_SIM) &&
 	    (sim_data_add(&modem->sim, sim_obj) > 0)) {
 
-		json_add_obj(root_obj, "simInfo", sim_obj);
+		json_add_obj(root_obj, MODEM_INFO_JSON_KEY_SIM_INF, sim_obj);
 		sim_obj = NULL;
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_INFO_ADD_DEVICE) &&
 	    (device_data_add(&modem->device, device_obj) > 0)) {
 
-		json_add_obj(root_obj, "deviceInfo", device_obj);
+		json_add_obj(root_obj, MODEM_INFO_JSON_KEY_DEV_INF, device_obj);
 		device_obj = NULL;
 	}
 
@@ -252,7 +254,7 @@ int modem_info_json_string_encode(struct modem_param_info *modem,
 		}
 
 		total_len += ret;
-		json_add_obj(root_obj, "networkInfo", network_obj);
+		json_add_obj(root_obj, MODEM_INFO_JSON_KEY_NET_INF, network_obj);
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_INFO_ADD_SIM)) {
@@ -263,7 +265,7 @@ int modem_info_json_string_encode(struct modem_param_info *modem,
 		}
 
 		total_len += ret;
-		json_add_obj(root_obj, "simInfo", sim_obj);
+		json_add_obj(root_obj, MODEM_INFO_JSON_KEY_SIM_INF, sim_obj);
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_INFO_ADD_DEVICE)) {
@@ -274,7 +276,7 @@ int modem_info_json_string_encode(struct modem_param_info *modem,
 		}
 
 		total_len += ret;
-		json_add_obj(root_obj, "deviceInfo", device_obj);
+		json_add_obj(root_obj, MODEM_INFO_JSON_KEY_DEV_INF, device_obj);
 	}
 
 	if (total_len > 0) {

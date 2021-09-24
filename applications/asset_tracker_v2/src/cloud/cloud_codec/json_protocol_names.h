@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#if defined(CONFIG_NRF_CLOUD)
+#if defined(CONFIG_NRF_CLOUD_MQTT)
 #define DATA_MOVEMENT		"acc"
 #define DATA_MOVEMENT_X		"x"
 #define DATA_MOVEMENT_Y		"y"
@@ -16,6 +16,7 @@
 #define DATA_GPS_ALTITUDE	"alt"
 #define DATA_GPS_SPEED		"spd"
 #define DATA_GPS_HEADING	"hdg"
+#define DATA_GPS_ACCURACY	"acc"
 
 #define DATA_MODEM_DYNAMIC	"networkInfo"
 #define DATA_MODEM_STATIC	"deviceInfo"
@@ -53,12 +54,37 @@
 #define MODEM_CELL_ID		"cellID"
 #define MODEM_IP_ADDRESS	"ipAddress"
 
-#define CONFIG_DEVICE_MODE	"activeMode"
-#define CONFIG_ACTIVE_TIMEOUT	"activeWaitTime"
-#define CONFIG_MOVE_TIMEOUT	"movementTimeout"
-#define CONFIG_MOVE_RES		"movementResolution"
-#define CONFIG_GPS_TIMEOUT	"gpsTimeout"
-#define CONFIG_ACC_THRESHOLD	"movementThreshold"
+#define DATA_NEIGHBOR_CELLS_MCC		  "mcc"
+#define DATA_NEIGHBOR_CELLS_MNC		  "mnc"
+#define DATA_NEIGHBOR_CELLS_CID		  "cell"
+#define DATA_NEIGHBOR_CELLS_TAC		  "area"
+#define DATA_NEIGHBOR_CELLS_EARFCN	  "earfcn"
+#define DATA_NEIGHBOR_CELLS_TIMING	  "adv"
+#define DATA_NEIGHBOR_CELLS_RSRP	  "rsrp"
+#define DATA_NEIGHBOR_CELLS_RSRQ	  "rsrq"
+#define DATA_NEIGHBOR_CELLS_NEIGHBOR_MEAS "nmr"
+#define DATA_NEIGHBOR_CELLS_PCI		  "cell"
+
+#define CONFIG_DEVICE_MODE		  "activeMode"
+#define CONFIG_ACTIVE_TIMEOUT		  "activeWaitTime"
+#define CONFIG_MOVE_TIMEOUT		  "movementTimeout"
+#define CONFIG_MOVE_RES			  "movementResolution"
+#define CONFIG_GPS_TIMEOUT		  "gpsTimeout"
+#define CONFIG_ACC_THRESHOLD		  "movementThreshold"
+#define CONFIG_NO_DATA_LIST		  "nod"
+#define CONFIG_NO_DATA_LIST_GNSS	  "gnss"
+#define CONFIG_NO_DATA_LIST_NEIGHBOR_CELL "ncell"
+
+#define DATA_AGPS_REQUEST_MCC           "mcc"
+#define DATA_AGPS_REQUEST_MNC           "mnc"
+#define DATA_AGPS_REQUEST_CID           "cell"
+#define DATA_AGPS_REQUEST_TAC           "area"
+#define DATA_AGPS_REQUEST_TYPES         "types"
+
+#define DATA_PGPS_REQUEST_COUNT         "n"
+#define DATA_PGPS_REQUEST_INTERVAL      "int"
+#define DATA_PGPS_REQUEST_DAY           "day"
+#define DATA_PGPS_REQUEST_TIME          "time"
 
 #define OBJECT_CONFIG		"config"
 #define OBJECT_REPORTED		"reported"
@@ -72,7 +98,7 @@
 #define OBJECT_MSG_GPS		"MSG_GPS"
 #define OBJECT_MSG_RSRP		"MSG_RSRP"
 
-#else /* CONFIG_NRF_CLOUD */
+#else /* CONFIG_NRF_CLOUD_MQTT */
 
 #define MODEM_CURRENT_BAND	"band"
 #define MODEM_NETWORK_MODE	"nw"
@@ -86,12 +112,15 @@
 #define MODEM_CELL_ID		"cell"
 #define MODEM_IP_ADDRESS	"ip"
 
-#define CONFIG_DEVICE_MODE	"act"
-#define CONFIG_ACTIVE_TIMEOUT	"actwt"
-#define CONFIG_MOVE_TIMEOUT	"mvt"
-#define CONFIG_MOVE_RES		"mvres"
-#define CONFIG_GPS_TIMEOUT	"gpst"
-#define CONFIG_ACC_THRESHOLD	"acct"
+#define CONFIG_DEVICE_MODE		  "act"
+#define CONFIG_ACTIVE_TIMEOUT		  "actwt"
+#define CONFIG_MOVE_TIMEOUT		  "mvt"
+#define CONFIG_MOVE_RES			  "mvres"
+#define CONFIG_GPS_TIMEOUT		  "gpst"
+#define CONFIG_ACC_THRESHOLD		  "acct"
+#define CONFIG_NO_DATA_LIST		  "nod"
+#define CONFIG_NO_DATA_LIST_GNSS	  "gnss"
+#define CONFIG_NO_DATA_LIST_NEIGHBOR_CELL "ncell"
 
 #define DATA_VALUE		"v"
 #define DATA_TIMESTAMP		"ts"
@@ -117,7 +146,30 @@
 #define DATA_GPS_ALTITUDE	"alt"
 #define DATA_GPS_SPEED		"spd"
 #define DATA_GPS_HEADING	"hdg"
+#define DATA_GPS_ACCURACY	"acc"
 #define DATA_GPS_NMEA		"nmea"
+
+#define DATA_NEIGHBOR_CELLS_MCC		  "mcc"
+#define DATA_NEIGHBOR_CELLS_MNC		  "mnc"
+#define DATA_NEIGHBOR_CELLS_CID		  "cell"
+#define DATA_NEIGHBOR_CELLS_TAC		  "area"
+#define DATA_NEIGHBOR_CELLS_EARFCN	  "earfcn"
+#define DATA_NEIGHBOR_CELLS_TIMING	  "adv"
+#define DATA_NEIGHBOR_CELLS_RSRP	  "rsrp"
+#define DATA_NEIGHBOR_CELLS_RSRQ	  "rsrq"
+#define DATA_NEIGHBOR_CELLS_NEIGHBOR_MEAS "nmr"
+#define DATA_NEIGHBOR_CELLS_PCI		  "cell"
+
+#define DATA_AGPS_REQUEST_MCC           "mcc"
+#define DATA_AGPS_REQUEST_MNC           "mnc"
+#define DATA_AGPS_REQUEST_CID           "cell"
+#define DATA_AGPS_REQUEST_TAC           "area"
+#define DATA_AGPS_REQUEST_TYPES         "types"
+
+#define DATA_PGPS_REQUEST_COUNT         "n"
+#define DATA_PGPS_REQUEST_INTERVAL      "int"
+#define DATA_PGPS_REQUEST_DAY           "day"
+#define DATA_PGPS_REQUEST_TIME          "time"
 
 #define OBJECT_CONFIG		"cfg"
 

@@ -21,9 +21,9 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf52dk_nrf52832
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf52dk_nrf52832
 
-The sample also requires a device running a CTS Server to connect with (for example, a Bluetooth Low Energy dongle and nRF Connect for Desktop)
+The sample also requires a device running a CTS Server to connect with (for example, a Bluetooth® Low Energy dongle and nRF Connect for Desktop).
 
 User interface
 **************
@@ -55,7 +55,7 @@ After programming the sample to your development kit, you can test it with `nRF 
 #. Start `nRF Connect for Desktop`_ and select the connected dongle that is used for communication.
 #. Go to the :guilabel:`Server setup` tab.
    Click the dongle configuration and select :guilabel:`Load setup`.
-   Load the ``cts_central.ncs`` file that is located under :file:`samples/bluetooth/peripheral_cts_client` in the |NCS| folder structure.
+   Load the :file:`cts_central.ncs` file that is located under :file:`samples/bluetooth/peripheral_cts_client` in the |NCS| folder structure.
 #. Click :guilabel:`Apply to device`.
 #. Go to the :guilabel:`Connection Map` tab.
    Click the dongle configuration and select :guilabel:`Security parameters`.

@@ -12,7 +12,7 @@ You can add bootloader chains to an application in the following ways:
 * Permanently:
 
   * Using Kconfig fragments.
-  * Using ``prj.conf`` Kconfig project configuration files.
+  * Using :file:`prj.conf` Kconfig project configuration files.
 
 * Temporarily (for a single build):
 
@@ -39,7 +39,7 @@ The following sections describe how to add either |NSIB| or MCUboot as an immuta
 Adding |NSIB| as an immutable bootloader
 ========================================
 
-To build |NSIB| with a Zephyr or |NCS| sample, enable the :option:`CONFIG_SECURE_BOOT` in the application's ``prj.conf`` file, in an associated Kconfig fragment, or using the command line:
+To build |NSIB| with a Zephyr or |NCS| sample, enable the :kconfig:`CONFIG_SECURE_BOOT` in the application's :file:`prj.conf` file, in an associated Kconfig fragment, or using the command line:
 
 .. code-block:: console
 
@@ -53,7 +53,7 @@ To ensure that the immutable bootloader occupies as little flash memory as possi
 
 .. code-block:: console
 
-   west build -b nrf52840dk_nrf5840 zephyr/samples/hello_world -- \
+   west build -b nrf52840dk_nrf52840 zephyr/samples/hello_world -- \
    -DCONFIG_SECURE_BOOT=y \
    -Db0_CONF_FILE=prj_minimal.conf
 
@@ -64,7 +64,7 @@ See :ref:`ug_bootloader_config` for more information about using Kconfig fragmen
 Adding a custom signature key file
 ----------------------------------
 
-To add a signature key file to this bootloader, set the :option:`CONFIG_SB_SIGNING_KEY_FILE` option in the application's ``prj.conf`` file, in an associated Kconfig fragment, or using the command line:
+To add a signature key file to this bootloader, set the :kconfig:`CONFIG_SB_SIGNING_KEY_FILE` option in the application's :file:`prj.conf` file, in an associated Kconfig fragment, or using the command line:
 
 .. tabs::
 
@@ -88,7 +88,7 @@ The file argument must be a string and is specified in one of the following ways
 
 * The relative path to the file from the application directory.
 
-  * If the ``prj.conf`` file is external to the directory, the key's location is determined relative to the application directory, not to the configuration file.
+  * If the :file:`prj.conf` file is external to the directory, the key's location is determined relative to the application directory, not to the configuration file.
 
 * The absolute path to the file.
 
@@ -120,7 +120,7 @@ For example, if a directory named :file:`_keys` located in :file:`/home/user/ncs
 
          -DCONFIG_SB_SIGNING_KEY_FILE=\"/home/user/ncs/_keys/priv.pem\"
 
-      Or, if you set an environment variable named ``NCS`` to :file:`/home/user/ncs`:
+      Or, if you set an environment variable named :envvar:`NCS` to :file:`/home/user/ncs`:
 
       .. code-block:: console
 
@@ -129,7 +129,7 @@ For example, if a directory named :file:`_keys` located in :file:`/home/user/ncs
 .. note::
 
    The public key string must be an absolute path to the location of the public key file.
-   Environment variables (like ``$HOME``,``$PWD``, or ``$USER``) and the ``~`` character on Unix systems are not expanded when setting an absolute path from a ``prj.conf`` file or Kconfig fragment, but are expanded correctly in key file paths from the command line that are not given as strings.
+   Environment variables (like :envvar:`$HOME`, :envvar:`$PWD`, or :envvar:`$USER`) and the ``~`` character on Unix systems are not expanded when setting an absolute path from a :file:`prj.conf` file or Kconfig fragment, but are expanded correctly in key file paths from the command line that are not given as strings.
 
 You can find specific configuration options for keys with this bootloader in :file:`nrf/subsys/bootloader/Kconfig`.
 
@@ -137,9 +137,9 @@ See :ref:`ug_fw_update_keys` for information on how to generate custom keys for 
 
 Additionally, the |NSIB| supports the following methods for signing images with private keys:
 
-* :ref:`ug_fw_update_keys_python` - The default method, using the :option:`CONFIG_SB_SIGNING_PYTHON`.
-* :ref:`ug_fw_update_keys_openssl` - Uses the :option:`CONFIG_SB_SIGNING_OPENSSL`.
-* :ref:`Using a custom command <ug_bootloader_adding_immutable_b0_custom_signing>` - Uses the :option:`CONFIG_SB_SIGNING_CUSTOM`.
+* :ref:`ug_fw_update_keys_python` - The default method, using the :kconfig:`CONFIG_SB_SIGNING_PYTHON`.
+* :ref:`ug_fw_update_keys_openssl` - Uses the :kconfig:`CONFIG_SB_SIGNING_OPENSSL`.
+* :ref:`Using a custom command <ug_bootloader_adding_immutable_b0_custom_signing>` - Uses the :kconfig:`CONFIG_SB_SIGNING_CUSTOM`.
 
 Both Python and OpenSSL methods are handled internally by the build system, whereas using custom commands requires more configuration steps.
 
@@ -164,7 +164,7 @@ If you want complete control over the key handling of a project, you can use a c
 Using a custom signing command removes the need to use of a private key from the build system.
 This is useful when the private keys are stored, managed, or otherwise processed through a *hardware security module* (`HSM`_) or an in-house tool.
 
-To use a custom signing command with this bootloader, set the following options in the application's ``prj.conf`` file, in an associated Kconfig fragment, or using the command line:
+To use a custom signing command with this bootloader, set the following options in the application's :file:`prj.conf` file, in an associated Kconfig fragment, or using the command line:
 
 .. tabs::
 
@@ -181,7 +181,7 @@ To use a custom signing command with this bootloader, set the following options 
 
       .. code-block:: console
 
-         west build -b nrf52840dk_nrf5840 zephyr/samples/hello_world -- \
+         west build -b nrf52840dk_nrf52840 zephyr/samples/hello_world -- \
          -DCONFIG_SECURE_BOOT=y \
          -DCONFIG_SB_SIGNING_CUSTOM=y \
          -DCONFIG_SB_SIGNING_PUBLIC_KEY=\"/path/to/pub.pem\" \
@@ -193,7 +193,7 @@ To use a custom signing command with this bootloader, set the following options 
 
    The public key string must be an absolute path to the location of the public key file, as mentioned previously in :ref:`ug_bootloader_adding_immutable_keys`.
 
-See :option:`CONFIG_SB_SIGNING_COMMAND` for specifics about what a usable signing command must do.
+See :kconfig:`CONFIG_SB_SIGNING_COMMAND` for specifics about what a usable signing command must do.
 The command string can include its own arguments like a typical terminal command, including arguments specific to the build system:
 
 .. parsed-literal::
@@ -201,12 +201,12 @@ The command string can include its own arguments like a typical terminal command
 
    my_command *[options]* *<args ...>* *<build_system_args ..>*
 
-See the description of :option:`CONFIG_SB_SIGNING_COMMAND` for which arguments can be be sent to the build system in this way.
+See the description of :kconfig:`CONFIG_SB_SIGNING_COMMAND` for which arguments can be be sent to the build system in this way.
 
 .. note::
 
    Whitespace, hyphens, and other non-alphanumeric characters must be escaped appropriately when setting the string from the command line.
-   If the custom signing command uses its own options or arguments, it is recommended to define the string in a ``prj.conf`` file or Kconfig fragment to avoid tracking backslashes.
+   If the custom signing command uses its own options or arguments, it is recommended to define the string in a :file:`prj.conf` file or Kconfig fragment to avoid tracking backslashes.
    Like public key paths, environment variables are not expanded when using them in a command string set from one of these files.
 
 .. _ug_bootloader_adding_immutable_mcuboot:
@@ -302,7 +302,7 @@ To enable this configuration, apply the :file:`overlay-minimal-external-crypto.c
 
 .. code-block::
 
-   west build -b nrf52840dk_nrf5840 zephyr/samples/hello_world -- \
+   west build -b nrf52840dk_nrf52840 zephyr/samples/hello_world -- \
    -DCONFIG_BOOTLOADER_MCUBOOT=y \
    -Dmcuboot_OVERLAY_CONFIG=overlay-minimal-external-crypto.conf
 
@@ -326,7 +326,7 @@ The process to use specific signature keys with MCUboot used as the upgradable b
 Generating pre-signed variants
 ------------------------------
 
-Enable the :option:`CONFIG_BUILD_S1_VARIANT` option when building the upgradable bootloader to automatically generate :ref:`pre-signed variants <upgradable_bootloader_presigned_variants>` of the image for both slots:
+Enable the :kconfig:`CONFIG_BUILD_S1_VARIANT` option when building the upgradable bootloader to automatically generate :ref:`pre-signed variants <upgradable_bootloader_presigned_variants>` of the image for both slots:
 
 .. code-block::
 

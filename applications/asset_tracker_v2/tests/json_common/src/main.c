@@ -293,7 +293,7 @@ static void test_encode_modem_dynamic_data_object(void)
 {
 	int ret;
 	struct cloud_data_modem_dynamic data = {
-		.rsrp = 20,
+		.rsrp = -8,
 		.area = 12,
 		.mccmnc = "24202",
 		.cell = 33703719,
@@ -350,7 +350,7 @@ static void test_encode_modem_dynamic_data_array(void)
 {
 	int ret;
 	struct cloud_data_modem_dynamic data = {
-		.rsrp = 20,
+		.rsrp = -8,
 		.area = 12,
 		.mccmnc = "24202",
 		.cell = 33703719,
@@ -508,6 +508,115 @@ static void test_encode_ui_data_object(void)
 	zassert_equal(-EINVAL, ret, "Return value %d is wrong.", ret);
 }
 
+/* Neighbor cell */
+
+static void test_encode_neighbor_cells_data_object(void)
+{
+	int ret;
+	struct cloud_data_neighbor_cells data = {
+		.cell_data.current_cell.mcc = 242,
+		.cell_data.current_cell.mnc = 1,
+		.cell_data.current_cell.id = 21679716,
+		.cell_data.current_cell.tac = 40401,
+		.cell_data.current_cell.earfcn = 6446,
+		.cell_data.current_cell.timing_advance = 80,
+		.cell_data.current_cell.rsrp = -7,
+		.cell_data.current_cell.rsrq = 28,
+		.cell_data.ncells_count = 2,
+		.neighbor_cells[0].earfcn = 262143,
+		.neighbor_cells[0].phys_cell_id = 501,
+		.neighbor_cells[0].rsrp = -8,
+		.neighbor_cells[0].rsrq = 25,
+		.neighbor_cells[1].earfcn = 262265,
+		.neighbor_cells[1].phys_cell_id = 503,
+		.neighbor_cells[1].rsrp = -5,
+		.neighbor_cells[1].rsrq = 20,
+		.ts = 1000,
+		.queued = true
+	};
+
+	ret = json_common_neighbor_cells_data_add(dummy.root_obj,
+						  &data,
+						  JSON_COMMON_ADD_DATA_TO_OBJECT);
+	zassert_equal(0, ret, "Return value %d is wrong", ret);
+
+	ret = encoded_output_check(dummy.root_obj, TEST_VALIDATE_NEIGHBOR_CELLS_JSON_SCHEMA,
+				   data.queued);
+	zassert_equal(0, ret, "Return value %d is wrong", ret);
+
+	/* Check for invalid inputs. */
+
+	data.queued = false;
+
+	ret = json_common_neighbor_cells_data_add(dummy.root_obj,
+					     &data,
+					     JSON_COMMON_ADD_DATA_TO_OBJECT);
+	zassert_equal(-ENODATA, ret, "Return value %d is wrong.", ret);
+}
+
+static void test_encode_agps_request_data_object(void)
+{
+	int ret;
+	struct cloud_data_agps_request data = {
+		.mcc = 242,
+		.mnc = 1,
+		.cell = 21679716,
+		.area = 40401,
+		.request.sv_mask_ephe = UINT32_MAX,
+		.request.sv_mask_alm = UINT32_MAX,
+		.request.utc = 1,
+		.request.klobuchar = 1,
+		.request.system_time_tow = 1,
+		.request.position = 1,
+		.request.integrity = 1,
+		.queued = true
+	};
+
+	ret = json_common_agps_request_data_add(dummy.root_obj,
+						&data,
+						JSON_COMMON_ADD_DATA_TO_OBJECT);
+	zassert_equal(0, ret, "Return value %d is wrong", ret);
+
+	ret = encoded_output_check(dummy.root_obj, TEST_VALIDATE_AGPS_REQUEST_JSON_SCHEMA,
+				   data.queued);
+	zassert_equal(0, ret, "Return value %d is wrong", ret);
+
+	/* Check for invalid inputs. */
+
+	data.queued = false;
+
+	ret = json_common_agps_request_data_add(dummy.root_obj,
+						&data,
+						JSON_COMMON_ADD_DATA_TO_OBJECT);
+	zassert_equal(-ENODATA, ret, "Return value %d is wrong.", ret);
+}
+
+static void test_encode_pgps_request_data_object(void)
+{
+	int ret;
+	struct cloud_data_pgps_request data = {
+		.count = 42,
+		.interval = 240,
+		.day = 15160,
+		.time = 40655,
+		.queued = true
+	};
+
+	ret = json_common_pgps_request_data_add(dummy.root_obj, &data);
+	zassert_equal(0, ret, "Return value %d is wrong", ret);
+
+	ret = encoded_output_check(dummy.root_obj, TEST_VALIDATE_PGPS_REQUEST_JSON_SCHEMA,
+				   data.queued);
+	zassert_equal(0, ret, "Return value %d is wrong", ret);
+
+	/* Check for invalid inputs. */
+
+	data.queued = false;
+
+	ret = json_common_pgps_request_data_add(dummy.root_obj, &data);
+	zassert_equal(-ENODATA, ret, "Return value %d is wrong.", ret);
+}
+
 static void test_encode_ui_data_array(void)
 {
 	int ret;
@@ -616,12 +725,15 @@ static void test_encode_configuration_data_object(void)
 		.movement_timeout = 3600,
 		.gps_timeout = 60,
 		.accelerometer_threshold = 2,
+		.no_data.gnss = true,
+		.no_data.neighbor_cell = true,
 		.active_mode_fresh = true,
 		.gps_timeout_fresh = true,
 		.active_wait_timeout_fresh = true,
 		.movement_resolution_fresh = true,
 		.movement_timeout_fresh = true,
 		.accelerometer_threshold_fresh = true,
+		.nod_list_fresh = true,
 	};
 
 	ret = json_common_config_add(dummy.root_obj, &data, DATA_CONFIG);
@@ -653,6 +765,8 @@ static void test_decode_configuration_data(void)
 	json_common_config_get(sub_group_obj, &data);
 
 	zassert_equal(false, data.active_mode, "Configuration is wrong");
+	zassert_equal(true, data.no_data.gnss, "Configuration is wrong");
+	zassert_equal(true, data.no_data.neighbor_cell, "Configuration is wrong");
 	zassert_equal(60, data.gps_timeout, "Configuration is wrong");
 	zassert_equal(120, data.active_wait_timeout, "Configuration is wrong");
 	zassert_equal(120, data.movement_resolution, "Configuration is wrong");
@@ -698,7 +812,7 @@ static void test_encode_batch_data_object(void)
 		[1].format = CLOUD_CODEC_GPS_FORMAT_PVT
 	};
 	struct cloud_data_modem_dynamic modem_dynamic[2] = {
-		[0].rsrp = 20,
+		[0].rsrp = -8,
 		[0].area = 12,
 		[0].mccmnc = "24202",
 		[0].cell = 33703719,
@@ -711,7 +825,7 @@ static void test_encode_batch_data_object(void)
 		[0].ip_address_fresh = true,
 		[0].mccmnc_fresh = true,
 		/* Second entry */
-		[1].rsrp = 20,
+		[1].rsrp = -5,
 		[1].area = 12,
 		[1].mccmnc = "24202",
 		[1].cell = 33703719,
@@ -1143,6 +1257,21 @@ void test_main(void)
 		ztest_unit_test_setup_teardown(test_encode_ui_data_array,
 					       test_setup_array,
 					       test_teardown_array),
+
+		/* Neighbor cell */
+		ztest_unit_test_setup_teardown(test_encode_neighbor_cells_data_object,
+					       test_setup_object,
+					       test_teardown_object),
+
+		/* A-GPS request */
+		ztest_unit_test_setup_teardown(test_encode_agps_request_data_object,
+					       test_setup_object,
+					       test_teardown_object),
+
+		/* P-GPS request */
+		ztest_unit_test_setup_teardown(test_encode_pgps_request_data_object,
+					       test_setup_object,
+					       test_teardown_object),
 
 		/* Accelerometer */
 		ztest_unit_test_setup_teardown(test_encode_accelerometer_data_object,

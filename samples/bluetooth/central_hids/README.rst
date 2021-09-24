@@ -22,7 +22,6 @@ If any boot reports are detected, the behavior depends on if they are boot mouse
 * If a boot mouse report is detected, the sample subscribes to it.
 * If a boot keyboard report is detected, the sample subscribes to its input report, and the sample functionality of changing the CAPSLOCK LED is enabled (Button 1 and 3).
 
-
 Requirements
 ************
 
@@ -30,9 +29,9 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns , nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf52833dk_nrf52820, nrf52dk_nrf52832
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns , nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf52833dk_nrf52820, nrf52dk_nrf52832
 
-The sample also requires a HIDS device to connect with (for example, another development kit running the :ref:`peripheral_hids_mouse` or :ref:`peripheral_hids_keyboard` sample, or a Bluetooth Low Energy dongle and nRF Connect for Desktop).
+The sample also requires a HIDS device to connect with (for example, another development kit running the :ref:`peripheral_hids_mouse` or :ref:`peripheral_hids_keyboard` sample, or a Bluetooth® Low Energy dongle and nRF Connect for Desktop).
 
 User interface
 **************
@@ -122,7 +121,7 @@ Testing with nRF Connect for Desktop
 #. Start `nRF Connect for Desktop`_ and select the connected dongle that is used for communication.
 #. Go to the :guilabel:`Server setup` tab.
    Click the dongle configuration and select :guilabel:`Load setup`.
-   Load the ``hids_keyboard.ncs`` file that is located under :file:`samples/bluetooth/central_hids` in the |NCS| folder structure.
+   Load the :file:`hids_keyboard.ncs` file that is located under :file:`samples/bluetooth/central_hids` in the |NCS| folder structure.
 #. Click :guilabel:`Apply to device`.
 #. Go to the :guilabel:`Connection Map` tab.
    Click the dongle configuration and select :guilabel:`Advertising setup`.

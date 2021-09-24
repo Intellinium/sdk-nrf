@@ -201,6 +201,65 @@ config ZBOSS_TRAF_DUMP
 	help
 	  Dumps all packets destined to the node over ZBOSS binary trace protocol
 
+if ZIGBEE_HAVE_SERIAL
+
+choice
+	prompt "Select ZBOSS trace logging method: hexdump, binary, NCP transport"
+	default ZBOSS_TRACE_HEXDUMP_LOGGING
+
+config ZBOSS_TRACE_HEXDUMP_LOGGING
+	bool "Enable logging hexdumped ZBOSS Traces"
+	select RING_BUFFER
+
+config ZBOSS_TRACE_BINARY_LOGGING
+	bool "Enable logging binary ZBOSS Traces"
+	select SERIAL
+	select RING_BUFFER
+
+config ZBOSS_TRACE_BINARY_NCP_TRANSPORT_LOGGING
+	bool "Enable logging binary ZBOSS Traces over the NCP transport channel"
+	depends on ZIGBEE_HAVE_ASYNC_SERIAL
+
+endchoice
+endif # ZIGBEE_HAVE_SERIAL
+
+if (ZBOSS_TRACE_HEXDUMP_LOGGING || ZBOSS_TRACE_BINARY_LOGGING)
+
+config ZBOSS_TRACE_LOGGER_BUFFER_SIZE
+	int "Size of ring buffer to store ZBOSS Traces"
+	default 4096
+	range 256 2147483648
+
+endif # (ZBOSS_TRACE_HEXDUMP_LOGGING || ZBOSS_TRACE_BINARY_LOGGING)
+
+if ZBOSS_TRACE_BINARY_LOGGING
+
+choice
+	prompt "Backend used to log ZBOSS Traces"
+	default ZBOSS_TRACE_UART_LOGGING
+
+config ZBOSS_TRACE_UART_LOGGING
+	bool "UART Serial"
+	select UART_INTERRUPT_DRIVEN
+
+config ZBOSS_TRACE_USB_CDC_LOGGING
+	bool "UART USB CDC (supported only for Zigbee NCP sample)"
+	select USB
+	select USB_DEVICE_STACK
+	select USB_CDC_ACM
+	select UART_LINE_CTRL
+	select UART_INTERRUPT_DRIVEN
+
+endchoice
+
+config ZBOSS_TRACE_LOGGER_DEVICE_NAME
+	string "UART device name for logging ZBOSS Traces"
+	# Use UART_1 to avoid using the same UART as Zephyr logger
+	default "UART_1" if ZBOSS_TRACE_UART_LOGGING
+	default "CDC_ACM_0" if ZBOSS_TRACE_USB_CDC_LOGGING
+
+endif # ZBOSS_TRACE_BINARY_LOGGING
+
 # Configure ZIGBEE_SHELL_LOG_LEVEL
 module = ZIGBEE_SHELL
 module-str = Zigbee Shell
@@ -215,17 +274,27 @@ endmenu #menu "Zigbee Log configuration"
 
 menu "ZBOSS OSIF configuration"
 
-menuconfig ZIGBEE_HAVE_SERIAL
+config ZIGBEE_HAVE_SERIAL
 	bool "UART serial abstract for ZBOSS OSIF"
+	default y
+
+menuconfig ZIGBEE_HAVE_ASYNC_SERIAL
+	bool "Asynchronous UART serial abstract for ZBOSS OSIF"
 	select SERIAL
 	select UART_INTERRUPT_DRIVEN
 	select RING_BUFFER
+	depends on ZIGBEE_HAVE_SERIAL
 
-if ZIGBEE_HAVE_SERIAL
+if ZIGBEE_HAVE_ASYNC_SERIAL
 
 config ZIGBEE_UART_DEVICE_NAME
 	string "Zigbee UART device name"
 	default "UART_1"
+
+config ZIGBEE_UART_SUPPORTS_FLOW_CONTROL
+	bool "Set to true to inform application that Zigbee UART device supports flow control"
+	default n
+	depends on UART_LINE_CTRL
 
 config ZIGBEE_UART_TX_TIMEOUT
 	int "Timeout value for starting asynchronous transmission, in milliseconds"
@@ -240,8 +309,8 @@ config ZIGBEE_UART_RX_TIMEOUT
 	default 10
 
 config ZIGBEE_UART_PARTIAL_RX_TIMEOUT
-       int "Timeout value between the last received byte and the RX event if only a part of RX buffer was received, in milliseconds"
-       default 10
+	int "Timeout value between the last received byte and the RX event if only a part of RX buffer was received, in milliseconds"
+	default 10
 
 config ZIGBEE_UART_RX_BUF_LEN
 	int "Size of the asynchronous receive buffer"
@@ -251,7 +320,7 @@ config ZIGBEE_UART_TX_BUF_LEN
 	int "Size of the synchronous transmit buffer"
 	default 128
 
-endif #ZIGBEE_HAVE_SERIAL
+endif #ZIGBEE_HAVE_ASYNC_SERIAL
 
 config ZIGBEE_USE_SOFTWARE_AES
 	bool "Use software based AES"

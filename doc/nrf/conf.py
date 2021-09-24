@@ -7,30 +7,19 @@ import sys
 
 # Paths ------------------------------------------------------------------------
 
-NRF_BASE = os.environ.get("NRF_BASE")
-if not NRF_BASE:
-    raise FileNotFoundError("NRF_BASE not defined")
-NRF_BASE = Path(NRF_BASE)
-
-NRF_BUILD = os.environ.get("NRF_BUILD")
-if not NRF_BUILD:
-    raise FileNotFoundError("NRF_BUILD not defined")
-NRF_BUILD = Path(NRF_BUILD)
-
-ZEPHYR_BASE = os.environ.get("ZEPHYR_BASE")
-if not ZEPHYR_BASE:
-    raise FileNotFoundError("ZEPHYR_BASE not defined")
-ZEPHYR_BASE = Path(ZEPHYR_BASE)
+NRF_BASE = Path(__file__).absolute().parents[2]
 
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
+
+ZEPHYR_BASE = utils.get_projdir("zephyr")
 
 # General configuration --------------------------------------------------------
 
 project = "nRF Connect SDK"
 copyright = "2019-2021, Nordic Semiconductor"
 author = "Nordic Semiconductor"
-version = release = "1.6.99"
+version = release = "1.7.99"
 
 sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
@@ -43,11 +32,13 @@ extensions = [
     "options_from_kconfig",
     "ncs_include",
     "sphinxcontrib.mscgen",
-    "sphinx_tabs.tabs",
     "zephyr.html_redirects",
     "zephyr.warnings_filter",
-    "external_content",
-    "doxyrunner",
+    "zephyr.kconfig-role",
+    "ncs_cache",
+    "zephyr.external_content",
+    "zephyr.doxyrunner",
+    "sphinx_tabs.tabs",
 ]
 
 linkcheck_ignore = [
@@ -110,15 +101,23 @@ kconfig_mapping = utils.get_intersphinx_mapping("kconfig")
 if kconfig_mapping:
     intersphinx_mapping["kconfig"] = kconfig_mapping
 
+nrfx_mapping = utils.get_intersphinx_mapping("nrfx")
+if nrfx_mapping:
+    intersphinx_mapping["nrfx"] = nrfx_mapping
+
+matter_mapping = utils.get_intersphinx_mapping("matter")
+if matter_mapping:
+    intersphinx_mapping["matter"] = matter_mapping
+
 # -- Options for doxyrunner plugin ---------------------------------------------
 
 doxyrunner_doxygen = os.environ.get("DOXYGEN_EXECUTABLE", "doxygen")
 doxyrunner_doxyfile = NRF_BASE / "doc" / "nrf" / "nrf.doxyfile.in"
-doxyrunner_outdir = NRF_BUILD / "doxygen"
+doxyrunner_outdir = utils.get_builddir() / "nrf" / "doxygen"
 doxyrunner_fmt = True
 doxyrunner_fmt_vars = {
     "NRF_BASE": str(NRF_BASE),
-    "NRF_BINARY_DIR": str(NRF_BUILD),
+    "NRF_BINARY_DIR": str(utils.get_builddir() / "nrf"),
 }
 
 # Options for breathe ----------------------------------------------------------
@@ -142,6 +141,7 @@ html_redirect_pages = [
     ("gs_ins_windows", "gs_installing"),
     ("gs_ins_linux", "gs_installing"),
     ("gs_ins_mac", "gs_installing"),
+    ("examples", "samples"),
 ]
 
 # -- Options for zephyr.warnings_filter ----------------------------------------
@@ -155,9 +155,6 @@ external_content_contents = [
     (NRF_BASE / "doc" / "nrf", "*"),
     (NRF_BASE, "applications/**/*.rst"),
     (NRF_BASE, "applications/**/doc"),
-    (NRF_BASE, "include/**/*.rst"),
-    (NRF_BASE, "lib/**/*.rst"),
-    (NRF_BASE, "lib/**/doc"),
     (NRF_BASE, "samples/**/*.rst"),
     (NRF_BASE, "scripts/**/*.rst"),
     (NRF_BASE, "tests/**/*.rst"),
@@ -171,6 +168,14 @@ table_from_rows_base_dir = NRF_BASE
 # Options for options_from_kconfig ---------------------------------------------
 
 options_from_kconfig_base_dir = NRF_BASE
+options_from_kconfig_zephyr_dir = ZEPHYR_BASE
+
+# Options for ncs_cache --------------------------------------------------------
+
+ncs_cache_docset = "nrf"
+ncs_cache_build_dir = utils.get_builddir()
+ncs_cache_config = NRF_BASE / "doc" / "cache.yml"
+ncs_cache_manifest = NRF_BASE / "west.yml"
 
 
 def setup(app):

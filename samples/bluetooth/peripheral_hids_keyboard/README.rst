@@ -44,7 +44,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf52833dk_nrf52820
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf52833dk_nrf52820
 
 .. include:: /includes/hci_rpmsg_overlay.txt
 
@@ -95,7 +95,7 @@ After programming the sample to your development kit, you can test it either by 
 Testing with a Microsoft Windows computer
 -----------------------------------------
 
-To test with a Microsoft Windows computer that has a Bluetooth radio, complete the following steps:
+To test with a Microsoft Windows computer that has a Bluetooth® radio, complete the following steps:
 
 1. Power on your development kit.
 #. Press **Button 4** on the kit if the device is not advertising.

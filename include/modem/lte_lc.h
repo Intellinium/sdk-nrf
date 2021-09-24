@@ -151,25 +151,35 @@ enum lte_lc_func_mode {
 enum lte_lc_evt_type {
 	/** @brief Event received carrying information about the modems network registration
 	 *         status.
-	 *         Payload is of type @ref lte_lc_nw_reg_status.
+	 *         The associated payload is the nw_reg_status member of
+	 *	   type @ref lte_lc_nw_reg_status in the event.
 	 */
 	LTE_LC_EVT_NW_REG_STATUS,
+
 	/** @brief Event received carrying information about PSM updates. Contains PSM parameters
 	 *	   given by the network.
-	 *         Payload is of type @ref lte_lc_psm_cfg.
+	 *         The associated payload is the psm_cfg member of type @ref lte_lc_psm_cfg
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_PSM_UPDATE,
+
 	/** @brief Event received carrying information about eDRX updates. Contains eDRX parameters
 	 *	   given by the network.
-	 *         Payload is of type @ref lte_lc_edrx_cfg.
+	 *         The associated payload is the edrx_cfg member of type @ref lte_lc_edrx_cfg
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_EDRX_UPDATE,
+
 	/** @brief Event received carrying information about the modems RRC state.
-	 *         Payload is of type @ref lte_lc_rrc_mode.
+	 *         The associated payload is the rrc_mode member of type @ref lte_lc_rrc_mode
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_RRC_UPDATE,
+
 	/** @brief Event received carrying information about the currently connected cell.
-	 *         Payload is of type @ref lte_lc_cell.
+	 *         The associated payload is the cell member of type @ref lte_lc_cell
+	 *	   in the event. Note that only the cell.tac and cell.id members are populated
+	 *	   in the event payload. The rest are expected to be zero.
 	 */
 	LTE_LC_EVT_CELL_UPDATE,
 
@@ -178,7 +188,8 @@ enum lte_lc_evt_type {
 	 *	   the currently active LTE mode based on the system mode preference
 	 *	   and network availability. This event will then indicate which
 	 *	   LTE mode is currently used by the modem.
-	 *         Payload is of type @ref lte_lc_lte_mode.
+	 *         The associated payload is the lte_mode member of type @ref lte_lc_lte_mode
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_LTE_MODE_UPDATE,
 
@@ -187,12 +198,13 @@ enum lte_lc_evt_type {
 	 *	   scheduled to occur. This gives the application the opportunity to send
 	 *	   data over the network before the TAU happens, thus saving power by
 	 *	   avoiding sending data and the TAU separately.
-	 *         Payload of this event is contained in the _time_ entry in @ref lte_lc_evt.
+	 *         The associated payload is the time member of type uint64_t in the event.
 	 */
 	LTE_LC_EVT_TAU_PRE_WARNING,
 
 	/** @brief Event containing results from neighbor cell measurements.
-	 *         Payload is of type @ref lte_lc_cells_info.
+	 *         The associated payload is the cells_info member of type @ref lte_lc_cells_info
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_NEIGHBOR_CELL_MEAS,
 
@@ -200,20 +212,30 @@ enum lte_lc_evt_type {
 	 *	   This event will be received a configurable amount of time before
 	 *	   the modem exits sleep. The time parameter associated with this
 	 *	   event signifies the time until modem exits sleep.
-	 *         Payload is of type @ref lte_lc_modem_sleep.
+	 *         The associated payload is the modem_sleep member of type @ref lte_lc_modem_sleep
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_MODEM_SLEEP_EXIT_PRE_WARNING,
 
 	/** @brief This event will be received when the modem exits sleep.
-	 *         Payload is of type @ref lte_lc_modem_sleep.
+	 *         The associated payload is the modem_sleep member of type @ref lte_lc_modem_sleep
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_MODEM_SLEEP_EXIT,
 
 	/** @brief This event will be received when the modem enters sleep.
 	 *         The time parameter associated with this event signifies
-	 *         the duration of the sleep. Payload is of type @ref lte_lc_modem_sleep.
+	 *         the duration of the sleep.
+	 *         The associated payload is the modem_sleep member of type @ref lte_lc_modem_sleep
+	 *	   in the event.
 	 */
 	LTE_LC_EVT_MODEM_SLEEP_ENTER,
+
+	/** @brief Modem domain event carrying information about modem operation.
+	 *         The associated payload is the modem_evt member of type @ref lte_lc_modem_evt
+	 *	   in the event.
+	 */
+	LTE_LC_EVT_MODEM_EVENT,
 };
 
 enum lte_lc_rrc_mode {
@@ -234,6 +256,12 @@ struct lte_lc_edrx_cfg {
 	/* Paging time window [s] */
 	float ptw;
 };
+
+#define LTE_LC_CELL_TIMING_ADVANCE_MAX		20512
+#define LTE_LC_CELL_TIMING_ADVANCE_INVALID	65535
+#define LTE_LC_CELL_EARFCN_MAX			262143
+#define LTE_LC_CELL_RSRP_INVALID		255
+#define LTE_LC_CELL_RSRQ_INVALID		255
 
 struct lte_lc_cell {
 	/** Mobile Country Code. */
@@ -381,6 +409,45 @@ enum lte_lc_ce_level {
 	LTE_LC_CE_LEVEL_UNKNOWN			= UINT8_MAX,
 };
 
+/** @brief Modem domain events. */
+enum lte_lc_modem_evt {
+	/** Indicates that a light search has been performed. This event gives the
+	 *  application the chance to stop using more power when searching networks
+	 *  in possibly weaker radio conditions.
+	 *  Before sending this event, the modem searches for cells based on previous
+	 *  cell history, measures the radio conditions, and makes assumptions on
+	 *  where networks might be deployed. This event means that the modem has
+	 *  not found a network that it could select based on the 3GPP network
+	 *  selection rules from those locations. It does not mean that there are
+	 *  no networks to be found in the area. The modem continues more thorough
+	 *  searches automatically after sending this status.
+	 */
+	LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE,
+
+	/** Indicates that a network search has been performed. The modem has found
+	 *  a network that it can select according to the 3GPP network selection rules
+	 *  or all frequencies have been scanned and a suitable cell was not found.
+	 *  In the latter case, the modem enters normal limited service state
+	 *  functionality and performs scan for service periodically.
+	 */
+	LTE_LC_MODEM_EVT_SEARCH_DONE,
+	/** The modem has detected a reset loop. A reset loop indicates that
+	 *  the modem restricts network attach attempts for the next 30 minutes.
+	 *  The timer does not run when the modem has no power or while it stays
+	 *  in the reset loop. The modem counts all the resets where the modem
+	 *  is not gracefully deinitialized with +CFUN=0 or using an API
+	 *  performing the equivalent operation, such as setting the functional
+	 *  mode to LTE_LC_FUNC_MODE_POWER_OFF.
+	 */
+	LTE_LC_MODEM_EVT_RESET_LOOP,
+
+	/** Battery voltage is low and the modem is therefore deactivated. */
+	LTE_LC_MODEM_EVT_BATTERY_LOW,
+
+	/** The device is overheated and the modem is therefore deactivated. */
+	LTE_LC_MODEM_EVT_OVERHEATED,
+};
+
 /** @brief Connection evaluation parameters.
  *
  *  @note For more information on the various connection evaluation parameters, refer to the
@@ -522,6 +589,7 @@ struct lte_lc_evt {
 		struct lte_lc_cell cell;
 		enum lte_lc_lte_mode lte_mode;
 		struct lte_lc_modem_sleep modem_sleep;
+		enum lte_lc_modem_evt modem_evt;
 
 		/* Time until next Tracking Area Update in milliseconds. */
 		uint64_t time;
@@ -810,6 +878,25 @@ int lte_lc_neighbor_cell_measurement_cancel(void);
  * @retval 7 Evaluation failed, Unspecified.
  */
 int lte_lc_conn_eval_params_get(struct lte_lc_conn_eval_params *params);
+
+/** @brief Enable modem domain events. See @ref lte_lc_modem_evt for
+ *	   more information on what events may be received.
+ *
+ *  @note This feature is supported for nRF9160 modem firmware v1.3.0 and later
+ *	  versions. Attempting to use this API with older modem versions will
+ *	  result in an error being returned.
+ *
+ *  @note An event handler must be registered in order to receive events.
+ *
+ *  @return Zero on success or (negative) error code otherwise.
+ */
+int lte_lc_modem_events_enable(void);
+
+/** @brief Disable modem domain events.
+ *
+ *  @return Zero on success or (negative) error code otherwise.
+ */
+int lte_lc_modem_events_disable(void);
 
 /** @} */
 

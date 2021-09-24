@@ -14,6 +14,9 @@ See :ref:`ug_multi_image` for more information about multi-image builds.
 
 The Partition Manager is activated for all multi-image builds, regardless of which build strategy is used for the child image.
 
+.. note::
+   When you build a multi-image application using the Partition Manager, the Device Tree Source flash partitions are ignored.
+
 .. _pm_overview:
 
 Overview
@@ -97,7 +100,7 @@ In particular, partition definitions are global per domain, and must be identica
 If the same partition is defined twice with different configurations within a domain, the Partition Manager will fail.
 
 .. note::
-   If Partition Manager configurations are only defined by subsystems, so that only one image is included in the build, you must set the option :option:`CONFIG_PM_SINGLE_IMAGE` to execute the Partition Manager script.
+   If Partition Manager configurations are only defined by subsystems, so that only one image is included in the build, you must set the option :kconfig:`CONFIG_PM_SINGLE_IMAGE` to execute the Partition Manager script.
 
 .. _pm_yaml_format:
 
@@ -495,29 +498,16 @@ The Partition Manager supports partitions in the external flash memory through t
 Any placeholder partition can specify that it should be stored in the external flash region.
 External flash regions always use the start_to_end placement strategy.
 
-To use external flash, you must provide information about the device to the Partition Manager through these Kconfig options:
+To store partitions in external flash, you must choose a value for the ``nordic,pm-ext-flash`` property in devicetree as shown below.
 
-* :option:`CONFIG_PM_EXTERNAL_FLASH` - enable external flash
-* :option:`CONFIG_PM_EXTERNAL_FLASH_DEV_NAME` - specify the name of the flash device
-* :option:`CONFIG_PM_EXTERNAL_FLASH_BASE` - specify the base address
-* :option:`CONFIG_PM_EXTERNAL_FLASH_SIZE` - specify the available flash size (from the base address)
+.. code-block:: devicetree
 
-The following example assumes that the flash device has been initialized as follows in the flash driver:
+    / {
+            chosen {
+                    nordic,pm-ext-flash = &mx25r64;
+            };
 
-.. code-block:: c
-
-   DEVICE_AND_API_INIT(spi_flash_memory, "name_of_flash_device", ... );
-
-
-To enable external flash support in the Partition Manager, configure the following options:
-
-.. code-block:: Kconfig
-
-   # prj.conf of application
-   CONFIG_PM_EXTERNAL_FLASH=y
-   CONFIG_PM_EXTERNAL_FLASH_DEV_NAME="name_of_flash_device"
-   CONFIG_PM_EXTERNAL_FLASH_BASE=0x1000  # Don't touch magic stuff at the start
-   CONFIG_PM_EXTERNAL_FLASH_SIZE=0x7F000 # Total size of external flash from base
+    };
 
 Now partitions can be placed in the external flash:
 

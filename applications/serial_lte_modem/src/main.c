@@ -24,9 +24,9 @@
 #include "slm_at_host.h"
 #include "slm_at_fota.h"
 
-LOG_MODULE_REGISTER(app, CONFIG_SLM_LOG_LEVEL);
+LOG_MODULE_REGISTER(slm, CONFIG_SLM_LOG_LEVEL);
 
-#define SLM_WQ_STACK_SIZE	KB(2)
+#define SLM_WQ_STACK_SIZE	KB(4)
 #define SLM_WQ_PRIORITY		K_LOWEST_APPLICATION_THREAD_PRIO
 static K_THREAD_STACK_DEFINE(slm_wq_stack_area, SLM_WQ_STACK_SIZE);
 
@@ -39,7 +39,6 @@ static bool full_idle_mode;
 struct k_work_q slm_work_q;
 
 /* global variable defined in different files */
-extern uint8_t fota_type;
 extern uint8_t fota_stage;
 extern uint8_t fota_status;
 extern int32_t fota_info;
@@ -55,16 +54,53 @@ void nrf_modem_recoverable_error_handler(uint32_t err)
 	LOG_ERR("Modem library recoverable error: %u", err);
 }
 
+static int ext_xtal_control(bool xtal_on)
+{
+	int err = 0;
+#if defined(CONFIG_SLM_EXTERNAL_XTAL)
+	static struct onoff_manager *clk_mgr;
+
+	if (xtal_on) {
+		struct onoff_client cli = {};
+
+		/* request external XTAL for UART */
+		clk_mgr = z_nrf_clock_control_get_onoff(CLOCK_CONTROL_NRF_SUBSYS_HF);
+		sys_notify_init_spinwait(&cli.notify);
+		err = onoff_request(clk_mgr, &cli);
+		if (err < 0) {
+			LOG_ERR("Clock request failed: %d", err);
+			return err;
+		}
+		while (sys_notify_fetch_result(&cli.notify, &err) < 0) {
+			/*empty*/
+		}
+	} else {
+		/* release external XTAL for UART */
+		err = onoff_release(clk_mgr);
+		if (err < 0) {
+			LOG_ERR("Clock release failed: %d", err);
+			return err;
+		}
+	}
+#endif
+
+	return err;
+}
+
 static void exit_idle(struct k_work *work)
 {
 	int err;
 
 	LOG_INF("Exit idle, full mode: %d", full_idle_mode);
-	gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN,
-				     GPIO_INT_DISABLE);
+	gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN, GPIO_INT_DISABLE);
 	gpio_remove_callback(gpio_dev, &gpio_cb);
 	/* Do the same as nrf_gpio_cfg_default() */
 	gpio_pin_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN, GPIO_INPUT);
+
+	err = ext_xtal_control(true);
+	if (err < 0) {
+		LOG_WRN("Failed to enable ext XTAL: %d", err);
+	}
 
 	if (full_idle_mode) {
 		/* Restart SLM services */
@@ -81,8 +117,7 @@ static void exit_idle(struct k_work *work)
 	}
 }
 
-static void gpio_callback(const struct device *dev,
-		     struct gpio_callback *gpio_cb, uint32_t pins)
+static void gpio_callback(const struct device *dev, struct gpio_callback *gpio_cb, uint32_t pins)
 {
 	k_work_submit_to_queue(&slm_work_q, &exit_idle_work);
 }
@@ -96,24 +131,26 @@ void enter_idle(bool full_idle)
 		LOG_ERR("GPIO_0 bind error");
 		return;
 	}
-	err = gpio_pin_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN,
-				GPIO_INPUT | GPIO_PULL_UP);
+	err = gpio_pin_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN, GPIO_INPUT | GPIO_PULL_UP);
 	if (err) {
 		LOG_ERR("GPIO_0 config error: %d", err);
 		return;
 	}
-	gpio_init_callback(&gpio_cb, gpio_callback,
-			BIT(CONFIG_SLM_INTERFACE_PIN));
+	gpio_init_callback(&gpio_cb, gpio_callback, BIT(CONFIG_SLM_INTERFACE_PIN));
 	err = gpio_add_callback(gpio_dev, &gpio_cb);
 	if (err) {
 		LOG_ERR("GPIO_0 add callback error: %d", err);
 		return;
 	}
-	err = gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN,
-					   GPIO_INT_LEVEL_LOW);
+	err = gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_INTERFACE_PIN, GPIO_INT_LEVEL_LOW);
 	if (err) {
 		LOG_ERR("GPIO_0 enable callback error: %d", err);
 		return;
+	}
+
+	err = ext_xtal_control(false);
+	if (err < 0) {
+		LOG_WRN("Failed to disable ext XTAL: %d", err);
 	}
 
 	full_idle_mode = full_idle;
@@ -124,15 +161,15 @@ void enter_sleep(void)
 	/*
 	 * Due to errata 4, Always configure PIN_CNF[n].INPUT before PIN_CNF[n].SENSE.
 	 */
-	nrf_gpio_cfg_input(CONFIG_SLM_INTERFACE_PIN,
-		NRF_GPIO_PIN_PULLUP);
-	nrf_gpio_cfg_sense_set(CONFIG_SLM_INTERFACE_PIN,
-		NRF_GPIO_PIN_SENSE_LOW);
+	nrf_gpio_cfg_input(CONFIG_SLM_INTERFACE_PIN, NRF_GPIO_PIN_PULLUP);
+	nrf_gpio_cfg_sense_set(CONFIG_SLM_INTERFACE_PIN, NRF_GPIO_PIN_SENSE_LOW);
+
+	k_sleep(K_MSEC(100));
 
 	nrf_regulators_system_off(NRF_REGULATORS_NS);
 }
 
-void handle_nrf_modem_lib_init_ret(void)
+static void handle_nrf_modem_lib_init_ret(void)
 {
 	int ret = nrf_modem_lib_get_init_ret();
 
@@ -174,26 +211,52 @@ void handle_nrf_modem_lib_init_ret(void)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
+void handle_mcuboot_swap_ret(void)
+{
+	int err;
+
+	/** When a TEST image is swapped to primary partition and booted by MCUBOOT,
+	 * the API mcuboot_swap_type() will return BOOT_SWAP_TYPE_REVERT. By this type
+	 * MCUBOOT means that the TEST image is booted OK and, if it's not confirmed
+	 * next, it'll be swapped back to secondary partition and original application
+	 * image will be restored to the primary partition (so-called Revert).
+	 */
+	int type = mcuboot_swap_type();
+
+	fota_stage = FOTA_STAGE_COMPLETE;
+	switch (type) {
+	/** Attempt to boot the contents of slot 0. */
+	case BOOT_SWAP_TYPE_NONE:
+	/** Swap to slot 1. Absent a confirm command, revert back on next boot. */
+	case BOOT_SWAP_TYPE_TEST:
+	/** Swap to slot 1, and permanently switch to booting its contents. */
+	case BOOT_SWAP_TYPE_PERM:
+		fota_status = FOTA_STATUS_ERROR;
+		fota_info = -EBADF;
+		break;
+	/** Swap back to alternate slot. A confirm changes this state to NONE. */
+	case BOOT_SWAP_TYPE_REVERT:
+		err = boot_write_img_confirmed();
+		if (err) {
+			fota_status = FOTA_STATUS_ERROR;
+			fota_info = err;
+		} else {
+			fota_status = FOTA_STATUS_OK;
+			fota_info = 0;
+		} break;
+		break;
+	/** Swap failed because image to be run is not valid */
+	case BOOT_SWAP_TYPE_FAIL:
+	default:
+		break;
+	}
+}
+
 void start_execute(void)
 {
 	int err;
-#if defined(CONFIG_SLM_EXTERNAL_XTAL)
-	struct onoff_manager *clk_mgr;
-	struct onoff_client cli = {};
-#endif
 
 	LOG_INF("Serial LTE Modem");
-
-#if defined(CONFIG_SLM_EXTERNAL_XTAL)
-	/* request external XTAL for UART */
-	clk_mgr = z_nrf_clock_control_get_onoff(CLOCK_CONTROL_NRF_SUBSYS_HF);
-	sys_notify_init_spinwait(&cli.notify);
-	err = onoff_request(clk_mgr, &cli);
-	if (err) {
-		LOG_ERR("Clock request failed: %d", err);
-		return;
-	}
-#endif
 
 	/* Init and load settings */
 	err = slm_settings_init();
@@ -203,23 +266,15 @@ void start_execute(void)
 	}
 
 	/* Post-FOTA handling */
-	if (fota_type != DFU_TARGET_IMAGE_TYPE_MCUBOOT) {
+	if (fota_stage != FOTA_STAGE_INIT) {
 		handle_nrf_modem_lib_init_ret();
-	} else {
-		/* All initializations were successful mark image as working so that we
-		 * will not revert upon reboot.
-		 */
-		err = boot_write_img_confirmed();
-		if (fota_stage != FOTA_STAGE_INIT) {
-			if (err) {
-				fota_status = FOTA_STATUS_ERROR;
-				fota_info = err;
-			} else {
-				fota_stage = FOTA_STAGE_COMPLETE;
-				fota_status = FOTA_STATUS_OK;
-				fota_info = 0;
-			}
-		}
+		handle_mcuboot_swap_ret();
+	}
+
+	err = ext_xtal_control(true);
+	if (err < 0) {
+		LOG_ERR("Failed to enable ext XTAL: %d", err);
+		return;
 	}
 
 	err = slm_at_host_init();

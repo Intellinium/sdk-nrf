@@ -1,7 +1,7 @@
 .. _gs_assistant:
 
-Installing the |NCS| through nRF Connect for Desktop
-####################################################
+Installing automatically
+########################
 
 .. contents::
    :local:
@@ -9,37 +9,34 @@ Installing the |NCS| through nRF Connect for Desktop
 
 `nRF Connect for Desktop`_, a cross-platform tool available for Windows, Linux, and macOS, provides different apps that simplify installing the |NCS|.
 
-On Windows, use the :ref:`gs_app_tcm`.
-On Linux or macOS, use the :ref:`gs_app_gsa`.
-
 .. note::
    When installing the |NCS| through the |GSA| app, you will not be able to build on the command line using west.
 
-See :ref:`gs_installing_os` for information on the supported operating systems and Zephyr features.
+On Windows or macOS, use the :ref:`gs_app_tcm`.
+On Linux, use the :ref:`gs_app_gsa` or follow the steps found on the :ref:`gs_installing` page.
+
+Before you start setting up the toolchain, install available updates for your operating system.
+See :ref:`gs_recommended_versions` for information on the supported operating systems and Zephyr features.
 
 .. _gs_app_tcm:
 
-Toolchain manager
+Toolchain Manager
 *****************
 
-The Toolchain manager app is available for Windows only.
-It installs the full toolchain that you need to work with the |NCS|, including SEGGER Embedded Studio and the |NCS| source code.
-
-.. important::
-   The Toolchain manager is currently in beta version.
-   If you encounter problems, use the :ref:`gs_app_gsa` instead, or :ref:`install the nRF Connect SDK manually <gs_installing>`.
+The Toolchain manager app is available for Windows and macOS.
+It installs the full toolchain that you need to work with the |NCS|, including the |VSC| extension, |SES|, and the |NCS| source code.
 
 
-Installing the Toolchain manager
+Installing the Toolchain Manager
 ================================
 
-To install the Toolchain manager app, complete the following steps:
+To install the Toolchain Manager app, complete the following steps:
 
 .. _tcm_setup:
 
 1. `Download nRF Connect for Desktop`_ for your operating system.
 #. Install and run the tool on your machine.
-#. In the APPS section, click :guilabel:`Install` next to Toolchain manager.
+#. In the APPS section, click :guilabel:`Install` next to Toolchain Manager.
 
 The app is installed on your machine, and the :guilabel:`Install` button changes to :guilabel:`Open`.
 
@@ -48,39 +45,40 @@ The app is installed on your machine, and the :guilabel:`Install` button changes
 Installing the |NCS|
 ====================
 
-Once you have installed the Toolchain manager, open it in nRF Connect for Desktop.
+Once you have installed the Toolchain Manager, open it in nRF Connect for Desktop.
 
 .. figure:: images/gs-assistant_tm.png
-   :alt: The Toolchain manager window
+   :alt: The Toolchain Manager window
 
-   The Toolchain manager window
+   The Toolchain Manager window
 
 Click :guilabel:`Settings` in the navigation bar to specify where you want to install the |NCS|.
 Then, in :guilabel:`SDK Environments`, click the :guilabel:`Install` button next to the |NCS| version that you want to install.
+The |NCS| version of your choice is installed on your machine.
 
-The |NCS| version of your choice is installed on your machine, and the :guilabel:`Install` button changes to :guilabel:`Open IDE`.
-This button lets you start SEGGER Embedded Studio if you want to start :ref:`gs_programming_ses`.
+There are several ways you can build an application:
 
-.. figure:: images/gs-assistant_tm_installed.png
-   :alt: The Toolchain manager options after installing the nRF Connect SDK version, cropped
+* To build with |VSC|, click on the :guilabel:`Open VS Code` button.
 
-   The Toolchain Manager options after installing the |NCS| version
+* To build with |SES|, click on the :guilabel:`Open Segger Embedded Studio` button.
 
-Additionally, the dropdown menu becomes available.
-Among other options, this menu lets you open bash and command prompt that use the installed Toolchain manager tools.
-You can use the :guilabel:`Open bash` option from this menu when you start :ref:`gs_programming_cmd`.
+* To build on the command line, use the following steps:
+
+   1. With admin permissions enabled, download and install the `nRF Command Line Tools`_.
+   #. Restart the Toolchain Manager application.
+   #. Follow the instructions in :ref:`gs_programming_cmd`.
 
 .. figure:: images/gs-assistant_tm_dropdown.png
-   :alt: The Toolchain manager dropdown menu for the installed nRF Connect SDK version, cropped
+   :alt: The Toolchain Manager dropdown menu for the installed nRF Connect SDK version, cropped
 
-   The Toolchain manager dropdown menu options
+   The Toolchain Manager dropdown menu options
 
 .. _gs_app_gsa:
 
 Getting Started Assistant
 *************************
 
-The |GSA| app is available for Linux and macOS.
+The |GSA| app is the automatic installation option for Linux.
 It provides you with step-by-step instructions for installing the toolchain for |NCS|.
 
 The app allows you to check which of the required tools are already installed on your computer and verify the installation.

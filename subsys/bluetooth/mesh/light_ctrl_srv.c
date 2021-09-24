@@ -92,10 +92,8 @@ static bool is_enabled(const struct bt_mesh_light_ctrl_srv *srv)
 
 static void schedule_resume_timer(struct bt_mesh_light_ctrl_srv *srv)
 {
-	if (CONFIG_BT_MESH_LIGHT_CTRL_SRV_RESUME_DELAY) {
-		k_work_reschedule(
-			&srv->timer,
-			K_SECONDS(CONFIG_BT_MESH_LIGHT_CTRL_SRV_RESUME_DELAY));
+	if (srv->resume) {
+		k_work_reschedule(&srv->timer, K_SECONDS(srv->resume));
 		atomic_set_bit(&srv->flags, FLAG_RESUME_TIMER);
 	}
 }
@@ -236,7 +234,7 @@ static void light_onoff_encode(struct bt_mesh_light_ctrl_srv *srv,
 
 	if (atomic_test_bit(&srv->flags, FLAG_ON_PENDING) ||
 	    atomic_test_bit(&srv->flags, FLAG_OFF_PENDING)) {
-		remaining_fade = delay_remaining(srv) + srv->fade.duration;
+		remaining_fade = srv->fade.duration;
 		net_buf_simple_add_u8(buf, atomic_test_bit(&srv->flags,
 							   FLAG_ON_PENDING));
 		net_buf_simple_add_u8(buf,
@@ -264,7 +262,7 @@ static void onoff_encode(struct bt_mesh_light_ctrl_srv *srv,
 
 	if (atomic_test_bit(&srv->flags, FLAG_ON_PENDING) ||
 	    atomic_test_bit(&srv->flags, FLAG_OFF_PENDING)) {
-		remaining_fade = delay_remaining(srv) + srv->fade.duration;
+		remaining_fade = srv->fade.duration;
 		status->target_on_off = atomic_test_bit(&srv->flags,
 							FLAG_ON_PENDING);
 	} else {
@@ -391,7 +389,7 @@ static int turn_on(struct bt_mesh_light_ctrl_srv *srv,
 		return -EBUSY;
 	}
 
-	BT_DBG("");
+	BT_DBG("Light Turned On");
 
 	uint32_t fade_time;
 
@@ -426,7 +424,7 @@ static void turn_off_auto(struct bt_mesh_light_ctrl_srv *srv)
 		return;
 	}
 
-	BT_DBG("");
+	BT_DBG("Light Automatically Turn Off");
 
 	transition_start(srv, LIGHT_CTRL_STATE_STANDBY,
 			 srv->cfg.fade_standby_auto);
@@ -444,20 +442,21 @@ static int turn_off(struct bt_mesh_light_ctrl_srv *srv,
 		return -EBUSY;
 	}
 
-	BT_DBG("");
-
-	atomic_set_bit(&srv->flags, FLAG_MANUAL);
+	BT_DBG("Light Turned Off");
 
 	uint32_t fade_time =
 		transition ? transition->time : srv->cfg.fade_standby_manual;
 	enum bt_mesh_light_ctrl_srv_state prev_state = srv->state;
 
 	if (prev_state != LIGHT_CTRL_STATE_STANDBY) {
+		atomic_set_bit(&srv->flags, FLAG_MANUAL);
 		transition_start(srv, LIGHT_CTRL_STATE_STANDBY, fade_time);
 		atomic_clear_bit(&srv->flags, FLAG_ON);
 		store(srv, FLAG_STORE_STATE);
 		light_onoff_pub(srv, prev_state, pub_gen_onoff);
-	} else {
+	} else if (atomic_test_bit(&srv->flags, FLAG_TRANSITION) &&
+		   !atomic_test_bit(&srv->flags, FLAG_MANUAL)) {
+		atomic_set_bit(&srv->flags, FLAG_MANUAL);
 		transition_start(srv, LIGHT_CTRL_STATE_STANDBY, fade_time);
 	}
 
@@ -470,7 +469,7 @@ static void prolong(struct bt_mesh_light_ctrl_srv *srv)
 		return;
 	}
 
-	BT_DBG("");
+	BT_DBG("Light Prolonged");
 
 	transition_start(srv, LIGHT_CTRL_STATE_PROLONG, srv->cfg.fade_prolong);
 }
@@ -479,7 +478,7 @@ static void ctrl_enable(struct bt_mesh_light_ctrl_srv *srv)
 {
 	atomic_clear_bit(&srv->flags, FLAG_RESUME_TIMER);
 	srv->lightness->ctrl = srv;
-	BT_DBG("Light Control Enabled");
+	BT_DBG("Enable Light Control");
 	transition_start(srv, LIGHT_CTRL_STATE_STANDBY, 0);
 	reg_start(srv);
 }
@@ -496,9 +495,10 @@ static void ctrl_disable(struct bt_mesh_light_ctrl_srv *srv)
 	srv->state = LIGHT_CTRL_STATE_STANDBY;
 #if CONFIG_BT_MESH_LIGHT_CTRL_SRV_REG
 	srv->reg.i = 0;
+	srv->reg.prev = 0;
 #endif
 
-	BT_DBG("Light Control Disabled");
+	BT_DBG("Disable Light Control");
 
 	/* If any of these cancel calls fail, their handler will exit early on
 	 * their is_enabled() checks:
@@ -569,12 +569,21 @@ static void reg_step(struct k_work *work)
 			return;
 		}
 
-		srv->reg.prev = output;
 		atomic_set_bit(&srv->flags, FLAG_REGULATOR);
-		light_set(srv, light_to_repr(output, LINEAR), 0);
 	} else if (atomic_test_and_clear_bit(&srv->flags, FLAG_REGULATOR)) {
-		light_set(srv, light_to_repr(lvl, LINEAR), 0);
+		output = lvl;
+	} else {
+		return;
 	}
+
+	srv->reg.prev = output;
+
+	struct bt_mesh_lightness_set set = {
+		.lvl = light_to_repr(output, LINEAR),
+	};
+
+	bt_mesh_lightness_srv_set(srv->lightness, NULL, &set,
+				  &(struct bt_mesh_lightness_status){});
 }
 #endif
 
@@ -589,8 +598,7 @@ static void timeout(struct k_work *work)
 		CONTAINER_OF(dwork, struct bt_mesh_light_ctrl_srv, timer);
 
 	if (!is_enabled(srv)) {
-		if (CONFIG_BT_MESH_LIGHT_CTRL_SRV_RESUME_DELAY &&
-		    atomic_test_and_clear_bit(&srv->flags, FLAG_RESUME_TIMER)) {
+		if (srv->resume && atomic_test_and_clear_bit(&srv->flags, FLAG_RESUME_TIMER)) {
 			BT_DBG("Resuming LC server");
 			ctrl_enable(srv);
 		}
@@ -666,7 +674,7 @@ static void delayed_action_timeout(struct k_work *work)
 		return;
 	}
 
-	BT_DBG("");
+	BT_DBG("Delayed Action Timeout");
 
 	if (atomic_test_and_clear_bit(&srv->flags, FLAG_ON_PENDING)) {
 		turn_on(srv, &transition, true);
@@ -722,7 +730,7 @@ static void store_timeout(struct k_work *work)
 
 	store_state_data(srv);
 
-	BT_DBG("");
+	BT_DBG("Store Timeout");
 }
 #endif
 /*******************************************************************************
@@ -739,33 +747,26 @@ static void mode_rsp(struct bt_mesh_light_ctrl_srv *srv,
 	model_send(srv->model, ctx, &rsp);
 }
 
-static void handle_mode_get(struct bt_mesh_model *model,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf)
+static int handle_mode_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 
-	if (buf->len != 0) {
-		return;
-	}
-
 	mode_rsp(srv, ctx);
+
+	return 0;
 }
 
 static int mode_set(struct bt_mesh_light_ctrl_srv *srv,
 		    struct net_buf_simple *buf)
 {
-	if (buf->len != 1) {
-		return -EINVAL;
-	}
-
 	uint8_t mode = net_buf_simple_pull_u8(buf);
 
 	if (mode > 1) {
 		return -EINVAL;
 	}
 
-	BT_DBG("%s", mode ? "enable" : "disable");
+	BT_DBG("Set Mode: %s", mode ? "enable" : "disable");
 
 	if (mode) {
 		bt_mesh_light_ctrl_srv_enable(srv);
@@ -776,32 +777,28 @@ static int mode_set(struct bt_mesh_light_ctrl_srv *srv,
 	return 0;
 }
 
-static void handle_mode_set(struct bt_mesh_model *model,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf)
+static int handle_mode_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 	int err;
 
 	err = mode_set(srv, buf);
 	if (err) {
-		return;
+		return err;
 	}
 
 	mode_rsp(srv, ctx);
+
+	return 0;
 }
 
-static void handle_mode_set_unack(struct bt_mesh_model *model,
-				  struct bt_mesh_msg_ctx *ctx,
-				  struct net_buf_simple *buf)
+static int handle_mode_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				 struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
-	int err;
 
-	err = mode_set(srv, buf);
-	if (err) {
-		return;
-	}
+	return mode_set(srv, buf);
 }
 
 static void om_rsp(struct bt_mesh_light_ctrl_srv *srv,
@@ -815,33 +812,26 @@ static void om_rsp(struct bt_mesh_light_ctrl_srv *srv,
 	model_send(srv->model, ctx, &rsp);
 }
 
-static void handle_om_get(struct bt_mesh_model *model,
-			  struct bt_mesh_msg_ctx *ctx,
-			  struct net_buf_simple *buf)
+static int handle_om_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			 struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 
-	if (buf->len != 0) {
-		return;
-	}
-
 	om_rsp(srv, ctx);
+
+	return 0;
 }
 
 static int om_set(struct bt_mesh_light_ctrl_srv *srv,
 		  struct net_buf_simple *buf)
 {
-	if (buf->len != 1) {
-		return -EINVAL;
-	}
-
 	uint8_t mode = net_buf_simple_pull_u8(buf);
 
 	if (mode > 1) {
 		return -EINVAL;
 	}
 
-	BT_DBG("%s", mode ? "on" : "off");
+	BT_DBG("Set OM: %s", mode ? "on" : "off");
 
 	atomic_set_bit_to(&srv->flags, FLAG_OCC_MODE, mode);
 	store(srv, FLAG_STORE_STATE);
@@ -853,57 +843,49 @@ static int om_set(struct bt_mesh_light_ctrl_srv *srv,
 	return 0;
 }
 
-static void handle_om_set(struct bt_mesh_model *model,
-			  struct bt_mesh_msg_ctx *ctx,
-			  struct net_buf_simple *buf)
+static int handle_om_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			 struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 	int err;
 
 	err = om_set(srv, buf);
 	if (err) {
-		return;
+		return err;
 	}
 
 	om_rsp(srv, ctx);
+
+	return 0;
 }
 
-static void handle_om_set_unack(struct bt_mesh_model *model,
-				struct bt_mesh_msg_ctx *ctx,
-				struct net_buf_simple *buf)
-{
-	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
-	int err;
-
-	err = om_set(srv, buf);
-	if (err) {
-		return;
-	}
-}
-
-static void handle_light_onoff_get(struct bt_mesh_model *model,
-				   struct bt_mesh_msg_ctx *ctx,
-				   struct net_buf_simple *buf)
+static int handle_om_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			       struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 
-	if (buf->len != 0) {
-		return;
-	}
+	return om_set(srv, buf);
+}
 
-	BT_DBG("");
+static int handle_light_onoff_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				  struct net_buf_simple *buf)
+{
+	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
+
+	BT_DBG("Get Light OnOff");
 
 	light_onoff_status_send(srv, ctx, srv->state);
+
+	return 0;
 }
 
-static void light_onoff_set(struct bt_mesh_light_ctrl_srv *srv,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf, bool ack)
+static int light_onoff_set(struct bt_mesh_light_ctrl_srv *srv, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf, bool ack)
 {
 	uint8_t onoff = net_buf_simple_pull_u8(buf);
 
 	if (onoff > 1) {
-		return;
+		return -EINVAL;
 	}
 
 	uint8_t tid = net_buf_simple_pull_u8(buf);
@@ -914,7 +896,7 @@ static void light_onoff_set(struct bt_mesh_light_ctrl_srv *srv,
 	enum bt_mesh_light_ctrl_srv_state prev_state = srv->state;
 
 	if (!tid_check_and_update(&srv->tid, tid, ctx)) {
-		BT_DBG("%s (%u + %u)", onoff ? "on" : "off",
+		BT_DBG("Set Light OnOff: %s (%u + %u)", onoff ? "on" : "off",
 		       has_trans ? transition.time : 0,
 		       has_trans ? transition.delay : 0);
 
@@ -934,29 +916,28 @@ static void light_onoff_set(struct bt_mesh_light_ctrl_srv *srv,
 	if (ack) {
 		light_onoff_status_send(srv, ctx, prev_state);
 	}
+
+	return 0;
 }
 
-static void handle_light_onoff_set(struct bt_mesh_model *model,
-				   struct bt_mesh_msg_ctx *ctx,
-				   struct net_buf_simple *buf)
+static int handle_light_onoff_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				  struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 
-	light_onoff_set(srv, ctx, buf, true);
+	return light_onoff_set(srv, ctx, buf, true);
 }
 
-static void handle_light_onoff_set_unack(struct bt_mesh_model *model,
-					 struct bt_mesh_msg_ctx *ctx,
-					 struct net_buf_simple *buf)
+static int handle_light_onoff_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+					struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 
-	light_onoff_set(srv, ctx, buf, false);
+	return light_onoff_set(srv, ctx, buf, false);
 }
 
-static void handle_sensor_status(struct bt_mesh_model *model,
-				 struct bt_mesh_msg_ctx *ctx,
-				 struct net_buf_simple *buf)
+static int handle_sensor_status(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 	int err;
@@ -998,7 +979,7 @@ static void handle_sensor_status(struct bt_mesh_model *model,
 
 		err = sensor_value_decode(buf, type, &value);
 		if (err) {
-			return;
+			return -ENOENT;
 		}
 
 		BT_DBG("Sensor 0x%04x: %s", id, bt_mesh_sensor_ch_str(&value));
@@ -1026,57 +1007,59 @@ static void handle_sensor_status(struct bt_mesh_model *model,
 			turn_on(srv, NULL, true);
 		}
 	}
+
+	return 0;
 }
 
 const struct bt_mesh_model_op _bt_mesh_light_ctrl_srv_op[] = {
 	{
 		BT_MESH_LIGHT_CTRL_OP_MODE_GET,
-		0,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_MODE_GET),
 		handle_mode_get,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_MODE_SET,
-		1,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_MODE_SET),
 		handle_mode_set,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_MODE_SET_UNACK,
-		1,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_MODE_SET),
 		handle_mode_set_unack,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_OM_GET,
-		0,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_OM_GET),
 		handle_om_get,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_OM_SET,
-		1,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_OM_SET),
 		handle_om_set,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_OM_SET_UNACK,
-		1,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_OM_SET),
 		handle_om_set_unack,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_LIGHT_ONOFF_GET,
-		0,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_LIGHT_ONOFF_GET),
 		handle_light_onoff_get,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_LIGHT_ONOFF_SET,
-		2,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_CTRL_MSG_MINLEN_LIGHT_ONOFF_SET),
 		handle_light_onoff_set,
 	},
 	{
 		BT_MESH_LIGHT_CTRL_OP_LIGHT_ONOFF_SET_UNACK,
-		2,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_CTRL_MSG_MINLEN_LIGHT_ONOFF_SET),
 		handle_light_onoff_set_unack,
 	},
 	{
 		BT_MESH_SENSOR_OP_STATUS,
-		3,
+		BT_MESH_LEN_MIN(BT_MESH_SENSOR_MSG_MINLEN_STATUS),
 		handle_sensor_status,
 	},
 	BT_MESH_MODEL_OP_END,
@@ -1218,7 +1201,7 @@ static int prop_set(struct net_buf_simple *buf,
 		return -EMSGSIZE;
 	}
 
-	BT_DBG("0x%04x: %s", id, bt_mesh_sensor_ch_str(&val));
+	BT_DBG("Set Prop: 0x%04x: %s", id, bt_mesh_sensor_ch_str(&val));
 
 	switch (id) {
 #if CONFIG_BT_MESH_LIGHT_CTRL_SRV_REG
@@ -1282,7 +1265,7 @@ static int prop_set(struct net_buf_simple *buf,
 	return 0;
 }
 
-static void prop_tx(struct bt_mesh_light_ctrl_srv *srv,
+static int prop_tx(struct bt_mesh_light_ctrl_srv *srv,
 		    struct bt_mesh_msg_ctx *ctx, uint16_t id)
 {
 	int err;
@@ -1295,30 +1278,51 @@ static void prop_tx(struct bt_mesh_light_ctrl_srv *srv,
 
 	err = prop_get(&buf, srv, id);
 	if (err) {
-		return;
+		return -ENOENT;
 	}
 
 	model_send(srv->setup_srv, ctx, &buf);
+
+	return 0;
 }
 
-static void handle_prop_get(struct bt_mesh_model *model,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf)
+static int handle_prop_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
-
-	if (buf->len != 2) {
-		return;
-	}
-
 	uint16_t id = net_buf_simple_pull_le16(buf);
 
-	prop_tx(srv, ctx, id);
+	return prop_tx(srv, ctx, id);
+
+	return 0;
 }
 
-static void handle_prop_set(struct bt_mesh_model *model,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf)
+static int handle_prop_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
+{
+	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
+	uint16_t id = net_buf_simple_pull_le16(buf);
+	int err;
+
+	err = prop_set(buf, srv, id);
+	if (err) {
+		return err;
+	}
+
+	(void)prop_tx(srv, ctx, id);
+	(void)prop_tx(srv, NULL, id);
+
+	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
+		bt_mesh_scene_invalidate(srv->model);
+	}
+
+	store(srv, FLAG_STORE_CFG);
+
+	return 0;
+}
+
+static int handle_prop_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				 struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 	int err;
@@ -1326,44 +1330,37 @@ static void handle_prop_set(struct bt_mesh_model *model,
 	uint16_t id = net_buf_simple_pull_le16(buf);
 
 	err = prop_set(buf, srv, id);
+	if (err) {
+		return err;
+	}
 
-	if (!err) {
-		prop_tx(srv, ctx, id);
-		prop_tx(srv, NULL, id);
+	(void)prop_tx(srv, NULL, id);
 
-		if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-			bt_mesh_scene_invalidate(srv->model);
-		}
+	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
+		bt_mesh_scene_invalidate(srv->model);
 	}
 
 	store(srv, FLAG_STORE_CFG);
-}
 
-static void handle_prop_set_unack(struct bt_mesh_model *model,
-				  struct bt_mesh_msg_ctx *ctx,
-				  struct net_buf_simple *buf)
-{
-	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
-	int err;
-
-	uint16_t id = net_buf_simple_pull_le16(buf);
-
-	err = prop_set(buf, srv, id);
-	if (!err) {
-		prop_tx(srv, NULL, id);
-
-		if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
-			bt_mesh_scene_invalidate(srv->model);
-		}
-	}
-
-	store(srv, FLAG_STORE_CFG);
+	return 0;
 }
 
 const struct bt_mesh_model_op _bt_mesh_light_ctrl_setup_srv_op[] = {
-	{ BT_MESH_LIGHT_CTRL_OP_PROP_GET, 2, handle_prop_get },
-	{ BT_MESH_LIGHT_CTRL_OP_PROP_SET, 3, handle_prop_set },
-	{ BT_MESH_LIGHT_CTRL_OP_PROP_SET_UNACK, 3, handle_prop_set_unack },
+	{
+		BT_MESH_LIGHT_CTRL_OP_PROP_GET,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTRL_MSG_LEN_PROP_GET),
+		handle_prop_get,
+	},
+	{
+		BT_MESH_LIGHT_CTRL_OP_PROP_SET,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_CTRL_MSG_MINLEN_PROP_SET),
+		handle_prop_set,
+	},
+	{
+		BT_MESH_LIGHT_CTRL_OP_PROP_SET_UNACK,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_CTRL_MSG_MINLEN_PROP_SET),
+		handle_prop_set_unack,
+	},
 	BT_MESH_MODEL_OP_END,
 };
 
@@ -1475,8 +1472,15 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 	}
 }
 
+/*  MeshMDL1.0.1, section 5.1.3.1.1:
+ *  If a model is extending another model, the extending model shall determine
+ *  the Stored with Scene behavior of that model.
+ *
+ *  Use Setup Model to handle Scene Store/Recall as it is not extended
+ *  by other models.
+ */
 BT_MESH_SCENE_ENTRY_SIG(light_ctrl) = {
-	.id.sig = BT_MESH_MODEL_ID_LIGHT_LC_SRV,
+	.id.sig = BT_MESH_MODEL_ID_LIGHT_LC_SETUPSRV,
 	.maxlen = sizeof(struct scene_data),
 	.store = scene_store,
 	.recall = scene_recall,
@@ -1484,7 +1488,7 @@ BT_MESH_SCENE_ENTRY_SIG(light_ctrl) = {
 
 static int update_handler(struct bt_mesh_model *model)
 {
-	BT_DBG("");
+	BT_DBG("Update Handler");
 
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 
@@ -1497,6 +1501,7 @@ static int update_handler(struct bt_mesh_model *model)
 static int light_ctrl_srv_init(struct bt_mesh_model *model)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
+	int err;
 
 	srv->model = model;
 
@@ -1521,13 +1526,22 @@ static int light_ctrl_srv_init(struct bt_mesh_model *model)
 	k_work_init_delayable(&srv->reg.timer, reg_step);
 #endif
 
+	srv->resume = CONFIG_BT_MESH_LIGHT_CTRL_SRV_RESUME_DELAY;
+
 	srv->pub.msg = &srv->pub_buf;
 	srv->pub.update = update_handler;
 	net_buf_simple_init_with_data(&srv->pub_buf, srv->pub_data,
 				      sizeof(srv->pub_data));
 
-	bt_mesh_model_extend(model, srv->onoff.model);
-	bt_mesh_model_extend(srv->model, srv->lightness->lightness_model);
+	err = bt_mesh_model_extend(model, srv->lightness->lightness_model);
+	if (err) {
+		return err;
+	}
+
+	err = bt_mesh_model_extend(model, srv->onoff.model);
+	if (err) {
+		return err;
+	}
 
 	atomic_set_bit(&srv->lightness->flags, LIGHTNESS_SRV_FLAG_EXTENDED_BY_LIGHT_CTRL);
 
@@ -1632,8 +1646,15 @@ static void light_ctrl_srv_reset(struct bt_mesh_model *model)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
 	struct bt_mesh_light_ctrl_srv_cfg cfg = BT_MESH_LIGHT_CTRL_SRV_CFG_INIT;
+#if CONFIG_BT_MESH_LIGHT_CTRL_SRV_REG
+	struct bt_mesh_light_ctrl_srv_reg_cfg reg_cfg = BT_MESH_LIGHT_CTRL_SRV_REG_CFG_INIT;
+#endif
 
 	srv->cfg = cfg;
+#if CONFIG_BT_MESH_LIGHT_CTRL_SRV_REG
+	srv->reg.cfg = reg_cfg;
+#endif
+
 	ctrl_disable(srv);
 	net_buf_simple_reset(srv->pub.msg);
 
@@ -1655,19 +1676,14 @@ const struct bt_mesh_model_cb _bt_mesh_light_ctrl_srv_cb = {
 static int lc_setup_srv_init(struct bt_mesh_model *model)
 {
 	struct bt_mesh_light_ctrl_srv *srv = model->user_data;
+	int err;
 
 	srv->setup_srv = model;
 
-	/* Model extensions:
-	 * To simplify the model extension tree, we're flipping the
-	 * relationship between the Light LC Server and the Light LC
-	 * Setup Server. In the specification, the Light LC Setup
-	 * Server extends the Light LC Server, which is the opposite of
-	 * what we're doing here. This makes no difference for the mesh
-	 * stack, but it makes it a lot easier to extend this model, as
-	 * we won't have to support multiple extenders.
-	 */
-	bt_mesh_model_extend(srv->model, srv->setup_srv);
+	err = bt_mesh_model_extend(srv->setup_srv, srv->model);
+	if (err) {
+		return err;
+	}
 
 	srv->setup_pub.msg = &srv->setup_pub_buf;
 	net_buf_simple_init_with_data(&srv->setup_pub_buf, srv->setup_pub_data,

@@ -18,9 +18,9 @@
 
 | :ref:`nRF9160 DK <ug_nrf9160>` | PCA10090 | :ref:`nrf9160dk_nrf9160 <nrf9160dk_nrf9160>` | ``nrf9160dk_nrf9160``  |
 
-.. nrf9160dk_nrf9160ns
+.. nrf9160dk_nrf9160_ns
 
-| :ref:`nRF9160 DK <ug_nrf9160>` | PCA10090 | :ref:`nrf9160dk_nrf9160 <nrf9160dk_nrf9160>` | ``nrf9160dk_nrf9160ns`` |
+| :ref:`nRF9160 DK <ug_nrf9160>` | PCA10090 | :ref:`nrf9160dk_nrf9160 <nrf9160dk_nrf9160>` | ``nrf9160dk_nrf9160_ns`` |
 
 .. nrf9160dk_nrf52840
 
@@ -30,9 +30,9 @@
 
 | :ref:`nRF5340 DK <ug_nrf5340>` | PCA10095 | :ref:`nrf5340dk_nrf5340 <nrf5340dk_nrf5340>` | ``nrf5340dk_nrf5340_cpuapp`` |
 
-.. nrf5340dk_nrf5340_cpuappns
+.. nrf5340dk_nrf5340_cpuapp_ns
 
-| :ref:`nRF5340 DK <ug_nrf5340>` | PCA10095 | :ref:`nrf5340dk_nrf5340 <nrf5340dk_nrf5340>` | ``nrf5340dk_nrf5340_cpuappns`` |
+| :ref:`nRF5340 DK <ug_nrf5340>` | PCA10095 | :ref:`nrf5340dk_nrf5340 <nrf5340dk_nrf5340>` | ``nrf5340dk_nrf5340_cpuapp_ns`` |
 
 .. nrf5340dk_nrf5340_cpunet
 
@@ -54,13 +54,17 @@
 
 | nRF52820 Dongle | PCA10114 | nrf52820dongle_nrf52820 | ``nrf52820dongle_nrf52820`` |
 
-.. thingy91_nrf9160ns
+.. thingy91_nrf9160_ns
 
-| :ref:`Thingy:91 <ug_thingy91>` | PCA20035 | thingy91_nrf9160 | ``thingy91_nrf9160ns`` |
+| :ref:`Thingy:91 <ug_thingy91>` | PCA20035 | thingy91_nrf9160 | ``thingy91_nrf9160_ns`` |
 
 .. nrf52dk_nrf52810
 
 | :ref:`nRF52 DK (emulating nRF52810) <ug_nrf52>` | PCA10040 | :ref:`nrf52dk_nrf52810 <nrf52dk_nrf52810>` | ``nrf52dk_nrf52810`` |
+
+.. nrf52dk_nrf52805
+
+| :ref:`nRF52 DK (emulating nRF52805) <ug_nrf52>` | PCA10040 | :ref:`nrf52dk_nrf52805 <nrf52dk_nrf52805>` | ``nrf52dk_nrf52805`` |
 
 .. nrf52kbd_nrf52832
 
@@ -86,11 +90,11 @@
 
 | :ref:`Thingy:91 <ug_thingy91>` | PCA20035 | thingy91_nrf52840 | ``thingy91_nrf52840`` |
 
-.. nrf5340dk_nrf5340_cpuapp_and_cpuappns
+.. nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns
 
-| :ref:`nRF5340 DK <ug_nrf5340>` | PCA10095 | :ref:`nrf5340dk_nrf5340 <nrf5340dk_nrf5340>` | ``nrf5340dk_nrf5340_cpuapp``   |
-|                                |          |                                              |                                |
-|                                |          |                                              | ``nrf5340dk_nrf5340_cpuappns`` |
+| :ref:`nRF5340 DK <ug_nrf5340>` | PCA10095 | :ref:`nrf5340dk_nrf5340 <nrf5340dk_nrf5340>` | ``nrf5340dk_nrf5340_cpuapp``    |
+|                                |          |                                              |                                 |
+|                                |          |                                              | ``nrf5340dk_nrf5340_cpuapp_ns`` |
 
 .. nrf5340dk_nrf5340_cpuapp_and_cpunet
 
@@ -105,3 +109,7 @@
 .. thingy52_nrf52832
 
 | Thingy:52 | PCA20020 | :ref:`thingy52_nrf52832 <thingy52_nrf52832>` | ``thingy52_nrf52832`` |
+
+.. thingy53_nrf5340_cpuapp
+
+| Thingy:53 | PCA20053 | :ref:`thingy53_nrf5340 <thingy53_nrf5340>` | ``thingy53_nrf5340_cpuapp`` |

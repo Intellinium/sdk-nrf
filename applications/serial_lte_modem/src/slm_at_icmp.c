@@ -13,18 +13,10 @@
 #include "slm_at_host.h"
 #include "slm_at_icmp.h"
 
-LOG_MODULE_REGISTER(icmp, CONFIG_SLM_LOG_LEVEL);
+LOG_MODULE_REGISTER(slm_icmp, CONFIG_SLM_LOG_LEVEL);
 
-#define ICMP_IPV4_HDR_LEN        20
-#define ICMP_IPV6_HDR_LEN        40
-
-#define ICMP_MAX_URL             128
 #define ICMP_DEFAULT_LINK_MTU    1500
 #define ICMP_HDR_LEN             8
-
-/* Protocol field: */
-#define ICMP    1
-#define ICMPV6  58
 
 /* Next header: */
 #define IP_NEXT_HEADER_POS  6
@@ -43,6 +35,7 @@ static struct ping_argv_t {
 	uint16_t waitms;
 	uint16_t count;
 	uint16_t interval;
+	uint16_t pdn;
 } ping_argv;
 
 /* global variable defined in different files */
@@ -52,7 +45,7 @@ static struct k_work ping_work;
 
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
-extern char rsp_buf[CONFIG_SLM_SOCKET_RX_MAX * 2];
+extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
 
 static inline void setip(uint8_t *buffer, uint32_t ipaddr)
 {
@@ -139,7 +132,7 @@ static uint32_t send_ping_wait_reply(void)
 		/* Generate IPv4 ICMP EchoReq */
 
 		/* Ping header */
-		header_len = ICMP_IPV4_HDR_LEN;
+		header_len = NET_IPV4H_LEN;
 		total_length = ping_argv.len + header_len + icmp_hdr_len;
 		buf = calloc(1, alloc_size);
 		if (buf == NULL) {
@@ -154,7 +147,7 @@ static uint32_t send_ping_wait_reply(void)
 		/* buf[4..5] = 0; */                       /* Identification */
 		/* buf[6..7] = 0; */                       /* Flags & fragment offset */
 		buf[8] = 64;                               /* TTL */
-		buf[9] = ICMP;                             /* Protocol */
+		buf[9] = IPPROTO_ICMP;                     /* Protocol */
 		/* buf[10..11] */                          /* ICS, calculated later */
 
 		struct sockaddr_in *sa = (struct sockaddr_in *)ping_argv.src->ai_addr;
@@ -186,7 +179,7 @@ static uint32_t send_ping_wait_reply(void)
 		/* Generate IPv6 ICMP EchoReq */
 
 		/* ipv6 header */
-		header_len = ICMP_IPV6_HDR_LEN;
+		header_len = NET_IPV6H_LEN;
 
 		uint16_t payload_length = ping_argv.len + icmp_hdr_len;
 
@@ -201,7 +194,7 @@ static uint32_t send_ping_wait_reply(void)
 		/* buf[1..3] = 0; */            /* Traffic class 4 bits & flow label */
 		buf[4] = payload_length >> 8;   /* Payload length */
 		buf[5] = payload_length & 0xFF; /* Payload length */
-		buf[6] = ICMPV6;                /* Next header (58) */
+		buf[6] = IPPROTO_ICMPV6;        /* Next header (58) */
 		buf[7] = 64;                    /* Hop limit */
 
 		struct sockaddr_in6 *sa = (struct sockaddr_in6 *)ping_argv.src->ai_addr;
@@ -255,6 +248,23 @@ static uint32_t send_ping_wait_reply(void)
 		LOG_ERR("socket() failed: (%d)", -errno);
 		free(buf);
 		return (uint32_t)delta_t;
+	}
+
+	/* Use non-primary PDN if specified, fail if cannot proceed
+	 */
+	if (ping_argv.pdn != 0) {
+		size_t len;
+		struct ifreq ifr = { 0 };
+
+		snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "pdn%d", ping_argv.pdn);
+		len = strlen(ifr.ifr_name);
+		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, &ifr, len) < 0) {
+			LOG_WRN("Unable to set socket SO_BINDTODEVICE, abort");
+			goto close_end;
+		}
+		LOG_DBG("Use PDN: %d", ping_argv.pdn);
+	} else {
+		LOG_DBG("Use PDN: 0");
 	}
 
 	/* We have a blocking socket and we do not want to block for
@@ -333,8 +343,8 @@ wait_for_data:
 			LOG_ERR("recv() wrong data (%d)", len);
 		}
 
-		if ((rep == ICMP_ECHO_REP && buf[IP_PROTOCOL_POS] == ICMP) ||
-		    (rep == ICMP6_ECHO_REP && buf[IP_NEXT_HEADER_POS] == ICMPV6)) {
+		if ((rep == ICMP_ECHO_REP && buf[IP_PROTOCOL_POS] == IPPROTO_ICMP) ||
+		    (rep == ICMP6_ECHO_REP && buf[IP_NEXT_HEADER_POS] == IPPROTO_ICMPV6)) {
 			/* if not ipv4/ipv6 echo reply, ignore silently,
 			 * otherwise break the loop and go to parse the response
 			 */
@@ -477,9 +487,10 @@ static int ping_test_handler(const char *target)
 		char ipv4_addr[NET_IPV4_ADDR_LEN] = {0};
 
 		LOG_INF("Ping target's IPv4 address");
-		util_get_ip_addr(ipv4_addr, NULL);
+		util_get_ip_addr(ping_argv.pdn, ipv4_addr, NULL);
 		if (strlen(ipv4_addr) == 0) {
 			LOG_ERR("Unable to obtain local IPv4 address");
+			freeaddrinfo(res);
 			return -1;
 		}
 
@@ -496,9 +507,10 @@ static int ping_test_handler(const char *target)
 		char ipv6_addr[NET_IPV6_ADDR_LEN] = {0};
 
 		LOG_INF("Ping target's IPv6 address");
-		util_get_ip_addr(NULL, ipv6_addr);
+		util_get_ip_addr(ping_argv.pdn, NULL, ipv6_addr);
 		if (strlen(ipv6_addr) == 0) {
 			LOG_ERR("Unable to obtain local IPv6 address");
+			freeaddrinfo(res);
 			return -1;
 		}
 
@@ -519,18 +531,16 @@ static int ping_test_handler(const char *target)
 	return 0;
 }
 
-#define ICMP_MAX_TARGET 128
-
 /**@brief handle AT#XPING commands
- *  AT#XPING=<url>,<length>,<timeout>[,<count>[,<interval>]]
+ *  AT#XPING=<url>,<length>,<timeout>[,<count>[,<interval>[,<pdn>]]]
  *  AT#XPING? READ command not supported
  *  AT#XPING=? TEST command not supported
  */
 int handle_at_icmp_ping(enum at_cmd_type cmd_type)
 {
 	int err = -EINVAL;
-	char target[ICMP_MAX_TARGET];
-	int size = ICMP_MAX_TARGET;
+	char target[SLM_MAX_URL];
+	int size = SLM_MAX_URL;
 
 	switch (cmd_type) {
 	case AT_CMD_TYPE_SET_COMMAND:
@@ -556,6 +566,13 @@ int handle_at_icmp_ping(enum at_cmd_type cmd_type)
 		ping_argv.interval = 1000; /* default 1s */
 		if (at_params_valid_count_get(&at_param_list) > 5) {
 			err = at_params_unsigned_short_get(&at_param_list, 5, &ping_argv.interval);
+			if (err < 0) {
+				return err;
+			};
+		}
+		ping_argv.pdn = 0; /* default 0 primary PDN */
+		if (at_params_valid_count_get(&at_param_list) > 6) {
+			err = at_params_unsigned_short_get(&at_param_list, 6, &ping_argv.pdn);
 			if (err < 0) {
 				return err;
 			};

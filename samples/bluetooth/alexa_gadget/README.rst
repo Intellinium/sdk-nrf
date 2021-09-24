@@ -7,7 +7,7 @@ Bluetooth: Peripheral Alexa Gadgets
    :local:
    :depth: 2
 
-The Peripheral Alexa Gadgets sample demonstrates how a Bluetooth LE device can connect to an Amazon Echo device using the Alexa Gadgets Bluetooth Service and Profile.
+The Peripheral Alexa Gadgets sample demonstrates how a Bluetooth® LE device can connect to an Amazon Echo device using the Alexa Gadgets Bluetooth Service and Profile.
 
 Documentation for the Gadgets Service and Profile can be found at `Alexa Gadgets Bluetooth LE`_.
 
@@ -18,7 +18,7 @@ Overview
 ********
 
 When connected, the sample performs the handshake procedure and informs the peer of its supported capabilities.
-Directives sent by the connected peer are printed as log messages when :option:`CONFIG_LOG` is set.
+Directives sent by the connected peer are printed as log messages when :kconfig:`CONFIG_LOG` is set.
 Additionally, when the "wake word" State Update directive is received, LED 3 on the development kit is turned on.
 
 Gadget capabilities

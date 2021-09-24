@@ -16,7 +16,7 @@ See :ref:`ug_bootloader` for more information about the full bootloader chain.
 .. note::
 
    Currently, this immutable bootloader does not support firmware updates over the SMP transport for either an upgradable bootloader or an application.
-   If the application using this bootloader requires SMP-based firmware updates, such as Bluetooth LE DFU, :ref:`include MCUboot as a second-stage bootloader <ug_bootloader_adding_upgradable>`.
+   If the application using this bootloader requires SMP-based firmware updates, such as Bluetooth® LE DFU, :ref:`include MCUboot as a second-stage bootloader <ug_bootloader_adding_upgradable>`.
 
 .. _bootloader_rot:
 
@@ -156,7 +156,7 @@ This would result, for example, in a flash memory layout like the following, whe
 Pre-signed variants
 -------------------
 
-When the application uses a second-stage upgradable bootloader, *S1* can be programmed with the same image as *S0* when compiled with the :option:`CONFIG_BUILD_S1_VARIANT` option.
+When the application uses a second-stage upgradable bootloader, *S1* can be programmed with the same image as *S0* when compiled with the :kconfig:`CONFIG_BUILD_S1_VARIANT` option.
 This ensures that the upgradable bootloader can be executed from either slot chosen by the |NSIB|.
 
 When the upgradable bootloader is upgraded, the new image is placed into the slot not in use by the current version of the bootloader.
@@ -201,16 +201,16 @@ Monotonic Counter
 
 Firmware versions using the |NSIB| are kept in the form of a *monotonic counter*, a hardware-based version that prevents booting an image with a lower counter value.
 Counter values are kept as slots in the flash memory, with each new counter value occupying a new slot.
-See :option:`CONFIG_SB_MONOTONIC_COUNTER` for more details.
+See :kconfig:`CONFIG_SB_MONOTONIC_COUNTER` for more details.
 
-An application's counter value can be set by building using the :option:`CONFIG_FW_INFO_FIRMWARE_VERSION` option:
+An application's counter value can be set by building using the :kconfig:`CONFIG_FW_INFO_FIRMWARE_VERSION` option:
 
 .. code-block::
 
    CONFIG_FW_INFO_FIRMWARE_VERSION=<integer>
 
 The number of slots available for counter values depends on the type of nRF devices being used.
-For default values and ranges, see :option:`CONFIG_SB_NUM_VER_COUNTER_SLOTS`.
+For default values and ranges, see :kconfig:`CONFIG_SB_NUM_VER_COUNTER_SLOTS`.
 
 .. bootloader_monotonic_counter_end
 
@@ -221,7 +221,17 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns, nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832
+   :rows: nrf9160dk_nrf9160_ns, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf21540dk_nrf52840
+
+Configuration
+*************
+
+|config|
+
+FEM support
+===========
+
+.. include:: /includes/sample_fem_support.txt
 
 .. _bootloader_build_and_run:
 
@@ -249,15 +259,15 @@ To add the bootloader sample as a child image to your application:
 #. Enable the |NSIB| by running ``menuconfig`` on your application:
 
    a. Select :guilabel:`Project` > :guilabel:`Configure nRF Connect SDK project`.
-   #. Go to :guilabel:`Modules` > :guilabel:`Nordic nRF Connect` > :guilabel:`Bootloader` and set :guilabel:`Use Secure Bootloader` to enable :option:`CONFIG_SECURE_BOOT`.
-   #. Under :guilabel:`Private key PEM file` (:option:`CONFIG_SB_SIGNING_KEY_FILE`), enter the path to the private key that you created.
+   #. Go to :guilabel:`Modules` > :guilabel:`Nordic nRF Connect` > :guilabel:`Bootloader` and set :guilabel:`Use Secure Bootloader` to enable :kconfig:`CONFIG_SECURE_BOOT`.
+   #. Under :guilabel:`Private key PEM file` (:kconfig:`CONFIG_SB_SIGNING_KEY_FILE`), enter the path to the private key that you created.
       If you choose to run the sample with default debug keys, you can skip this step.
 
       There are additional configuration options that you can modify, but it is not recommended to do so.
       The default settings are suitable for most use cases.
 
       .. note::
-         If you need more flexibility with signing, or if you do not want the build system to handle your private key, choose :option:`CONFIG_SB_SIGNING_CUSTOM`, and also specify :option:`CONFIG_SB_SIGNING_COMMAND` and :option:`CONFIG_SB_SIGNING_PUBLIC_KEY`.
+         If you need more flexibility with signing, or if you do not want the build system to handle your private key, choose :kconfig:`CONFIG_SB_SIGNING_CUSTOM`, and also specify :kconfig:`CONFIG_SB_SIGNING_COMMAND` and :kconfig:`CONFIG_SB_SIGNING_PUBLIC_KEY`.
          These options allow you to define the signing command.
 
    #. Click :guilabel:`Configure`.

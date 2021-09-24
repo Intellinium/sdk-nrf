@@ -9,8 +9,8 @@ Matter: Door lock
    :depth: 2
 
 This door lock sample demonstrates the usage of the :ref:`Matter <ug_matter>` (formerly Project Connected Home over IP, Project CHIP) application layer to build a door lock device with one basic bolt.
-This device works as a Matter accessory device, meaning it can be paired and controlled remotely over a Matter network built on top of a low-power, 802.15.4 Thread network.
-You can use this sample as a reference for creating your own application.
+This device works as a Matter accessory device, meaning it can be paired and controlled remotely over a Matter network built on top of a low-power 802.15.4 Thread network.
+You can use this sample as a reference for creating your application.
 
 Requirements
 ************
@@ -19,11 +19,9 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp
+   :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp, nrf21540dk_nrf52840
 
-For remote testing scenarios, if you want to commission the lock device and :ref:`control it remotely <matter_lock_sample_network_mode>` through a Thread network, you also need the following:
-
-* A Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>`.
+For remote testing scenarios, if you want to commission the lock device and :ref:`control it remotely <matter_lock_sample_network_mode>` through a Thread network, you also need a Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>` (which requires additional hardware depending on which setup you choose).
 
 .. note::
     |matter_gn_required_note|
@@ -47,7 +45,8 @@ Remote testing in a network
 
 .. matter_door_lock_sample_remote_testing_start
 
-By default, the Matter accessory device has Thread disabled, and it must be paired with the Matter controller over Bluetooth LE to get configuration from it if you want to use the device within a Thread network.
+By default, the Matter accessory device has Thread disabled.
+You must pair it with the Matter controller over Bluetooth® LE to get configuration from the controller if you want to use the device within a Thread network.
 To do this, the device must be made discoverable manually (for security reasons) and the controller must get the commissioning information from the Matter accessory device and provision the device into the network.
 For details, see the `Commissioning the device`_ section.
 
@@ -78,15 +77,26 @@ Device Firmware Upgrade support
 
 .. matter_door_lock_sample_build_with_dfu_start
 
-You can configure the sample to use the secure bootloader for performing over-the-air Device Firmware Upgrade using Bluetooth LE.
-To build the sample with configuration that enables the DFU, run the following command with *build_target* replaced with the build target name of the hardware platform you are using (see `Requirements`_):
+.. note::
+   Over-the-air Device Firmware Upgrade can be enabled only on hardware platforms containing external flash memory.
+
+You can configure the sample to use the secure bootloader for performing over-the-air Device Firmware Upgrade using Bluetooth® LE, using the ``-DBUILD_WITH_DFU=1`` build flag during the build process.
+
+See :ref:`cmake_options` for instructions on how to add these options to your build.
+
+For example, when building on the command line, you can run the following command with *build_target* replaced with the build target name of the hardware platform you are using (see `Requirements`_):
 
 .. parsed-literal::
    :class: highlight
 
-   west build -b *build_target* -- -DOVERLAY_CONFIG=../common/config/overlay-dfu_support.conf -DPM_STATIC_YML_FILE="configuration/build-target/pm_static.yml"
+   west build -b *build_target* -- -DBUILD_WITH_DFU=1
 
 .. matter_door_lock_sample_build_with_dfu_end
+
+FEM support
+===========
+
+.. include:: /includes/sample_fem_support.txt
 
 User interface
 **************
@@ -131,11 +141,15 @@ Button 3:
     Starts the Thread networking in the :ref:`test mode <matter_lock_sample_test_mode>` using the default configuration.
 
 Button 4:
-    Starts the the NFC tag emulation, enables Bluetooth LE advertising for the predefined period of time, and makes the device discoverable over Bluetooth LE.
+    Starts the NFC tag emulation, enables Bluetooth LE advertising for the predefined period of time (15 minutes by default), and makes the device discoverable over Bluetooth LE.
     This button is used during the :ref:`commissioning procedure <matter_lock_sample_remote_control_commissioning>`.
+
+.. matter_door_lock_sample_jlink_start
 
 SEGGER J-Link USB port:
     Used for getting logs from the device or for communicating with it through the command-line interface.
+
+.. matter_door_lock_sample_jlink_end
 
 NFC port with antenna attached:
     Optionally used for obtaining the commissioning information from the Matter accessory device to start the :ref:`commissioning procedure <matter_lock_sample_remote_control>`.
@@ -178,7 +192,7 @@ After building the sample and programming it to your development kit, test its b
 
 #. Press **Button 1** to initiate factory reset of the device.
 
-The device is rebooted after all its settings are erased.
+The device reboots after all its settings are erased.
 
 .. _matter_lock_sample_remote_control:
 
@@ -208,21 +222,21 @@ To commission the device, go to the :ref:`ug_matter_configuring` page and comple
 As part of this tutorial, you will configure Thread Border Router, build and install the Matter controller, commission the device, and send Matter commands that cover scenarios described in the `Testing`_ section.
 If you are new to Matter, the recommended approach is :ref:`ug_matter_configuring_mobile` using an Android smartphone.
 
-In Matter, the commissioning procedure is done over Bluetooth LE between a Matter accessory device and the Matter controller, where the controller has the commissioner role.
-When the procedure is finished, the device should be equipped with all information needed to securely operate in the Matter network.
+In Matter, the commissioning procedure takes place over Bluetooth LE between a Matter accessory device and the Matter controller, where the controller has the commissioner role.
+When the procedure has completed, the device should be equipped with all information needed to securely operate in the Matter network.
 
-During the last part of the commissioning procedure (the provisioning operation), Thread network credentials are sent from the Matter controller to the Matter accessory device.
-As a result, the device is able to join the Thread network and communicate with other Thread devices in the network.
+During the last part of the commissioning procedure (the provisioning operation), the Matter controller sends the Thread network credentials to the Matter accessory device.
+As a result, the device can join the Thread network and communicate with other Thread devices in the network.
+
+.. matter_door_lock_sample_commissioning_end
 
 To start the commissioning procedure, the controller must get the commissioning information from the Matter accessory device.
 The data payload, which includes the device discriminator and setup PIN code, is encoded within a QR code, printed to the UART console, and can be shared using an NFC tag.
 
-.. matter_door_lock_sample_commissioning_end
-
 Upgrading the device firmware
 =============================
 
-To upgrade the device firmware, complete the steps listed for the selected method in the `Performing Device Firmware Upgrade in Matter device`_ tutorial.
+To upgrade the device firmware, complete the steps listed for the selected method in the :doc:`matter:nrfconnect_examples_software_update` tutorial in the Matter documentation.
 
 Dependencies
 ************

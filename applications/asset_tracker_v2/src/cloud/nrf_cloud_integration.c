@@ -103,9 +103,6 @@ static void nrf_cloud_event_handler(const struct nrf_cloud_evt *evt)
 		cloud_wrap_evt.type = CLOUD_WRAP_EVT_ERROR;
 		notify = true;
 		break;
-	case NRF_CLOUD_EVT_SENSOR_ATTACHED:
-		LOG_DBG("NRF_CLOUD_EVT_SENSOR_ATTACHED");
-		break;
 	case NRF_CLOUD_EVT_SENSOR_DATA_ACK:
 		LOG_DBG("NRF_CLOUD_EVT_SENSOR_DATA_ACK");
 		break;
@@ -227,7 +224,6 @@ static int decode_and_send(cJSON *object, const char *object_name, bool device_s
 
 	msg_ref = cJSON_DetachItemFromObject(object, object_name);
 	if (msg_ref != NULL) {
-
 		if (device_state) {
 			/* When state object is detached from root, we need to add the reported
 			 * object back to state object before sending to the shadow.
@@ -235,8 +231,8 @@ static int decode_and_send(cJSON *object, const char *object_name, bool device_s
 			cJSON *state_obj = cJSON_CreateObject();
 
 			if (state_obj == NULL) {
-				err = -ENOMEM;
-				goto exit;
+				cJSON_Delete(msg_ref);
+				return -ENOMEM;
 			}
 
 			json_add_obj(state_obj, OBJECT_STATE, msg_ref);
@@ -253,8 +249,7 @@ static int decode_and_send(cJSON *object, const char *object_name, bool device_s
 
 		if (tx_buffer == NULL) {
 			LOG_ERR("Failed to allocate memory for JSON string");
-			err = -ENOMEM;
-			goto exit;
+			return -ENOMEM;
 		}
 
 		msg.data.ptr = tx_buffer;
@@ -270,10 +265,6 @@ static int decode_and_send(cJSON *object, const char *object_name, bool device_s
 	}
 
 	return 0;
-
-exit:
-	cJSON_Delete(msg_ref);
-	return err;
 }
 
 int cloud_wrap_data_send(char *buf, size_t len)
@@ -352,4 +343,28 @@ int cloud_wrap_ui_send(char *buf, size_t len)
 	}
 
 	return 0;
+}
+
+int cloud_wrap_neighbor_cells_send(char *buf, size_t len)
+{
+	/* Not supported */
+	return -ENOTSUP;
+}
+
+int cloud_wrap_agps_request_send(char *buf, size_t len)
+{
+	/* Not supported */
+	return -ENOTSUP;
+}
+
+int cloud_wrap_pgps_request_send(char *buf, size_t len)
+{
+	/* Not supported */
+	return -ENOTSUP;
+}
+
+int cloud_wrap_memfault_data_send(char *buf, size_t len)
+{
+	/* Not supported */
+	return -ENOTSUP;
 }

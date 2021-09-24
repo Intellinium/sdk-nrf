@@ -12,11 +12,12 @@
 #include <modem/nrf_modem_lib.h>
 
 #if defined(CONFIG_WATCHDOG_APPLICATION)
-#include "watchdog.h"
+#include "watchdog_app.h"
 #endif
 
 /* Module name is used by the event manager macros in this file */
-#define MODULE app_module
+#define MODULE main
+#include <caf/events/module_state_event.h>
 
 #include "modules_common.h"
 #include "events/app_module_event.h"
@@ -26,6 +27,7 @@
 #include "events/ui_module_event.h"
 #include "events/util_module_event.h"
 #include "events/modem_module_event.h"
+#include "events/led_state_event.h"
 
 #include <logging/log.h>
 #include <logging/log_ctrl.h>
@@ -287,10 +289,10 @@ static void waiting_for_movement_handler(struct k_timer *timer)
 /* Static module functions. */
 static void passive_mode_timers_start_all(void)
 {
-	LOG_INF("Device mode: Passive");
-	LOG_INF("Start movement timeout: %d seconds interval", app_cfg.movement_timeout);
+	LOG_DBG("Device mode: Passive");
+	LOG_DBG("Start movement timeout: %d seconds interval", app_cfg.movement_timeout);
 
-	LOG_INF("%d seconds until movement can trigger a new data sample/publication",
+	LOG_DBG("%d seconds until movement can trigger a new data sample/publication",
 		app_cfg.movement_resolution);
 
 	k_timer_start(&movement_resolution_timer,
@@ -306,8 +308,8 @@ static void passive_mode_timers_start_all(void)
 
 static void active_mode_timers_start_all(void)
 {
-	LOG_INF("Device mode: Active");
-	LOG_INF("Start data sample timer: %d seconds interval", app_cfg.active_wait_timeout);
+	LOG_DBG("Device mode: Active");
+	LOG_DBG("Start data sample timer: %d seconds interval", app_cfg.active_wait_timeout);
 
 	k_timer_start(&data_sample_timer,
 		      K_SECONDS(app_cfg.active_wait_timeout),
@@ -325,19 +327,25 @@ static void data_get(void)
 	struct app_module_event *app_module_event = new_app_module_event();
 	size_t count = 0;
 
+	/* Specify a timeout that each module has to fetch data. If data is not
+	 * fetched within this timeout, the data that is available is sent.
+	 */
+	app_module_event->timeout = 10;
+
 	/* Specify which data that is to be included in the transmission. */
 	app_module_event->data_list[count++] = APP_DATA_MODEM_DYNAMIC;
 	app_module_event->data_list[count++] = APP_DATA_BATTERY;
 	app_module_event->data_list[count++] = APP_DATA_ENVIRONMENTAL;
 
-	/* Specify a timeout that each module has to fetch data. If data is not
-	 * fetched within this timeout, the data that is available is sent.
-	 *
-	 * The reason for having at least 65 seconds timeout is that the GNSS
-	 * module in nRF9160 will always search for at least 60 seconds for the
+	if (IS_ENABLED(CONFIG_APP_REQUEST_NEIGHBOR_CELLS_DATA) && !app_cfg.no_data.neighbor_cell) {
+		app_module_event->data_list[count++] = APP_DATA_NEIGHBOR_CELLS;
+	}
+
+	/* The reason for having at least 75 seconds timeout in the case of requesting GNSS data
+	 * is that the GNSS module in nRF9160 will always search for at least 60 seconds for the
 	 * first position fix after a reboot.
 	 *
-	 * The addition of 5 seconds to the configured GPS timeout is  done
+	 * The addition of 15 seconds to the configured GPS timeout is done
 	 * to let the GPS module run the currently ongoing search until
 	 * the end. If the timeout for sending data is exactly the same as for
 	 * the GPS search, a fix occurring at the same time as timeout is
@@ -345,19 +353,21 @@ static void data_get(void)
 	 * interval has  passed in active mode, or until next movement in
 	 * passive mode.
 	 */
-	app_module_event->timeout = MAX(app_cfg.gps_timeout + 15, 75);
 
 	if (first) {
-		if (IS_ENABLED(CONFIG_APP_REQUEST_GPS_ON_INITIAL_SAMPLING)) {
+		if (IS_ENABLED(CONFIG_APP_REQUEST_GPS_ON_INITIAL_SAMPLING) &&
+		    !app_cfg.no_data.gnss) {
 			app_module_event->data_list[count++] = APP_DATA_GNSS;
-		} else {
-			app_module_event->timeout = 10;
+			app_module_event->timeout = MAX(app_cfg.gps_timeout + 15, 75);
 		}
 
 		app_module_event->data_list[count++] = APP_DATA_MODEM_STATIC;
 		first = false;
 	} else {
-		app_module_event->data_list[count++] = APP_DATA_GNSS;
+		if (!app_cfg.no_data.gnss) {
+			app_module_event->data_list[count++] = APP_DATA_GNSS;
+			app_module_event->timeout = MAX(app_cfg.gps_timeout + 15, 75);
+		}
 	}
 
 	/* Set list count to number of data types passed in app_module_event. */
@@ -469,7 +479,9 @@ void main(void)
 	int err;
 	struct app_msg_data msg;
 
-	handle_nrf_modem_lib_init_ret();
+	if (!IS_ENABLED(CONFIG_LWM2M_CARRIER)) {
+		handle_nrf_modem_lib_init_ret();
+	}
 
 	if (event_manager_init()) {
 		/* Without the event manager, the application will not work
@@ -479,6 +491,7 @@ void main(void)
 		k_sleep(K_SECONDS(5));
 		sys_reboot(SYS_REBOOT_COLD);
 	} else {
+		module_set_state(MODULE_STATE_READY);
 		SEND_EVENT(app, APP_EVT_START);
 	}
 

@@ -29,6 +29,7 @@ LOG_MODULE_REGISTER(nrf_cloud_pgps, CONFIG_NRF_CLOUD_GPS_LOG_LEVEL);
 #include "nrf_cloud_transport.h"
 #include "nrf_cloud_pgps_schema_v1.h"
 #include "nrf_cloud_pgps_utils.h"
+#include "nrf_cloud_codec.h"
 
 #define FORCE_HTTP_DL			0 /* set to 1 to force HTTP instead of HTTPS */
 #define PGPS_DEBUG			0 /* set to 1 for extra logging */
@@ -41,35 +42,6 @@ LOG_MODULE_REGISTER(nrf_cloud_pgps, CONFIG_NRF_CLOUD_GPS_LOG_LEVEL);
 #define LOCATION_UNC_SEMIMAJOR_K	89U
 #define LOCATION_UNC_SEMIMINOR_K	89U
 #define LOCATION_CONFIDENCE_PERCENT	68U
-
-#define PGPS_JSON_APPID_KEY		"appId"
-#define PGPS_JSON_APPID_VAL_PGPS	"PGPS"
-#define PGPS_JSON_MSG_TYPE_KEY		"messageType"
-#define PGPS_JSON_MSG_TYPE_VAL_DATA	"DATA"
-#define PGPS_JSON_DATA_KEY		"data"
-
-#define PGPS_JSON_PRED_COUNT		"predictionCount"
-#define PGPS_JSON_PRED_INT_MIN		"predictionIntervalMinutes"
-#define PGPS_JSON_GPS_DAY		"startGpsDay"
-#define PGPS_JSON_GPS_TIME		"startGpsTimeOfDaySeconds"
-
-#if defined(CONFIG_PGPS_INCLUDE_MODEM_INFO)
-#define PGPS_JSON_MCC_KEY		"mcc"
-#define PGPS_JSON_MNC_KEY		"mnc"
-#define PGPS_JSON_AREA_CODE_KEY		"tac"
-#define PGPS_JSON_CELL_ID_KEY		"eci"
-#define PGPS_JSON_PHYCID_KEY		"phycid"
-#define PGPS_JSON_TYPES_KEY		"types"
-#define PGPS_JSON_CELL_LOC_KEY_DOREPLY	"doReply"
-#define PGPS_JSON_APPID_VAL_SINGLE_CELL	"SCELL"
-#define PGPS_JSON_APPID_VAL_MULTI_CELL	"MCELL"
-#define PGPS_JSON_CELL_LOC_KEY_LAT	"lat"
-#define PGPS_JSON_CELL_LOC_KEY_LON	"lon"
-#define PGPS_JSON_CELL_LOC_KEY_UNCERT	"uncertainty"
-#endif
-
-#define RCV_ITEM_IDX_FILE_HOST 0
-#define RCV_ITEM_IDX_FILE_PATH 1
 
 enum pgps_state {
 	PGPS_NONE,
@@ -104,7 +76,7 @@ struct pgps_index {
 
 static struct pgps_index index;
 
-static pgps_event_handler_t handler;
+static pgps_event_handler_t evt_handler;
 /* array of potentially out-of-time-order predictions */
 static uint8_t *storage;
 static uint32_t storage_size;
@@ -113,8 +85,6 @@ static uint8_t *write_buf;
 static uint32_t flash_page_size;
 
 static uint8_t prediction_buf[PGPS_PREDICTION_STORAGE_SIZE];
-
-static bool json_initialized;
 static bool ignore_packets;
 static atomic_t pgps_need_assistance;
 
@@ -128,6 +98,8 @@ static void prediction_timer_handler(struct k_timer *dummy);
 void agps_print_enable(bool enable);
 static void print_time_details(const char *info,
 			       int64_t sec, uint16_t day, uint32_t time_of_day);
+static int pgps_request(const struct gps_pgps_request *request);
+static int pgps_request_all(void);
 
 K_WORK_DEFINE(prediction_work, prediction_work_handler);
 K_TIMER_DEFINE(prediction_timer, prediction_timer_handler, NULL);
@@ -244,9 +216,11 @@ static int validate_prediction(const struct nrf_cloud_pgps_prediction *p,
 			err = -EINVAL;
 		}
 	}
+#if IS_ENABLED(CONFIG_NRF_CLOUD_LOG_LEVEL_DBG)
 	if (!err) {
 		print_time_details("prediction:", pred_sec, p->time.date_day, p->time.time_full_s);
 	}
+#endif
 	return err;
 }
 
@@ -283,7 +257,7 @@ static int validate_stored_predictions(uint16_t *first_bad_day,
 				pred->time.time_full_s);
 		} else if (index.predictions[pnum] == NULL) {
 			index.predictions[pnum] = pred;
-			LOG_INF("Prediction num:%u stored at idx:%d", pnum, i);
+			LOG_DBG("Prediction num:%u stored at idx:%d", pnum, i);
 		} else {
 			LOG_WRN("Prediction num:%u stored more than once!", pnum);
 		}
@@ -319,7 +293,7 @@ static int validate_stored_predictions(uint16_t *first_bad_day,
 		}
 
 		i = npgps_pointer_to_block((uint8_t *)pred);
-		LOG_INF("Prediction num:%u, loc:%p, blk:%d", pnum, pred, i);
+		LOG_DBG("Prediction num:%u, loc:%p, blk:%d", pnum, pred, i);
 		__ASSERT(i != -1, "unexpected pointer value %p", pred);
 		npgps_mark_block_used(i, true);
 	}
@@ -401,12 +375,15 @@ static void discard_oldest_predictions(int num)
 
 int nrf_cloud_pgps_notify_prediction(void)
 {
-	/* when current prediction is ready, callback handler with
+	/* when current prediction is ready, callback evt_handler with
 	 * PGPS_EVT_AVAILABLE and pointer to prediction
 	 */
 	int err;
 	int pnum;
 	struct nrf_cloud_pgps_prediction *prediction;
+	struct nrf_cloud_pgps_event evt = {
+		.type = PGPS_EVT_AVAILABLE,
+	};
 
 	if (state == PGPS_NONE) {
 		LOG_ERR("P-GPS subsystem is not initialized.");
@@ -423,7 +400,7 @@ int nrf_cloud_pgps_notify_prediction(void)
 	} else if (err < 0) {
 		if (!pgps_need_assistance) {
 			pgps_need_assistance = true;
-			err = nrf_cloud_pgps_request_all();
+			err = pgps_request_all();
 			if (err) {
 				LOG_ERR("Error while requesting pgps set: %d", err);
 				pgps_need_assistance = false; /* try again next time */
@@ -439,8 +416,9 @@ int nrf_cloud_pgps_notify_prediction(void)
 		/* the application should now send data to modem with
 		 * nrf_cloud_pgps_inject()
 		 */
-		if (handler) {
-			handler(PGPS_EVT_AVAILABLE, prediction);
+		if (evt_handler) {
+			evt.prediction = prediction;
+			evt_handler(&evt);
 		}
 	}
 	return err;
@@ -604,77 +582,25 @@ int nrf_cloud_pgps_find_prediction(struct nrf_cloud_pgps_prediction **prediction
 	return -EINVAL;
 }
 
-static cJSON *json_create_req_obj(const char *const app_id,
-				   const char *const msg_type)
-{
-	__ASSERT_NO_MSG(app_id != NULL);
-	__ASSERT_NO_MSG(msg_type != NULL);
-
-	if (!json_initialized) {
-		cJSON_Init();
-		json_initialized = true;
-	}
-
-	cJSON *resp_obj = cJSON_CreateObject();
-
-	if (!cJSON_AddStringToObject(resp_obj,
-				     PGPS_JSON_APPID_KEY,
-				     app_id) ||
-	    !cJSON_AddStringToObject(resp_obj,
-				     PGPS_JSON_MSG_TYPE_KEY,
-				     msg_type)) {
-		cJSON_Delete(resp_obj);
-		resp_obj = NULL;
-	}
-
-	return resp_obj;
-}
-
-static int json_send_to_cloud(cJSON *const pgps_request)
-{
-	__ASSERT_NO_MSG(pgps_request != NULL);
-
-	char *msg_string;
-	int err;
-
-	msg_string = cJSON_PrintUnformatted(pgps_request);
-	if (!msg_string) {
-		LOG_ERR("Could not allocate memory for P-GPS request message");
-		return -ENOMEM;
-	}
-
-	LOG_DBG("Created P-GPS request: %s", log_strdup(msg_string));
-
-	struct nct_dc_data msg = {
-		.data.ptr = msg_string,
-		.data.len = strlen(msg_string)
-	};
-
-	err = nct_dc_send(&msg);
-	if (err) {
-		/* @TODO: if device is offline, we need to defer this to later */
-		LOG_ERR("Failed to send P-GPS request, error:%d", err);
-	} else {
-		LOG_DBG("P-GPS request sent");
-	}
-
-	k_free(msg_string);
-
-	return err;
-}
-
 bool nrf_cloud_pgps_loading(void)
 {
 	return ((state == PGPS_REQUESTING) || (state == PGPS_LOADING));
 }
 
+#if defined(CONFIG_NRF_CLOUD_MQTT)
 int nrf_cloud_pgps_request(const struct gps_pgps_request *request)
 {
-	int err = 0;
-	cJSON *data_obj;
-	cJSON *pgps_req_obj;
-	cJSON *ret;
+	return pgps_request(request);
+}
 
+int nrf_cloud_pgps_request_all(void)
+{
+	return pgps_request_all();
+}
+#endif /* CONFIG_NRF_CLOUD_MQTT */
+
+static int pgps_request(const struct gps_pgps_request *request)
+{
 	if (state == PGPS_NONE) {
 		LOG_ERR("P-GPS subsystem is not initialized.");
 		return -EINVAL;
@@ -683,14 +609,42 @@ int nrf_cloud_pgps_request(const struct gps_pgps_request *request)
 	if (nrf_cloud_pgps_loading()) {
 		return 0;
 	}
+
+	if (request->prediction_count < index.header.prediction_count) {
+		index.partial_request = true;
+		index.pnum_offset = index.header.prediction_count -
+				    request->prediction_count;
+	} else {
+		index.partial_request = false;
+		index.pnum_offset = 0;
+	}
+
+	index.expected_count = request->prediction_count;
 	ignore_packets = false;
+
+#if defined(CONFIG_NRF_CLOUD_PGPS_TRANSPORT_NONE)
+	struct nrf_cloud_pgps_event evt = {
+		.type = PGPS_EVT_REQUEST,
+		.request = (struct gps_pgps_request *)request,
+	};
+
+	if (evt_handler) {
+		evt_handler(&evt);
+	}
+
+	return 0;
+#elif defined(CONFIG_NRF_CLOUD_PGPS_TRANSPORT_MQTT)
+	int err = 0;
+	cJSON *data_obj;
+	cJSON *pgps_req_obj;
+	cJSON *ret;
 
 	LOG_INF("Requesting %u predictions...", request->prediction_count);
 
 	/* Create request JSON containing a data object */
-	pgps_req_obj = json_create_req_obj(PGPS_JSON_APPID_VAL_PGPS,
-					   PGPS_JSON_MSG_TYPE_VAL_DATA);
-	data_obj = cJSON_AddObjectToObject(pgps_req_obj, PGPS_JSON_DATA_KEY);
+	pgps_req_obj = json_create_req_obj(NRF_CLOUD_JSON_APPID_VAL_PGPS,
+					   NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA);
+	data_obj = cJSON_AddObjectToObject(pgps_req_obj, NRF_CLOUD_JSON_DATA_KEY);
 
 	if (!pgps_req_obj || !data_obj) {
 		err = -ENOMEM;
@@ -705,38 +659,29 @@ int nrf_cloud_pgps_request(const struct gps_pgps_request *request)
 		goto cleanup;
 	}
 #endif
-	if (request->prediction_count < index.header.prediction_count) {
-		index.partial_request = true;
-		index.pnum_offset = index.header.prediction_count -
-				    request->prediction_count;
-	} else {
-		index.partial_request = false;
-		index.pnum_offset = 0;
-	}
-	index.expected_count = request->prediction_count;
 
-	ret = cJSON_AddNumberToObject(data_obj, PGPS_JSON_PRED_COUNT,
+	ret = cJSON_AddNumberToObject(data_obj, NRF_CLOUD_JSON_PGPS_PRED_COUNT,
 				      request->prediction_count);
 	if (ret == NULL) {
 		LOG_ERR("Failed to add pred count to P-GPS request:%d", err);
 		err = -ENOMEM;
 		goto cleanup;
 	}
-	ret = cJSON_AddNumberToObject(data_obj, PGPS_JSON_PRED_INT_MIN,
+	ret = cJSON_AddNumberToObject(data_obj, NRF_CLOUD_JSON_PGPS_INT_MIN,
 				      request->prediction_period_min);
 	if (ret == NULL) {
 		LOG_ERR("Failed to add pred int min to P-GPS request:%d", err);
 		err = -ENOMEM;
 		goto cleanup;
 	}
-	ret = cJSON_AddNumberToObject(data_obj, PGPS_JSON_GPS_DAY,
+	ret = cJSON_AddNumberToObject(data_obj, NRF_CLOUD_JSON_PGPS_GPS_DAY,
 				      request->gps_day);
 	if (ret == NULL) {
 		LOG_ERR("Failed to add gps day to P-GPS request:%d", err);
 		err = -ENOMEM;
 		goto cleanup;
 	}
-	ret = cJSON_AddNumberToObject(data_obj, PGPS_JSON_GPS_TIME,
+	ret = cJSON_AddNumberToObject(data_obj, NRF_CLOUD_JSON_PGPS_GPS_TIME,
 				      request->gps_time_of_day);
 	if (ret == NULL) {
 		LOG_ERR("Failed to add gps time to P-GPS request:%d", err);
@@ -744,6 +689,7 @@ int nrf_cloud_pgps_request(const struct gps_pgps_request *request)
 		goto cleanup;
 	}
 
+	/* @TODO: if device is offline, we need to defer this to later */
 	err = json_send_to_cloud(pgps_req_obj);
 	if (!err) {
 		state = PGPS_REQUESTING;
@@ -753,13 +699,15 @@ cleanup:
 	cJSON_Delete(pgps_req_obj);
 
 	return err;
+#endif /* defined(CONFIG_NRF_CLOUD_PGPS_TRANSPORT_MQTT) */
 }
 
-int nrf_cloud_pgps_request_all(void)
+static int pgps_request_all(void)
 {
 	uint16_t gps_day;
 	uint32_t gps_time_of_day;
 	int err;
+
 
 	if (state == PGPS_NONE) {
 		LOG_ERR("P-GPS subsystem is not initialized.");
@@ -787,7 +735,7 @@ int nrf_cloud_pgps_request_all(void)
 		.gps_time_of_day = gps_time_of_day
 	};
 
-	return nrf_cloud_pgps_request(&request);
+	return pgps_request(&request);
 }
 
 int nrf_cloud_pgps_preemptive_updates(void)
@@ -806,30 +754,38 @@ int nrf_cloud_pgps_preemptive_updates(void)
 	}
 
 	if (current == 0xff) {
-		return nrf_cloud_pgps_request_all();
+		return pgps_request_all();
 	}
+
 	if ((current + npgps_num_free()) < n) {
 		LOG_DBG("Updates not needed yet; current:%d, free:%d, n:%d",
 			current, npgps_num_free(), n);
 		return 0;
 	}
 
-	if (handler) {
-		handler(PGPS_EVT_LOADING, NULL);
+	if (evt_handler) {
+		struct nrf_cloud_pgps_event evt = {
+			.type = PGPS_EVT_LOADING,
+		};
+
+		evt_handler(&evt);
 	}
 
 	LOG_INF("Replacing %d oldest predictions; %d already free",
 		current, npgps_num_free());
+
 	if (current >= n) {
 		discard_oldest_predictions(current);
 	}
+
 	npgps_gps_sec_to_day_time(index.end_sec, &gps_day, &gps_time_of_day);
 
 	request.gps_day = gps_day;
 	request.gps_time_of_day = gps_time_of_day;
 	request.prediction_count = npgps_num_free();
 	request.prediction_period_min = period_min;
-	return nrf_cloud_pgps_request(&request);
+
+	return pgps_request(&request);
 }
 
 int nrf_cloud_pgps_inject(struct nrf_cloud_pgps_prediction *p,
@@ -1301,7 +1257,7 @@ static int consume_pgps_data(uint8_t pnum, const char *buf, size_t buf_len)
 		LOG_DBG("Parsing finished");
 
 		if (index.predictions[pnum]) {
-			LOG_WRN("Received duplicate MQTT packet; ignoring");
+			LOG_WRN("Received duplicate packet; ignoring");
 		} else if (gps_sec == 0) {
 			LOG_ERR("Prediction did not include GPS day and time of day; ignoring");
 			LOG_HEXDUMP_DBG(prediction_ptr, buf_len, "bad data");
@@ -1323,14 +1279,22 @@ static int consume_pgps_data(uint8_t pnum, const char *buf, size_t buf_len)
 			}
 
 			if (!finished) {
-				if (handler) {
-					handler(PGPS_EVT_LOADING, NULL);
+				if (evt_handler) {
+					struct nrf_cloud_pgps_event evt = {
+						.type = PGPS_EVT_LOADING,
+					};
+
+					evt_handler(&evt);
 				}
 			} else {
 				LOG_INF("All P-GPS data received. Done.");
 				state = PGPS_READY;
-				if (handler) {
-					handler(PGPS_EVT_READY, NULL);
+				if (evt_handler) {
+					struct nrf_cloud_pgps_event evt = {
+						.type = PGPS_EVT_READY,
+					};
+
+					evt_handler(&evt);
 				}
 				npgps_print_blocks();
 				return 0;
@@ -1368,74 +1332,7 @@ static int consume_pgps_data(uint8_t pnum, const char *buf, size_t buf_len)
 	return 0;
 }
 
-static int get_string_from_array(const cJSON *const array, const int index,
-				  char **string_out)
-{
-	__ASSERT_NO_MSG(string_out != NULL);
-
-	cJSON *item = cJSON_GetArrayItem(array, index);
-
-	if (!cJSON_IsString(item)) {
-		return -EINVAL;
-	}
-
-	*string_out = item->valuestring;
-
-	return 0;
-}
-
-static int parse_dl_info(char *host, size_t host_len,
-			 char *path, size_t path_len,
-			 const char *payload_in, size_t len)
-{
-	if (!host || !path || !payload_in) {
-		return -EINVAL;
-	}
-
-	char *temp;
-	char *host_ptr = NULL;
-	char *path_ptr = NULL;
-	int err = -ENOMSG;
-	cJSON *array = cJSON_Parse(payload_in);
-
-	if (!array || !cJSON_IsArray(array)) {
-		LOG_ERR("Invalid JSON array");
-		err = -EINVAL;
-		goto cleanup;
-	}
-
-	temp = cJSON_PrintUnformatted(array);
-	if (temp) {
-		LOG_DBG("JSON array: %s", log_strdup(temp));
-		cJSON_FreeString(temp);
-	}
-
-	if (get_string_from_array(array, RCV_ITEM_IDX_FILE_HOST, &host_ptr) ||
-	    get_string_from_array(array, RCV_ITEM_IDX_FILE_PATH, &path_ptr)) {
-		LOG_ERR("Error parsing info");
-		goto cleanup;
-	}
-
-	if (host_ptr && host_len) {
-		strncpy(host, host_ptr, host_len - 1);
-		host[host_len - 1] = '\0';
-		LOG_DBG("host: %s", log_strdup(host));
-	}
-	if (path_ptr && path_len) {
-		strncpy(path, path_ptr, path_len - 1);
-		path[path_len - 1] = '\0';
-		LOG_DBG("path: %s", log_strdup(path));
-	}
-	err = 0;
-
-cleanup:
-	if (array) {
-		cJSON_Delete(array);
-	}
-	return err;
-}
-
-/* handle incoming MQTT packets */
+/* handle incoming P-GPS packets */
 int nrf_cloud_pgps_process(const char *buf, size_t buf_len)
 {
 	static char host[CONFIG_DOWNLOAD_CLIENT_MAX_HOSTNAME_SIZE];
@@ -1443,12 +1340,20 @@ int nrf_cloud_pgps_process(const char *buf, size_t buf_len)
 	static uint8_t prev_pnum;
 	uint8_t pnum;
 	int err;
+	struct nrf_cloud_pgps_result pgps_dl = {
+		.host = host,
+		.host_sz = sizeof(host),
+		.path = path,
+		.path_sz = sizeof(path)
+	};
 
 	if (state == PGPS_NONE) {
 		LOG_ERR("P-GPS subsystem is not initialized.");
 		return -EINVAL;
 	}
+#if defined(CONFIG_NRF_CLOUD_MQTT)
 	LOG_HEXDUMP_DBG(buf, buf_len, "MQTT packet");
+#endif
 	if (!buf_len) {
 		LOG_ERR("Zero length packet received");
 		state = PGPS_NONE;
@@ -1457,6 +1362,7 @@ int nrf_cloud_pgps_process(const char *buf, size_t buf_len)
 
 	if (ignore_packets) {
 		LOG_ERR("IGNORING PACKETS");
+		LOG_HEXDUMP_INF(buf, buf_len, "Unexpected packet");
 		return -EINVAL;
 	}
 
@@ -1495,7 +1401,7 @@ int nrf_cloud_pgps_process(const char *buf, size_t buf_len)
 		}
 	}
 
-	err = parse_dl_info(host, sizeof(host), path, sizeof(path), buf, buf_len);
+	err = nrf_cloud_parse_pgps_response(buf, &pgps_dl);
 	if (err) {
 		return err;
 	}
@@ -1503,22 +1409,26 @@ int nrf_cloud_pgps_process(const char *buf, size_t buf_len)
 	ignore_packets = true;
 	int sec_tag = SEC_TAG;
 
-	if (FORCE_HTTP_DL && (strncmp(host, "https", 5) == 0)) {
+	if (FORCE_HTTP_DL && (strncmp(pgps_dl.host, "https", 5) == 0)) {
 		int i;
-		int len = strlen(host);
+		int len = strlen(pgps_dl.host);
 
 		for (i = 4; i < len; i++) {
-			host[i] = host[i + 1];
+			pgps_dl.host[i] = pgps_dl.host[i + 1];
 		}
 		sec_tag = -1;
 	}
 
-	return npgps_download_start(host, path, sec_tag, NULL, FRAGMENT_SIZE);
+	return npgps_download_start(pgps_dl.host, pgps_dl.path, sec_tag,
+				    NULL, FRAGMENT_SIZE);
 }
 
 int nrf_cloud_pgps_init(struct nrf_cloud_pgps_init_param *param)
 {
 	int err = 0;
+	struct nrf_cloud_pgps_event evt = {
+		.type = PGPS_EVT_INIT,
+	};
 
 	__ASSERT(((REPLACEMENT_THRESHOLD & 1) == 0),
 		 "REPLACEMENT_THRESHOLD must be even");
@@ -1528,9 +1438,9 @@ int nrf_cloud_pgps_init(struct nrf_cloud_pgps_init_param *param)
 		 "insufficient storage provided; need at least %u bytes",
 		 (NUM_BLOCKS * BLOCK_SIZE));
 
-	handler = param->event_handler;
-	if (handler) {
-		handler(PGPS_EVT_INIT, NULL);
+	evt_handler = param->event_handler;
+	if (evt_handler) {
+		evt_handler(&evt);
 	}
 
 	flash_page_size = nrfx_nvmc_flash_page_size_get();
@@ -1620,35 +1530,46 @@ int nrf_cloud_pgps_init(struct nrf_cloud_pgps_init_param *param)
 
 	if (!num_valid) {
 		/* read a full set of predictions */
-		if (handler) {
-			handler(PGPS_EVT_UNAVAILABLE, NULL);
+		if (evt_handler) {
+			evt.type = PGPS_EVT_UNAVAILABLE;
+
+			evt_handler(&evt);
 		}
-		err = nrf_cloud_pgps_request_all();
+
+		if (IS_ENABLED(CONFIG_NRF_CLOUD_PGPS_REQUEST_ALL_UPON_INIT)) {
+			err = pgps_request_all();
+		}
 	} else if (num_valid < count) {
 		/* read missing predictions at end */
 		struct gps_pgps_request request;
 
-		if (handler) {
-			handler(PGPS_EVT_LOADING, NULL);
-		}
 		LOG_INF("Incomplete P-GPS data; "
-			"requesting %u predictions...", count - num_valid);
+			"Creating request for %u predictions...", count - num_valid);
+
 		get_prediction_day_time(num_valid, NULL, &gps_day, &gps_time_of_day);
+
 		request.gps_day = gps_day;
 		request.gps_time_of_day = gps_time_of_day;
 		request.prediction_count = count - num_valid;
 		request.prediction_period_min = period_min;
-		err = nrf_cloud_pgps_request(&request);
+
+		err = pgps_request(&request);
 	} else if ((count - (pnum + 1)) < REPLACEMENT_THRESHOLD) {
-		/* replace expired predictions with newer */
+		/* Replace expired predictions with newer.
+		 * The function will emit the request as a PGPS_EVT_REQUEST if
+		 * auto-request is disabled.
+		 */
 		err = nrf_cloud_pgps_preemptive_updates();
 	} else {
 		state = PGPS_READY;
 		LOG_INF("P-GPS data is up to date.");
-		if (handler) {
-			handler(PGPS_EVT_READY, NULL);
+		if (evt_handler) {
+			evt.type = PGPS_EVT_READY;
+
+			evt_handler(&evt);
 		}
 		err = 0;
 	}
+
 	return err;
 }

@@ -28,7 +28,7 @@ The sample supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 .. include:: /includes/spm.txt
 
@@ -89,7 +89,7 @@ After programming the sample to your development kit, test the sample by perform
    #. Enter the command: :command:`AT%CMNG=1`
 
       This command displays a list of all certificates that are stored on your device.
-      If the device has been added to nRF Connect for Cloud, a CA certificate, a client certificate, and a private key with security tag 16842753 (which is the security tag for nRF Connect for Cloud credentials) are displayed.
+      If the device has been added to nRF Cloud, a CA certificate, a client certificate, and a private key with security tag 16842753 (which is the security tag for nRF Cloud credentials) are displayed.
 
 
 Sample output

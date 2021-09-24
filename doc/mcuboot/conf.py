@@ -1,24 +1,18 @@
 # MCUboot documentation build configuration file
 
-import os
 from pathlib import Path
 import sys
 
 
 # Paths ------------------------------------------------------------------------
 
-NRF_BASE = os.environ.get("NRF_BASE")
-if not NRF_BASE:
-    raise FileNotFoundError("NRF_BASE not defined")
-NRF_BASE = Path(NRF_BASE)
-
-MCUBOOT_BASE = os.environ.get("MCUBOOT_BASE")
-if not MCUBOOT_BASE:
-    raise FileNotFoundError("MCUBOOT_BASE not defined")
-MCUBOOT_BASE = Path(MCUBOOT_BASE)
+NRF_BASE = Path(__file__).absolute().parents[2]
 
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
+
+MCUBOOT_BASE = utils.get_projdir("mcuboot")
+ZEPHYR_BASE = utils.get_projdir("zephyr")
 
 # General configuration --------------------------------------------------------
 
@@ -26,9 +20,16 @@ project = "MCUboot"
 copyright = "2019-2021"
 version = release = "1.7.99"
 
+sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
 
-extensions = ["sphinx.ext.intersphinx", "recommonmark", "external_content"]
+extensions = [
+    "zephyr.kconfig-role",
+    "sphinx.ext.intersphinx",
+    "recommonmark",
+    "ncs_cache",
+    "zephyr.external_content"
+]
 source_suffix = [".rst", ".md"]
 master_doc = "wrapper"
 
@@ -61,8 +62,15 @@ if kconfig_mapping:
 
 external_content_contents = [
     (NRF_BASE / "doc" / "mcuboot", "*.rst"),
-    (MCUBOOT_BASE / "docs", "*.md")
+    (MCUBOOT_BASE / "docs", "*.md"),
 ]
+
+# Options for ncs_cache --------------------------------------------------------
+
+ncs_cache_docset = "mcuboot"
+ncs_cache_build_dir = utils.get_builddir()
+ncs_cache_config = NRF_BASE / "doc" / "cache.yml"
+ncs_cache_manifest = NRF_BASE / "west.yml"
 
 
 def setup(app):

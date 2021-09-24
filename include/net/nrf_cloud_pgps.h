@@ -82,6 +82,22 @@ struct gps_pgps_request {
 	uint32_t gps_time_of_day;
 } __packed;
 
+/** @brief nRF Cloud Predicted GPS (P-GPS) result; the location of
+ *         the P-GPS data file which is to be downloaded and provided
+ *         to nrf_cloud_pgps_process().
+ */
+struct nrf_cloud_pgps_result {
+	/** User-provided buffer to hold download host name */
+	char *host;
+	/** Size of user-provided host buffer */
+	size_t host_sz;
+
+	/** User-provided buffer to hold download path/file name */
+	char *path;
+	/** Size of user-provided path buffer */
+	size_t path_sz;
+};
+
 /** @brief P-GPS error code: current time unknown. */
 #define ETIMEUNKNOWN	8000
 /** @brief P-GPS error code: not found but loading in progress. */
@@ -93,7 +109,7 @@ struct gps_pgps_request {
 #define NRF_CLOUD_PGPS_EMPTY_EPHEM_HEALTH (0xff)
 
 /** @brief P-GPS event passed to the registered pgps_event_handler. */
-enum nrf_cloud_pgps_event {
+enum nrf_cloud_pgps_event_type {
 	/** P-GPS initialization beginning. */
 	PGPS_EVT_INIT,
 	/** There are currently no P-GPS predictions available. */
@@ -103,7 +119,24 @@ enum nrf_cloud_pgps_event {
 	/** A P-GPS prediction is available now for the current date and time. */
 	PGPS_EVT_AVAILABLE,
 	/** All P-GPS predictions are available. */
-	PGPS_EVT_READY
+	PGPS_EVT_READY,
+	/** A P-GPS request has been created for missing predictions.
+	 *  The event has payload in the form of @ref gps_pgps_request.
+	 *  The event is intended to be used when CONFIG_NRF_CLOUD_PGPS_TRANSPORT_MQTT
+	 *  is disabled to let the application decide when and how to use
+	 *  the request information.
+	 *  This event type is not received if  CONFIG_NRF_CLOUD_PGPS_TRANSPORT_MQTT
+	 *  is enabled.
+	 */
+	PGPS_EVT_REQUEST,
+};
+
+struct nrf_cloud_pgps_event {
+	enum nrf_cloud_pgps_event_type type;
+	union {
+		struct nrf_cloud_pgps_prediction *prediction;
+		struct gps_pgps_request *request;
+	};
 };
 
 /**
@@ -111,11 +144,8 @@ enum nrf_cloud_pgps_event {
  * events from the module.
  *
  * @param[in] event The event that just occurred.
- * @param[in] p For event PGPS_EVT_AVAILABLE, a pointer to the prediction;
- * otherwise, NULL.
  */
-typedef void (*pgps_event_handler_t)(enum nrf_cloud_pgps_event event,
-				     struct nrf_cloud_pgps_prediction *p);
+typedef void (*pgps_event_handler_t)(struct nrf_cloud_pgps_event *event);
 
 /**@brief Initialization parameters for the module. */
 struct nrf_cloud_pgps_init_param {
@@ -186,7 +216,8 @@ int nrf_cloud_pgps_notify_prediction(void);
  */
 int nrf_cloud_pgps_find_prediction(struct nrf_cloud_pgps_prediction **prediction);
 
-/**@brief Requests specified P-GPS data from nRF Cloud.
+#if defined(CONFIG_NRF_CLOUD_MQTT)
+/**@brief Requests specified P-GPS data from nRF Cloud via MQTT.
  *
  * @param request Pointer to structure specifying what P-GPS data is desired.
  * The request may fail if there no cloud connection; if the specified GPS
@@ -198,13 +229,14 @@ int nrf_cloud_pgps_find_prediction(struct nrf_cloud_pgps_prediction **prediction
  */
 int nrf_cloud_pgps_request(const struct gps_pgps_request *request);
 
-/**@brief Requests all available P-GPS data from nRF Cloud.
+/**@brief Requests all available P-GPS data from nRF Cloud via MQTT.
  *
  * @return 0 if successful, otherwise a (negative) error code.
  */
 int nrf_cloud_pgps_request_all(void);
+#endif /* CONFIG_NRF_CLOUD_MQTT */
 
-/**@brief Processes binary P-GPS data received from nRF Cloud.
+/**@brief Processes binary P-GPS data received from nRF Cloud over MQTT or REST.
  *
  * @param buf Pointer to data received from nRF Cloud.
  * @param buf_len Buffer size of data to be processed.

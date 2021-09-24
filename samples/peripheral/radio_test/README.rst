@@ -59,8 +59,6 @@ The sample also requires one of the following testing devices:
 nRF21540 front-end module
 =========================
 
-.. |fem_file_path| replace:: :file:`samples/peripheral/radio_test/configuration`
-
 .. include:: /includes/sample_dtm_radio_test_fem.txt
 
 The nRF21540 transmitted power gain, antenna and an activation delay can be configured using the user interface :ref:`radio_test_ui`.
@@ -138,7 +136,7 @@ Building and running
    However, you must still program the application core to boot up the network core.
    You can use any sample for this, for example :ref:`nrf5340_empty_app_core`.
    The :ref:`nrf5340_empty_app_core` is built and programmed automatically by default.
-   If you want to program another sample for the application core, unset the :option:'CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE' option.
+   If you want to program another sample for the application core, unset the :kconfig:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE` option.
 
 .. _radio_test_testing:
 

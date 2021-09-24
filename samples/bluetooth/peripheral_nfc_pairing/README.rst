@@ -7,7 +7,7 @@ Bluetooth: NFC pairing
    :local:
    :depth: 2
 
-The NFC pairing sample demonstrates Bluetooth LE out-of-band pairing using an NFC tag and the NFC TNEP protocol.
+The NFC pairing sample demonstrates Bluetooth® LE out-of-band pairing using an NFC tag and the NFC TNEP protocol.
 You can use it to test the touch-to-pair feature between Nordic Semiconductor's devices and an NFC polling device with Bluetooth LE support, for example, a mobile phone.
 
 The sample shows the usage of NFC NDEF :ref:`nfc_ch` and :ref:`tnep_tag_readme` with the :ref:`Connection Handover service<nfc_tnep_ch_readme>`.
@@ -43,7 +43,7 @@ Static Handover
 
 A tag in the Static Handover mode, contains a Handover Select Message with carrier information NDEF records or a single Carrier Configuration Record.
 
-.. figure:: /images/nfc_static_connection_handover.svg
+.. figure:: images/nfc_static_connection_handover.svg
    :alt: Static Handover
 
 Negotiated Handover
@@ -59,7 +59,7 @@ This sample can be configured to take the Connection Handover Selector role or t
 The Connection Handover Selector role is default for this sample.
 You can change the default role by choosing ``CONFIG_NFC_TAG_CH_SELECTOR`` or ``CONFIG_NFC_TAG_CH_REQUESTER``.
 
-.. figure:: /images/nfc_negotiated_connection_handover.svg
+.. figure:: images/nfc_negotiated_connection_handover.svg
    :alt: Negotiated Handover
 
 

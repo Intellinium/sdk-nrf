@@ -41,7 +41,8 @@ enum link_shell_command {
 	LINK_CMD_NORMAL_MODE_AT,
 	LINK_CMD_NORMAL_MODE_AUTO,
 	LINK_CMD_EDRX,
-	LINK_CMD_PSM
+	LINK_CMD_PSM,
+	LINK_CMD_RAI
 };
 
 enum link_shell_common_options {
@@ -56,15 +57,10 @@ enum link_shell_common_options {
 	LINK_COMMON_RESET
 };
 
-enum link_shell_ncellmeas_modes {
-	LINK_NCELLMEAS_MODE_NONE = 0,
-	LINK_NCELLMEAS_MODE_SINGLE
-};
-
 struct link_shell_cmd_args_t {
 	enum link_shell_command command;
 	enum link_shell_common_options common_option;
-	enum link_shell_ncellmeas_modes ncellmeasmode;
+	enum link_ncellmeas_modes ncellmeasmode;
 	enum lte_lc_func_mode funmode_option;
 	enum lte_lc_system_mode sysmode_option;
 	enum lte_lc_system_mode_preference sysmode_lte_pref_option;
@@ -91,7 +87,7 @@ static const char link_usage_str[] =
 	"  disconnect:   Disconnect from given apn by deactivating and destroying\n"
 	"                a PDP context\n"
 	"  rsrp:         Subscribe/unsubscribe for RSRP signal info\n"
-	"  ncellmeas:    Start/stop neighbor cell measurements\n"
+	"  ncellmeas:    Start/cancel neighbor cell measurements\n"
 	"  msleep:       Subscribe/unsubscribe for modem sleep notifications\n"
 	"  tau:          Subscribe/unsubscribe for modem TAU pre-warning notifications\n"
 	"  funmode:      Set/read functional modes of the modem\n"
@@ -105,7 +101,9 @@ static const char link_usage_str[] =
 	"                Has impact after the bootup\n"
 	"  edrx:         Enable/disable eDRX with default or with custom parameters\n"
 	"  psm:          Enable/disable Power Saving Mode (PSM) with\n"
-	"                default or with custom parameters\n";
+	"                default or with custom parameters\n"
+	"  rai:          Enable/disable RAI feature. Actual use must be set for commands\n"
+	"                supporting RAI. Effective when going to normal mode.\n";
 
 static const char link_settings_usage_str[] =
 	"Usage: link settings --read | --reset\n"
@@ -135,10 +133,14 @@ static const char link_defcontauth_usage_str[] =
 	"                      2 (CHAP)\n";
 
 static const char link_connect_usage_str[] =
-	"Usage: link connect --apn <apn str> [--family <pdn family str>]\n"
+	"Usage: link connect --apn <apn str> [--family <pdn family str>] [auth options]\n"
 	"Options:\n"
 	"  -a, --apn, [str]    Access Point Name\n"
 	"  -f, --family, [str] PDN family: 'ipv4v6', 'ipv4', 'ipv6', 'non-ip'\n"
+	"Optional authentication options:\n"
+	"  -U, --uname, [str]  Username\n"
+	"  -P, --pword, [str]  Password\n"
+	"  -A, --prot,  [int]  Authentication protocol: 0 (None), 1 (PAP), 2 (CHAP)\n"
 	"\n"
 	"Usage: link disconnect -I <cid>\n"
 	"Options:\n"
@@ -231,10 +233,11 @@ static const char link_rsrp_usage_str[] =
 	"  -u, --unsubscribe,  Unsubscribe for RSRP info\n";
 
 static const char link_ncellmeas_usage_str[] =
-	"Usage: link ncellmeas --single | --cancel\n"
+	"Usage: link ncellmeas --single | --continuous |--cancel\n"
 	"Options:\n"
-	"      --single, Start a neighbor cell measurement and report result\n"
-	"      --cancel, Cancel/Stop neighbor cell measurement if still on going\n";
+	"      --single,     Start a neighbor cell measurement and report result\n"
+	"      --continuous, Start continuous neighbor cell measurement mode and report result\n"
+	"      --cancel,     Cancel/Stop neighbor cell measurement if still ongoing\n";
 
 static const char link_msleep_usage_str[] =
 	"Usage: link msleep --subscribe [options] | --unsubscribe\n"
@@ -259,6 +262,13 @@ static const char link_tau_usage_str[] =
 	"  warn_time              Time before a TAU that a pre-warning is to be received.\n"
 	"                         Default value from\n"
 	"                         CONFIG_LTE_LC_TAU_PRE_WARNING_TIME_MS.\n";
+
+static const char link_rai_usage_str[] =
+	"Usage: link rai --enable | --disable\n"
+	"Options:\n"
+	"  -r, --read,         Read current RAI status\n"
+	"  -d, --disable,      Disable RAI\n"
+	"  -e, --enable,       Enable RAI\n";
 
 /******************************************************************************/
 
@@ -286,6 +296,7 @@ enum {
 	LINK_SHELL_OPT_START,
 	LINK_SHELL_OPT_STOP,
 	LINK_SHELL_OPT_SINGLE,
+	LINK_SHELL_OPT_CONTINUOUS,
 };
 
 /* Specifying the expected options (both long and short): */
@@ -335,6 +346,7 @@ static struct option long_options[] = {
 	{ "stop", no_argument, 0, LINK_SHELL_OPT_STOP },
 	{ "cancel", no_argument, 0, LINK_SHELL_OPT_STOP },
 	{ "single", no_argument, 0, LINK_SHELL_OPT_SINGLE },
+	{ "continuous", no_argument, 0, LINK_SHELL_OPT_CONTINUOUS },
 	{ "threshold", required_argument, 0, LINK_SHELL_OPT_THRESHOLD_TIME },
 	{ 0, 0, 0, 0 }
 };
@@ -388,6 +400,9 @@ static void link_shell_print_usage(const struct shell *shell,
 	case LINK_CMD_TAU:
 		shell_print(shell, "%s", link_tau_usage_str);
 		break;
+	case LINK_CMD_RAI:
+		shell_print(shell, "%s", link_rai_usage_str);
+		break;
 	default:
 		shell_print(shell, "%s", link_usage_str);
 		break;
@@ -403,6 +418,7 @@ static void link_shell_cmd_defaults_set(struct link_shell_cmd_args_t *link_cmd_a
 		LTE_LC_SYSTEM_MODE_PREFER_AUTO;
 	link_cmd_args->lte_mode = LTE_LC_LTE_MODE_NONE;
 	link_cmd_args->ncellmeasmode = LINK_NCELLMEAS_MODE_NONE;
+	link_cmd_args->common_option = LINK_COMMON_NONE;
 }
 
 /******************************************************************************/
@@ -547,11 +563,17 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 	} else if (strcmp(argv[1], "psm") == 0) {
 		require_option = true;
 		link_cmd_args.command = LINK_CMD_PSM;
+	} else if (strcmp(argv[1], "rai") == 0) {
+		require_option = true;
+		link_cmd_args.command = LINK_CMD_RAI;
 	} else {
 		shell_error(shell, "Unsupported command=%s\n", argv[1]);
 		ret = -EINVAL;
 		goto show_usage;
 	}
+
+	/* Reset getopt due to possible previous failures: */
+	optreset = 1;
 
 	/* We start from subcmd arguments */
 	optind = 2;
@@ -729,27 +751,29 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 					shell,
 					"APN string length %d exceeded. Maximum is %d.",
 					apn_len, LINK_APN_STR_MAX_LENGTH);
-				ret = -EINVAL;
-				goto show_usage;
+				return -EINVAL;
 			}
 			apn = optarg;
 			break;
 		case 'f': /* Address family */
 			family = optarg;
 			break;
-		case 'A': /* defcont auth protocol */
+		case 'A': /* auth protocol */
 			protocol = atoi(optarg);
 			protocol_given = true;
 			break;
-		case 'U': /* defcont auth username */
+		case 'U': /* auth username */
 			username = optarg;
 			break;
-		case 'P': /* defcont auth password */
+		case 'P': /* auth password */
 			password = optarg;
 			break;
 		/* Options without short option: */
 		case LINK_SHELL_OPT_SINGLE:
 			link_cmd_args.ncellmeasmode = LINK_NCELLMEAS_MODE_SINGLE;
+			break;
+		case LINK_SHELL_OPT_CONTINUOUS:
+			link_cmd_args.ncellmeasmode = LINK_NCELLMEAS_MODE_CONTINUOUS;
 			break;
 		case LINK_SHELL_OPT_RESET:
 			link_cmd_args.common_option = LINK_COMMON_RESET;
@@ -1250,10 +1274,13 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		break;
 	case LINK_CMD_NCELLMEAS:
 		if (link_cmd_args.common_option == LINK_COMMON_STOP) {
-			link_ncellmeas_start(false);
+			link_ncellmeas_start(false, LINK_NCELLMEAS_MODE_NONE);
 
-		} else if (link_cmd_args.ncellmeasmode == LINK_NCELLMEAS_MODE_SINGLE) {
-			link_ncellmeas_start(true);
+		} else if (link_cmd_args.ncellmeasmode != LINK_NCELLMEAS_MODE_NONE) {
+			shell_print(
+				shell,
+				"Neighbor cell measurements and reporting starting");
+			link_ncellmeas_start(true, link_cmd_args.ncellmeasmode);
 		} else {
 			goto show_usage;
 		}
@@ -1280,8 +1307,49 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			link_modem_tau_notifications_unsubscribe();
 		}
 		break;
-	case LINK_CMD_CONNECT:
-		ret = link_shell_pdn_connect(shell, apn, family);
+	case LINK_CMD_CONNECT: {
+		struct link_shell_pdn_auth auth_params;
+		struct link_shell_pdn_auth *auth_params_ptr = NULL;
+
+		if ((protocol_given &&
+		     (username == NULL || password == NULL)) ||
+		    ((username != NULL || password != NULL) &&
+		     !protocol_given)) {
+			shell_error(
+				shell,
+				"When setting authentication, all auth options must be given");
+			goto show_usage;
+		} else {
+			enum pdn_auth method;
+
+			ret = link_shell_pdn_auth_prot_to_pdn_lib_method_map(
+				protocol, &method);
+			if (ret) {
+				shell_error(shell, "Uknown auth protocol %d",
+					    protocol);
+				goto show_usage;
+			}
+			auth_params.method = method;
+			auth_params.user = username;
+			auth_params.password = password;
+			if (protocol_given && username != NULL &&
+			    password != NULL) {
+				auth_params_ptr = &auth_params;
+			}
+		}
+		ret = link_shell_pdn_connect(shell, apn, family,
+					     auth_params_ptr);
+	} break;
+	case LINK_CMD_RAI:
+		if (link_cmd_args.common_option == LINK_COMMON_READ) {
+			link_rai_read();
+		} else if (link_cmd_args.common_option == LINK_COMMON_ENABLE) {
+			link_rai_enable(true);
+		} else if (link_cmd_args.common_option == LINK_COMMON_DISABLE) {
+			link_rai_enable(false);
+		} else {
+			goto show_usage;
+		}
 		break;
 	case LINK_CMD_DISCONNECT:
 		ret = link_shell_pdn_disconnect(shell, pdn_cid);
@@ -1295,6 +1363,9 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 	return ret;
 
 show_usage:
+	/* Reset getopt for another users: */
+	optreset = 1;
+
 	link_shell_print_usage(shell, &link_cmd_args);
 	return ret;
 }

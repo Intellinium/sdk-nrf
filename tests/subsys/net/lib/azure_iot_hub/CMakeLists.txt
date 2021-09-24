@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-cmake_minimum_required(VERSION 3.13.1)
+cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(json)
 
@@ -23,7 +23,7 @@ target_include_directories(app
 
 target_compile_options(app
   PRIVATE
-  -DCONFIG_AZURE_IOT_HUB_TOPIC_ELEMENT_MAX_LEN=48
+  -DCONFIG_AZURE_IOT_HUB_TOPIC_ELEMENT_MAX_LEN=64
   -DCONFIG_AZURE_IOT_HUB_PROPERTY_BAG_MAX_COUNT=5
   -DCONFIG_AZURE_IOT_HUB_LOG_LEVEL=0
   -DCONFIG_AZURE_IOT_HUB_TOPIC_PROPERTY_BAG_PREFIX=y

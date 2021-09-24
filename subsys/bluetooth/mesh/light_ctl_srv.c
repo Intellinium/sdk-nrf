@@ -50,12 +50,12 @@ static void ctl_get(struct bt_mesh_light_ctl_srv *srv,
 	status->remaining_time = MAX(temp.remaining_time, light.remaining_time);
 }
 
-static void ctl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+static int ctl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		    struct net_buf_simple *buf, bool ack)
 {
 	if (buf->len != BT_MESH_LIGHT_CTL_MSG_MINLEN_SET &&
 	    buf->len != BT_MESH_LIGHT_CTL_MSG_MAXLEN_SET) {
-		return;
+		return -EMSGSIZE;
 	}
 
 	struct bt_mesh_light_ctl_srv *srv = model->user_data;
@@ -74,7 +74,7 @@ static void ctl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 
 	if ((temp.params.temp < BT_MESH_LIGHT_TEMP_MIN) ||
 	    (temp.params.temp > BT_MESH_LIGHT_TEMP_MAX)) {
-		return;
+		return -EINVAL;
 	}
 
 	if (light.lvl != 0) {
@@ -113,31 +113,32 @@ respond:
 	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
 		bt_mesh_scene_invalidate(srv->model);
 	}
+
+	return 0;
 }
 
-static void handle_ctl_get(struct bt_mesh_model *model,
-			   struct bt_mesh_msg_ctx *ctx,
-			   struct net_buf_simple *buf)
+static int handle_ctl_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			  struct net_buf_simple *buf)
 {
 	struct bt_mesh_light_ctl_srv *srv = model->user_data;
 	struct bt_mesh_light_ctl_status status = { 0 };
 
 	ctl_get(srv, ctx, &status);
 	bt_mesh_light_ctl_pub(srv, ctx, &status);
+
+	return 0;
 }
 
-static void handle_ctl_set(struct bt_mesh_model *model,
-			   struct bt_mesh_msg_ctx *ctx,
-			   struct net_buf_simple *buf)
+static int handle_ctl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			  struct net_buf_simple *buf)
 {
-	ctl_set(model, ctx, buf, true);
+	return ctl_set(model, ctx, buf, true);
 }
 
-static void handle_ctl_set_unack(struct bt_mesh_model *model,
-				 struct bt_mesh_msg_ctx *ctx,
-				 struct net_buf_simple *buf)
+static int handle_ctl_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				struct net_buf_simple *buf)
 {
-	ctl_set(model, ctx, buf, false);
+	return ctl_set(model, ctx, buf, false);
 }
 
 static void range_encode_status(struct net_buf_simple *buf,
@@ -186,37 +187,28 @@ static enum bt_mesh_model_status temp_range_set(struct bt_mesh_model *model,
 	return BT_MESH_MODEL_SUCCESS;
 }
 
-static void handle_temp_range_get(struct bt_mesh_model *model,
-				  struct bt_mesh_msg_ctx *ctx,
-				  struct net_buf_simple *buf)
+static int handle_temp_range_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				 struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_CTL_MSG_LEN_GET) {
-		return;
-	}
-
 	temp_range_rsp(model, ctx, BT_MESH_MODEL_SUCCESS);
+
+	return 0;
 }
 
-static void handle_temp_range_set(struct bt_mesh_model *model,
-				  struct bt_mesh_msg_ctx *ctx,
-				  struct net_buf_simple *buf)
+static int handle_temp_range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				 struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_CTL_MSG_LEN_TEMP_RANGE_SET) {
-		return;
-	}
-
 	temp_range_rsp(model, ctx, temp_range_set(model, ctx, buf));
+
+	return 0;
 }
 
-static void handle_temp_range_set_unack(struct bt_mesh_model *model,
-					struct bt_mesh_msg_ctx *ctx,
-					struct net_buf_simple *buf)
+static int handle_temp_range_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				       struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_CTL_MSG_LEN_TEMP_RANGE_SET) {
-		return;
-	}
-
 	temp_range_set(model, ctx, buf);
+
+	return 0;
 }
 
 static void default_encode_status(struct net_buf_simple *buf,
@@ -240,7 +232,7 @@ static void default_rsp(struct bt_mesh_model *model,
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
 }
 
-static void default_set(struct bt_mesh_model *model,
+static int default_set(struct bt_mesh_model *model,
 			struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf, bool ack)
 {
 	struct bt_mesh_light_ctl_srv *srv = model->user_data;
@@ -253,7 +245,7 @@ static void default_set(struct bt_mesh_model *model,
 
 	if ((temp.temp < BT_MESH_LIGHT_TEMP_MIN) ||
 	    (temp.temp > BT_MESH_LIGHT_TEMP_MAX)) {
-		return;
+		return -EINVAL;
 	}
 
 	lightness_srv_default_set(&srv->lightness_srv, ctx, light);
@@ -264,65 +256,54 @@ static void default_set(struct bt_mesh_model *model,
 	if (ack) {
 		default_rsp(model, ctx);
 	}
+
+	return 0;
 }
 
-static void handle_default_get(struct bt_mesh_model *model,
-			       struct bt_mesh_msg_ctx *ctx,
-			       struct net_buf_simple *buf)
+static int handle_default_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			      struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_CTL_MSG_LEN_GET) {
-		return;
-	}
-
 	default_rsp(model, ctx);
+
+	return 0;
 }
 
-static void handle_default_set(struct bt_mesh_model *model,
-			       struct bt_mesh_msg_ctx *ctx,
-			       struct net_buf_simple *buf)
+static int handle_default_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			      struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_CTL_MSG_LEN_DEFAULT_MSG) {
-		return;
-	}
-
-	default_set(model, ctx, buf, true);
+	return default_set(model, ctx, buf, true);
 }
 
-static void handle_default_set_unack(struct bt_mesh_model *model,
-				     struct bt_mesh_msg_ctx *ctx,
-				     struct net_buf_simple *buf)
+static int handle_default_set_unack(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				    struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_CTL_MSG_LEN_DEFAULT_MSG) {
-		return;
-	}
-
-	default_set(model, ctx, buf, false);
+	return default_set(model, ctx, buf, false);
 }
 
 const struct bt_mesh_model_op _bt_mesh_light_ctl_srv_op[] = {
 	{
 		BT_MESH_LIGHT_CTL_GET,
-		BT_MESH_LIGHT_CTL_MSG_LEN_GET,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_GET),
 		handle_ctl_get,
 	},
 	{
 		BT_MESH_LIGHT_CTL_SET,
-		BT_MESH_LIGHT_CTL_MSG_MINLEN_SET,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_CTL_MSG_MINLEN_SET),
 		handle_ctl_set,
 	},
 	{
 		BT_MESH_LIGHT_CTL_SET_UNACK,
-		BT_MESH_LIGHT_CTL_MSG_MINLEN_SET,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_CTL_MSG_MINLEN_SET),
 		handle_ctl_set_unack,
 	},
 	{
 		BT_MESH_LIGHT_TEMP_RANGE_GET,
-		BT_MESH_LIGHT_CTL_MSG_LEN_GET,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_GET),
 		handle_temp_range_get,
 	},
 	{
 		BT_MESH_LIGHT_CTL_DEFAULT_GET,
-		BT_MESH_LIGHT_CTL_MSG_LEN_GET,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_GET),
 		handle_default_get,
 	},
 	BT_MESH_MODEL_OP_END,
@@ -331,22 +312,22 @@ const struct bt_mesh_model_op _bt_mesh_light_ctl_srv_op[] = {
 const struct bt_mesh_model_op _bt_mesh_light_ctl_setup_srv_op[] = {
 	{
 		BT_MESH_LIGHT_TEMP_RANGE_SET,
-		BT_MESH_LIGHT_CTL_MSG_LEN_TEMP_RANGE_SET,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_TEMP_RANGE_SET),
 		handle_temp_range_set,
 	},
 	{
 		BT_MESH_LIGHT_TEMP_RANGE_SET_UNACK,
-		BT_MESH_LIGHT_CTL_MSG_LEN_TEMP_RANGE_SET,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_TEMP_RANGE_SET),
 		handle_temp_range_set_unack,
 	},
 	{
 		BT_MESH_LIGHT_CTL_DEFAULT_SET,
-		BT_MESH_LIGHT_CTL_MSG_LEN_DEFAULT_MSG,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_DEFAULT_MSG),
 		handle_default_set,
 	},
 	{
 		BT_MESH_LIGHT_CTL_DEFAULT_SET_UNACK,
-		BT_MESH_LIGHT_CTL_MSG_LEN_DEFAULT_MSG,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_CTL_MSG_LEN_DEFAULT_MSG),
 		handle_default_set_unack,
 	},
 	BT_MESH_MODEL_OP_END,
@@ -398,8 +379,15 @@ static void scene_recall_complete(struct bt_mesh_model *model)
 	bt_mesh_light_ctl_pub(srv, NULL, &status);
 }
 
+/*  MeshMDL1.0.1, section 5.1.3.1.1:
+ *  If a model is extending another model, the extending model shall determine
+ *  the Stored with Scene behavior of that model.
+ *
+ *  Use Setup Model to handle Scene Store/Recall as it is not extended
+ *  by other models.
+ */
 BT_MESH_SCENE_ENTRY_SIG(light_ctl) = {
-	.id.sig = BT_MESH_MODEL_ID_LIGHT_CTL_SRV,
+	.id.sig = BT_MESH_MODEL_ID_LIGHT_CTL_SETUP_SRV,
 	.maxlen = 2,
 	.store = scene_store,
 	.recall = scene_recall,
@@ -427,22 +415,7 @@ static int bt_mesh_light_ctl_srv_init(struct bt_mesh_model *model)
 	net_buf_simple_init_with_data(&srv->pub_buf, srv->pub_data,
 				      sizeof(srv->pub_data));
 
-	/* Model extensions:
-	 * To simplify the model extension tree, we're flipping the
-	 * relationship between the Light CTL server and the Light CTL
-	 * setup server. In the specification, the Light CTL setup
-	 * server extends the time server, which is the opposite of
-	 * what we're doing here. This makes no difference for the mesh
-	 * stack, but it makes it a lot easier to extend this model, as
-	 * we won't have to support multiple extenders.
-	 */
-	bt_mesh_model_extend(model, srv->lightness_srv.lightness_model);
-	bt_mesh_model_extend(
-		model, bt_mesh_model_find(
-			       bt_mesh_model_elem(model),
-			       BT_MESH_MODEL_ID_LIGHT_CTL_SETUP_SRV));
-
-	return 0;
+	return bt_mesh_model_extend(model, srv->lightness_srv.lightness_model);
 }
 
 static void bt_mesh_light_ctl_srv_reset(struct bt_mesh_model *model)
@@ -496,6 +469,23 @@ const struct bt_mesh_model_cb _bt_mesh_light_ctl_srv_cb = {
 	.init = bt_mesh_light_ctl_srv_init,
 	.reset = bt_mesh_light_ctl_srv_reset,
 	.start = bt_mesh_light_ctl_srv_start,
+};
+
+static int bt_mesh_light_ctl_setup_srv_init(struct bt_mesh_model *model)
+{
+	struct bt_mesh_light_ctl_srv *srv = model->user_data;
+	int err;
+
+	err = bt_mesh_model_extend(model, srv->model);
+	if (err) {
+		return err;
+	}
+
+	return bt_mesh_model_extend(model, srv->lightness_srv.lightness_setup_model);
+}
+
+const struct bt_mesh_model_cb _bt_mesh_light_ctl_setup_srv_cb = {
+	.init = bt_mesh_light_ctl_setup_srv_init,
 };
 
 int bt_mesh_light_ctl_pub(struct bt_mesh_light_ctl_srv *srv,

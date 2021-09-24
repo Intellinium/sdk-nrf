@@ -86,8 +86,7 @@ bool slm_util_hexstr_check(const uint8_t *data, uint16_t data_len)
 /**
  * @brief Encode hex array to hexdecimal string (ASCII text)
  */
-int slm_util_htoa(const uint8_t *hex, uint16_t hex_len,
-		char *ascii, uint16_t ascii_len)
+int slm_util_htoa(const uint8_t *hex, uint16_t hex_len, char *ascii, uint16_t ascii_len)
 {
 	if (hex == NULL || ascii == NULL) {
 		return -EINVAL;
@@ -106,8 +105,7 @@ int slm_util_htoa(const uint8_t *hex, uint16_t hex_len,
 /**
  * @brief Decode hexdecimal string (ASCII text) to hex array
  */
-int slm_util_atoh(const char *ascii, uint16_t ascii_len,
-		uint8_t *hex, uint16_t hex_len)
+int slm_util_atoh(const char *ascii, uint16_t ascii_len, uint8_t *hex, uint16_t hex_len)
 {
 	char hex_str[3];
 
@@ -133,28 +131,10 @@ int slm_util_atoh(const char *ascii, uint16_t ascii_len,
 	return (ascii_len / 2);
 }
 
-/**@brief Check whether a string has valid IPv4 address or not
- */
-bool check_for_ipv4(const char *address, uint8_t length)
-{
-	int index;
-
-	for (index = 0; index < length; index++) {
-		char ch = *(address + index);
-
-		if ((ch != '.') && (ch < '0' || ch > '9')) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
 /**
  * @brief Get string value from AT command with length check
  */
-int util_string_get(const struct at_param_list *list, size_t index,
-			 char *value, size_t *len)
+int util_string_get(const struct at_param_list *list, size_t index, char *value, size_t *len)
 {
 	int ret;
 	size_t size = *len;
@@ -173,26 +153,29 @@ int util_string_get(const struct at_param_list *list, size_t index,
 }
 
 /**
- * @brief use AT command to get IPv4 and/or IPv6 address
+ * @brief use AT command to get IPv4 and/or IPv6 address for specified PDN
  */
-void util_get_ip_addr(char *addr4, char *addr6)
+void util_get_ip_addr(int cid, char *addr4, char *addr6)
 {
 	int err;
-	char rsp[128];
+	char buf[128];
 	char tmp[sizeof(struct in6_addr)];
 	char addr[NET_IPV6_ADDR_LEN];
 	size_t addr_len;
 
-	err = at_cmd_write("AT+CGPADDR", rsp, sizeof(rsp), NULL);
+	sprintf(buf, "AT+CGPADDR=%d", cid);
+	err = at_cmd_write(buf, buf, sizeof(buf), NULL);
 	if (err) {
 		return;
 	}
+
 	/** parse +CGPADDR: <cid>,<PDP_addr_1>,<PDP_addr_2>
 	 * PDN type "IP": PDP_addr_1 is <IPv4>
 	 * PDN type "IPV6": PDP_addr_1 is <IPv6>
 	 * PDN type "IPV4V6": <IPv4>,<IPv6> or <IPV4> or <IPv6>
 	 */
-	err = at_parser_params_from_str(rsp, NULL, &at_param_list);
+	at_params_list_clear(&at_param_list);
+	err = at_parser_params_from_str(buf, NULL, &at_param_list);
 	if (err) {
 		return;
 	}
@@ -222,4 +205,22 @@ void util_get_ip_addr(char *addr4, char *addr6)
 		strcpy(addr6, addr);
 	}
 	/* only parse addresses from primary PDN */
+}
+
+int util_str_to_int(const char *str_buf, int base, int *output)
+{
+	int temp;
+	char *end_ptr = NULL;
+
+	errno = 0;
+	temp = strtol(str_buf, &end_ptr, base);
+
+	if (end_ptr == str_buf || *end_ptr != '\0' ||
+	    ((temp == LONG_MAX || temp == LONG_MIN) && errno == ERANGE)) {
+		return -ENODATA;
+	}
+
+	*output = temp;
+
+	return 0;
 }

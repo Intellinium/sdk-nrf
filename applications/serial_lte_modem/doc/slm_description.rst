@@ -18,20 +18,20 @@ The application supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 .. include:: /includes/spm.txt
 
 Overview
 ********
 
-The nRF9160 SiP integrates both a full LTE modem and an application MCU, which enables you to run your LTE application directly on the nRF9160.
+The nRF9160 SiP integrates both a full LTE modem and an application MCU, enabling you to run your LTE application directly on the nRF9160.
 
 However, you might want to run your application on a different chip and use the nRF9160 only as a modem.
 For this use case, the serial LTE modem application provides an interface for controlling the LTE modem through AT commands.
 
-The proprietary AT commands that are specific to the serial LTE modem application are described in the :ref:`SLM_AT_intro` documentation.
-In addition to these proprietary AT commands, the application supports the nRF91 AT commands described in the `AT Commands Reference Guide`_.
+The proprietary AT commands specific to the serial LTE modem application are described in the :ref:`SLM_AT_intro` documentation.
+In addition to these, the application also supports the nRF91 AT commands described in the `AT Commands Reference Guide`_.
 
 Communicating with the modem
 ============================
@@ -42,7 +42,7 @@ As a client, you can use either a PC or an external MCU.
 Connecting with a PC
 --------------------
 
-To connect to the nRF9160 DK with a PC, make sure that :option:`CONFIG_SLM_CONNECT_UART_0` is defined in the application.
+To connect to the nRF9160 DK with a PC, make sure that :kconfig:`CONFIG_SLM_CONNECT_UART_0` is defined in the application.
 It is defined in the default configuration.
 
 Use LTE Link Monitor to connect to the nRF9160 DK.
@@ -53,7 +53,7 @@ Alternatively, you can use a terminal emulator like PuTTY to establish a termina
 See :ref:`putty` for instructions.
 
 .. note::
-   The default AT command terminator is carriage return and line feed (``\r\n``).
+   The default AT command terminator is a carriage return followed by a line feed (``\r\n``).
    LTE Link Monitor supports this format.
    When connecting with another terminal emulator, make sure that the configured AT command terminator corresponds to the line terminator of your terminal.
    You can change the termination mode in the :ref:`application configuration <slm_config>`.
@@ -64,7 +64,7 @@ Connecting with an external MCU
 If you run your user application on an external MCU (for example, an nRF52 Series DK), you can control the modem on the nRF9160 directly from the application.
 See the `nRF52 client for serial LTE modem application`_ repository for a sample implementation of such an application.
 
-To connect with an external MCU, you must set the configuration option :option:`CONFIG_UART_2_NRF_HW_ASYNC_TIMER` and :option:`CONFIG_SLM_CONNECT_UART_2` in the serial LTE modem application configuration.
+To connect with an external MCU, you must set the configuration option :kconfig:`CONFIG_UART_2_NRF_HW_ASYNC_TIMER` and :kconfig:`CONFIG_SLM_CONNECT_UART_2` in the serial LTE modem application configuration.
 
 The following table shows how to connect an nRF52 Series DK to the nRF9160 DK to be able to communicate through UART:
 
@@ -98,7 +98,7 @@ UART configuration:
 * Operation mode: IRQ
 
 .. note::
-   The GPIO output level on nRF9160 side must be 3 V.
+   The GPIO output level on the nRF9160 side must be 3 V.
    You can set the VDD voltage with the **VDD IO** switch (**SW9**).
    See the `VDD supply rail section in the nRF9160 DK User Guide`_ for more information.
 
@@ -140,26 +140,15 @@ Check and configure the following configuration options for the sample:
    This option selects UART 2 for the UART connection.
    Select this option if you want to test the application with an external CPU.
 
-.. option:: CONFIG_SLM_GPIO_WAKEUP - Support of GPIO wakeup
-
-   This option enables using GPIO to wake up nRF9160 from deep sleep mode.
-   Select this option if you enable :option:`CONFIG_SLM_START_SLEEP` to put nRF9160 into deep sleep mode after startup.
-
-   This option is selected by default.
-
 .. option:: CONFIG_SLM_START_SLEEP - Enter sleep on startup
 
    This option makes nRF9160 enter deep sleep after startup.
+   It is not selected by default.
 
-   This option is not selected by default.
-   It requires :option:`CONFIG_SLM_GPIO_WAKEUP` to be selected.
-
-.. option:: CONFIG_SLM_INTERFACE_PIN - Interface GPIO to wake up or exit idle mode
+.. option:: CONFIG_SLM_INTERFACE_PIN - Interface GPIO to wake up from sleep or exit idle
 
    This option specifies which interface GPIO to use for exiting sleep or idle mode.
-   By default, **P0.6** (Button 1 on the nRF9160 DK) is used when :option:`CONFIG_SLM_CONNECT_UART_0` is selected, and **P0.31** is used when when :option:`CONFIG_SLM_CONNECT_UART_2` is selected.
-
-   Note that when :option:`CONFIG_SLM_CONNECT_UART_0` is selected, Button 1 can be used to exit idle mode, but not to wake up from sleep mode.
+   By default, **P0.6** (Button 1 on the nRF9160 DK) is used when :kconfig:`CONFIG_SLM_CONNECT_UART_0` is selected, and **P0.31** is used when :kconfig:`CONFIG_SLM_CONNECT_UART_2` is selected.
 
 .. option:: CONFIG_SLM_SOCKET_RX_MAX - Maximum RX buffer size for receiving socket data
 
@@ -179,12 +168,7 @@ Check and configure the following configuration options for the sample:
 
 .. option:: CONFIG_SLM_CR_LF_TERMINATION - CR+LF termination
 
-   This option configures the application to accept AT commands ending with carriage return and line feed.
-
-.. option:: CONFIG_SLM_TCP_FILTER_SIZE - Size of IPv4 address allowlist
-
-   This option specifies the number of IPv4 addresses that you can add to an allowlist for TCP connections.
-   If the list is set, only connections from the specified addresses are allowed.
+   This option configures the application to accept AT commands ending with a carriage return followed by a line feed.
 
 .. option:: CONFIG_SLM_TCP_POLL_TIME - Poll timeout in seconds for TCP connection
 
@@ -192,35 +176,30 @@ Check and configure the following configuration options for the sample:
 
 .. option:: CONFIG_SLM_SMS - SMS support in SLM
 
-   This option enables additional AT commands for using SMS service.
+   This option enables additional AT commands for using the SMS service.
 
-.. option:: CONFIG_SLM_GPS - GPS support in SLM
+.. option:: CONFIG_SLM_GNSS - GNSS support in SLM
 
-   This option enables additional AT commands for using GPS service.
+   This option enables additional AT commands for using GNSS service.
 
-.. option:: CONFIG_SLM_SUPL_SERVER - SUPL server
+.. option:: CONFIG_SLM_AGPS - nRF Cloud A-GPS support in SLM
 
-   This option specifies the SUPL server to use for retrieving SUPL A-GPS data.
+   This option enables additional AT commands for using the nRF Cloud A-GPS service.
+   It is not selected by default.
 
-.. option:: CONFIG_SLM_SUPL_PORT - SUPL server port
+.. option:: CONFIG_SLM_PGPS - nRF Cloud P-GPS support in SLM
 
-   This option specifies the port to use for the specified SUPL server.
+   This option enables additional AT commands for using the nRF Cloud P-GPS service.
+   It is not selected by default.
+
+.. option:: CONFIG_SLM_CELL_POS - nRF Cloud cellular positioning support in SLM
+
+   This option enables additional AT commands for using the nRF Cloud Cellular Positioning service.
+   It is not selected by default.
 
 .. option:: CONFIG_SLM_FTPC - FTP client support in SLM
 
    This option enables additional AT commands for using the FTP client service.
-
-.. option:: CONFIG_SLM_FTP_SERVER_PORT - FTP service port on remote host
-
-   This option specifies the port to use when connecting to an FTP server.
-
-.. option:: CONFIG_SLM_FTP_USER_ANONYMOUS - FTP client anonymous login user
-
-   This option specifies the user name to use for anonymous login on an FTP server.
-
-.. option:: CONFIG_SLM_FTP_PASSWORD_ANONYMOUS - FTP client anonymous login password
-
-   This option specifies the password to use for anonymous login on an FTP server.
 
 .. option:: CONFIG_SLM_MQTTC - MQTT client support in SLM
 
@@ -236,10 +215,6 @@ Check and configure the following configuration options for the sample:
 
 Additional configuration
 ========================
-
-Check and configure the following library options that are used by the sample:
-
-* :option:`CONFIG_SUPL_CLIENT_LIB` - Enables the :ref:`supl_client`.
 
 To save power, console and logging output over ``UART_0`` is disabled in this application.
 This information is logged to RTT instead.
@@ -281,7 +256,7 @@ However, if you require customized TLS/DTLS features that are not supported by t
 The serial LTE modem application will then handle all secure sockets used in TCP/IP, TCP/IP proxy, and MQTT.
 
 If native TLS is enabled, the `Credential storage management %CMNG`_ command is overridden to map the :ref:`security tag <nrfxlib:security_tags>` from the serial LTE modem application to the modem.
-You must use the overridden AT%CMNG command to provision credentials to the modem.
+You must use the overridden AT%CMNG command to provision the credentials to the modem.
 Note that the serial LTE modem application supports security tags in the range of 0 - 214748364.
 
 The configuration options that are required to enable the native TLS socket are defined in the :file:`overlay-native_tls.conf` file.

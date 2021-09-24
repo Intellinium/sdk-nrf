@@ -1,8 +1,11 @@
 .. |NCS| replace:: nRF Connect SDK
 
-.. |release| replace:: v1.6.0
-.. |release_tt| replace:: ``v1.6.0``
-.. |release_number_tt| replace:: ``1.6.0``
+.. |release| replace:: v1.7.0
+.. |release_tt| replace:: ``v1.7.0``
+.. |release_number_tt| replace:: ``1.7.0``
+
+.. |plusminus| unicode:: U+000B1 .. PLUS-MINUS SIGN
+   :rtrim:
 
 .. |SES| replace:: SEGGER Embedded Studio
 
@@ -40,9 +43,9 @@
 .. |fota_upgrades_def| replace:: You can upgrade the firmware of the device over the air, thus without a wired connection.
    Such an upgrade is called a FOTA (firmware over-the-air) upgrade.
 
-.. |fota_upgrades_req_mcuboot| replace:: To upgrade the application, you must use :doc:`mcuboot:index` as the upgradable bootloader (:option:`CONFIG_BOOTLOADER_MCUBOOT` must be enabled).
+.. |fota_upgrades_req_mcuboot| replace:: To upgrade the application, you must use :doc:`mcuboot:index` as the upgradable bootloader (:kconfig:`CONFIG_BOOTLOADER_MCUBOOT` must be enabled).
 
-.. |fota_upgrades_building| replace:: To create a binary file for an application upgrade, make sure that :option:`CONFIG_BOOTLOADER_MCUBOOT` is enabled and build the application as usual.
+.. |fota_upgrades_building| replace:: To create a binary file for an application upgrade, make sure that :kconfig:`CONFIG_BOOTLOADER_MCUBOOT` is enabled and build the application as usual.
    The build will create several binary files (see :ref:`mcuboot:mcuboot_ncs`).
 
 .. |Google_CCLicense| replace:: Portions of this page are reproduced from work created and `shared by Google`_, and used according to terms described in the `Creative Commons 4.0 Attribution License`_.
@@ -53,8 +56,8 @@
    When enabled, it allows devices to manage transmission by informing each other about their current state, and ensures more reliable connection in high-speed communication scenarios.
 
 .. |zigbee_version| replace:: Zigbee 3.0
-.. |zboss_version| replace:: 3.6.0.0
-.. |zigbee_ncp_package_version| replace:: 0.9.5
+.. |zboss_version| replace:: 3.8.0.1
+.. |zigbee_ncp_package_version| replace:: 1.0.0
 .. |zigbee_description| replace:: Zigbee is a portable, low-power software networking protocol that provides connectivity over an 802.15.4-based mesh network.
 .. |enable_zigbee_before_testing| replace:: Make sure to configure the Zigbee stack before building and testing this sample.
    See :ref:`ug_zigbee_configuring` for more information.
@@ -64,7 +67,7 @@
    The package comes with prebuilt libraries compatible with 64-bit Ubuntu 18.04 Linux.
 .. |zigbee_ncp_package_more_info| replace:: For information about how to recompile the package libraries for a different host architecture or operating system, see the `NCP Host documentation`_.
    For information about how to use NCP Host for Zigbee in the |NCS| or build the firmware using the NCP sample, see the :ref:`NCP sample <zigbee_ncp_sample>`.
-.. |zigbee_shell_config| replace:: You can add support for Zigbee shell commands to any of the available :ref:`Zigbee samples <zigbee_samples>`, except for the :ref`NCP sample <zigbee_ncp_sample>`.
+.. |zigbee_shell_config| replace:: You can add support for Zigbee shell commands to any of the available :ref:`Zigbee samples <zigbee_samples>`, except for the :ref:`NCP sample <zigbee_ncp_sample>`.
    Some of the commands use an endpoint for sending packets, so no endpoint handler is allowed to be registered for this endpoint.
 
 .. |nrf_desktop_module_event_note| replace:: See the :ref:`nrf_desktop_architecture` for more information about the event-based communication in the nRF Desktop application and about how to read this table.
@@ -75,8 +78,20 @@
 
 .. |matter_sample_button3_note| replace:: Use **Button 3** to enable this mode after building and running the sample.
 .. |matter_gn_required_note| replace:: Matter requires the GN tool.
-   If you are updating from the |NCS| version earlier than v1.5.0, see :ref:`gs_installing_tools` for installation instructions.
+   If you are updating from the |NCS| version earlier than v1.5.0, see the :ref:`GN installation instructions <gs_installing_gn>`.
 
 .. |NSIB| replace:: nRF Secure Immutable Bootloader
 
 .. |external_flash_size| replace:: external flash memory with minimum 4MB
+
+.. |application_sample_definition| replace:: For simplicity, this guide will refer to both :ref:`samples<samples>` and :ref:`applications<applications>` as "applications".
+
+.. |gps_tradeoffs| replace:: For more information on the various trade-offs of using A-GPS compared to using P-GPS, see the `nRF Cloud Location Services documentation`_.
+
+.. |vsc_extension_instructions| replace:: The `nRF Connect for Visual Studio Code`_ extension is a complete IDE for developing applications for nRF91, nRF53 and nRF52 Series devices. This includes an interface to the compiler and linker, an RTOS-aware debugger, a seamless interface to the nRF Connect SDK, and a serial terminal.
+
+.. |VSC| replace:: nRF Connect for Visual Studio Code
+
+.. |thingy53_sample_note| replace:: If you build this application for Thingy:53, it enables additional features. See :ref:`thingy53_app_guide` for details.
+
+.. |thingy53_unreleased| replace:: As of the |NCS| v1.7.0 release, Thingy:53 is an unreleased product that will be released in the near future.

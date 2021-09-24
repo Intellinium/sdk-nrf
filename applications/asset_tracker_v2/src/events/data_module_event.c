@@ -21,6 +21,10 @@ static char *get_evt_type_str(enum data_module_event_type type)
 		return "DATA_EVT_UI_DATA_READY";
 	case DATA_EVT_UI_DATA_SEND:
 		return "DATA_EVT_UI_DATA_SEND";
+	case DATA_EVT_NEIGHBOR_CELLS_DATA_SEND:
+		return "DATA_EVT_NEIGHBOR_CELLS_DATA_SEND";
+	case DATA_EVT_AGPS_REQUEST_DATA_SEND:
+		return "DATA_EVT_AGPS_REQUEST_DATA_SEND";
 	case DATA_EVT_CONFIG_INIT:
 		return "DATA_EVT_CONFIG_INIT";
 	case DATA_EVT_CONFIG_READY:
@@ -61,10 +65,9 @@ static void profile_event(struct log_event_buf *buf,
 	const struct data_module_event *event = cast_data_module_event(eh);
 
 #if defined(CONFIG_PROFILER_EVENT_TYPE_STRING)
-	profiler_log_encode_string(buf, get_evt_type_str(event->type),
-		strlen(get_evt_type_str(event->type)));
+	profiler_log_encode_string(buf, get_evt_type_str(event->type));
 #else
-	profiler_log_encode_u32(buf, event->type);
+	profiler_log_encode_uint8(buf, event->type);
 #endif
 }
 
@@ -72,7 +75,7 @@ EVENT_INFO_DEFINE(data_module_event,
 #if defined(CONFIG_PROFILER_EVENT_TYPE_STRING)
 		  ENCODE(PROFILER_ARG_STRING),
 #else
-		  ENCODE(PROFILER_ARG_U32),
+		  ENCODE(PROFILER_ARG_U8),
 #endif
 		  ENCODE("type"),
 		  profile_event);

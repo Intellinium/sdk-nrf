@@ -9,12 +9,13 @@ Working with Thingy:91
    :local:
    :depth: 2
 
+
 Nordic Thingy:91 is a battery-operated prototyping platform for cellular IoT systems, designed especially for asset tracking applications and environmental monitoring.
 
 Thingy:91 integrates the following components:
 
 * nRF9160 SiP - supporting LTE-M, NB-IoT, and Global Positioning System (GPS)
-* nRF52840 SoC - supporting Bluetooth Low Energy and Near Field Communication (NFC)
+* nRF52840 SoC - supporting Bluetooth® Low Energy and Near Field Communication (NFC)
 
 You can find more information on the product in the `Thingy:91 product page`_ and in the `Nordic Thingy:91 User Guide`_.
 The |NCS| provides support for developing applications on the Thingy:91.
@@ -46,11 +47,11 @@ Thingy:91 uses the following UART baud rate configuration:
 Firmware
 ********
 
-The firmware of Thingy:91 has been developed using the nRF Connect SDK.
+The firmware of Thingy:91 has been developed using the |NCS|.
 It is open source, and can be modified according to specific needs.
 The :ref:`asset_tracker` application firmware, which is preprogrammed in the Thingy:91, enables the device to use the environment sensors and provides an option of tracking the device using GPS.
 
-The data, along with information about the device, is transmitted to Nordic Semiconductor's cloud solution, `nRF Connect for Cloud`_, where it can be visualized.
+The data, along with information about the device, is transmitted to Nordic Semiconductor's cloud solution, `nRF Cloud`_, where it can be visualized.
 See :ref:`asset_tracker` for more information on the asset tracker application.
 
 Operating modes
@@ -80,13 +81,6 @@ Thingy:91 has a multimode modem, which enables it to support automatic switching
 A built-in parameter in the Thingy:91 firmware determines whether the modem first attempts to connect in LTE-M or NB-IoT mode.
 If the modem fails to connect using this preferred mode within the default timeout period (10 minutes), the modem switches to the other mode.
 
-.. |An nRF9160-based device| replace:: A Thingy:91
-
-.. |an nRF9160-based device| replace:: a Thingy:91
-
-.. include:: ug_nrf9160.rst
-   :start-after: nrf9160_gps_lte_start
-   :end-before: nrf9160_gps_lte_end
 
 Modem firmware
 ==============
@@ -98,7 +92,7 @@ The downloadable zip file contains both the full firmware images that can be pro
 .. _precompiled_fw:
 
 Programming precompiled firmware images
-****************************************
+***************************************
 
 Precompiled firmware image files are useful in the following scenarios:
 
@@ -153,21 +147,22 @@ You can also program the Thingy:91 by using the images obtained by building the 
 To set up your system to be able to build a compatible firmware image, follow the :ref:`getting_started` guide for |NCS|.
 The build targets of interest for Thingy:91 in |NCS| are as follows:
 
-+---------------+--------------------------------------------------+
-|Component      |  Build target                                    |
-+===============+==================================================+
-|nRF9160 SiP    |``thingy91_nrf9160`` for the secure version       |
-|               |                                                  |
-|               |``thingy91_nrf9160ns`` for the non-secure version |
-+---------------+--------------------------------------------------+
-|nRF52840 SoC   |``thingy91_nrf52840``                             |
-+---------------+--------------------------------------------------+
++---------------+---------------------------------------------------+
+|Component      |  Build target                                     |
++===============+===================================================+
+|nRF9160 SiP    |``thingy91_nrf9160`` for the secure version        |
+|               |                                                   |
+|               |``thingy91_nrf9160_ns`` for the non-secure version |
++---------------+---------------------------------------------------+
+|nRF52840 SoC   |``thingy91_nrf52840``                              |
++---------------+---------------------------------------------------+
 
-You must use the build target ``thingy91_nrf9160`` or ``thingy91_nrf9160ns`` when building the application code for the nRF9160 SiP and the build target ``thingy91_nrf52840`` when building the application code for the onboard nRF52840 SoC.
+You must use the build target ``thingy91_nrf9160`` or ``thingy91_nrf9160_ns`` when building the application code for the nRF9160 SiP and the build target ``thingy91_nrf52840`` when building the application code for the onboard nRF52840 SoC.
 
 .. note::
 
-   In |NCS| releases before v1.3.0, these build targets were named ``nrf9160_pca20035``, ``nrf9160_pca20035ns``, and ``nrf52840_pca20035``.
+   * In |NCS| releases before v1.3.0, these build targets were named ``nrf9160_pca20035``, ``nrf9160_pca20035ns``, and ``nrf52840_pca20035``.
+   * In |NCS| releases ranging from v1.3.0 to v1.6.1, the build target ``thingy91_nrf9160_ns`` was named ``thingy91_nrf9160ns``.
 
 .. note::
 
@@ -223,7 +218,7 @@ Building and programming using SEGGER Embedded Studio
    .. figure:: images/ses_thingy_configuration.png
       :alt: Opening the Asset tracker application
 
-      Opening the Asset tracker application for the thingy91_nrf9160ns build target
+      Opening the Asset tracker application for the thingy91_nrf9160_ns build target
 
    .. note::
 
@@ -293,7 +288,7 @@ To build and program the source code from the command line, complete the followi
 
       west build -b *build_target* -d *destination_directory_name*
 
-   The parameter *build_target* should be ``thingy91_nrf9160`` or ``thingy91_nrf9160ns`` if building for the nRF9160 SiP component and ``thingy91_nrf52840`` if building for the nRF52840 SoC component.
+   The parameter *build_target* should be ``thingy91_nrf9160`` or ``thingy91_nrf9160_ns`` if building for the nRF9160 SiP component and ``thingy91_nrf52840`` if building for the nRF52840 SoC component.
 
    .. note::
 

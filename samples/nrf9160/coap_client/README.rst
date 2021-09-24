@@ -34,7 +34,7 @@ The sample supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 The sample also requires a public CoAP server IP address or URL available on the internet.
 
@@ -64,7 +64,7 @@ After programming the sample and all prerequisites to the development kit, test 
 
 
 
-Sample Output
+Sample output
 =============
 
 The sample displays the data in the following format:

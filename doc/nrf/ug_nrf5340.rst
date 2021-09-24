@@ -69,7 +69,10 @@ Trusted Firmware-M (TF-M)
 In Zephyr, the application core is divided into two different build targets:
 
 * ``nrf5340dk_nrf5340_cpuapp`` for the secure domain
-* ``nrf5340dk_nrf5340_cpuappns`` for the non-secure domain
+* ``nrf5340dk_nrf5340_cpuapp_ns`` for the non-secure domain
+
+.. note::
+   In |NCS| releases before v1.6.1, the build target ``nrf5340dk_nrf5340_cpuapp_ns`` was named ``nrf5340dk_nrf5340_cpuappns``.
 
 Inter-core communication
 ========================
@@ -87,7 +90,7 @@ The OpenAMP library uses the IPM SHIM layer, which in turn uses the IPC driver i
 
 .. |note| replace:: The following instructions are for the application core.
    To upgrade the firmware on the network core, perform the steps for FOTA upgrade described below, replacing :file:`app_update.bin`, which is the file used when upgrading firmware on the application core, with :file:`net_core_app_update.bin`.
-   In addition, ensure that :option:`CONFIG_PCD_APP` is enabled for the MCUboot child image.
+   In addition, ensure that :kconfig:`CONFIG_PCD_APP` is enabled for the MCUboot child image.
    For more details, see :ref:`nc_bootloader`.
 
 Protocols and use cases
@@ -112,7 +115,7 @@ Bluetooth Low Energy
    * - :ref:`ble_rpc_host` (supported for development)
      - Some Bluetooth Low Energy samples, for example, :ref:`zephyr:bluetooth-beacon-sample`
 
-When using Bluetooth Low Energy on the nRF5340, you have two options:
+When using Bluetooth® Low Energy on the nRF5340, you have two options:
 
 * Split the Bluetooth LE Controller and the host part of the Bluetooth LE stack and run them on different cores.
 * Run the full Bluetooth LE stack on the network core (currently supported for development only).
@@ -224,13 +227,13 @@ Direct use of the radio peripheral
 Samples that directly use the radio peripheral can run on the network core of the nRF5340.
 They do not require any functionality from the application core.
 
-However, on nRF5340, the application core is responsible for starting the network core and connecting its GPIO pins (see :option:`CONFIG_BOARD_ENABLE_CPUNET` and the code in :file:`zephyr/boards/arm/nrf5340dk_nrf5340/nrf5340_cpunet_reset.c`).
+However, on nRF5340, the application core is responsible for starting the network core and connecting its GPIO pins (see :kconfig:`CONFIG_BOARD_ENABLE_CPUNET` and the code in :file:`zephyr/boards/arm/nrf5340dk_nrf5340/nrf5340_cpunet_reset.c`).
 Therefore, you must always program the application core, even if the firmware is supposed to run only on the network core.
 
 You can use the :ref:`nrf5340_empty_app_core` sample for this purpose.
 Configure the network core application to automatically include this sample as a child image.
 This is the default configuration for the listed network core samples.
-For more information, see :option:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE` and :ref:`ug_nrf5340_multi_image`.
+For more information, see :kconfig:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE` and :ref:`ug_nrf5340_multi_image`.
 
 
 No radio communication
@@ -254,7 +257,7 @@ Samples that do not need radio communication can run on the application core of 
 They do not require any firmware on the network core.
 Therefore, the network core can remain empty.
 
-If you want to enable the network core anyway, set the :option:`CONFIG_BOARD_ENABLE_CPUNET` option in the image for the application core.
+If you want to enable the network core anyway, set the :kconfig:`CONFIG_BOARD_ENABLE_CPUNET` option in the image for the application core.
 
 .. _ug_nrf5340_multi_image:
 
@@ -280,9 +283,9 @@ For other samples, the images are built separately.
 
 The build configuration depends on the following Kconfig options that must be set in the configuration of the parent image:
 
-* :option:`CONFIG_BT_RPMSG_NRF53` - set to ``y`` in all Bluetooth LE samples for the application core
-* :option:`CONFIG_NRF_802154_SER_HOST` - set to ``y`` in all Thread, Zigbee, and Matter samples for the application core
-* :option:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE` - set to ``y`` in all network core samples that require the :ref:`nrf5340_empty_app_core` sample
+* :kconfig:`CONFIG_BT_RPMSG_NRF53` - set to ``y`` in all Bluetooth LE samples for the application core
+* :kconfig:`CONFIG_NRF_802154_SER_HOST` - set to ``y`` in all Thread, Zigbee, and Matter samples for the application core
+* :kconfig:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE` - set to ``y`` in all network core samples that require the :ref:`nrf5340_empty_app_core` sample
 
 The combination of these options determines which (if any) sample is included in the build of the parent image:
 
@@ -292,16 +295,16 @@ The combination of these options determines which (if any) sample is included in
    * - Enabled options
      - Child image sample for the network core
      - Child image sample for the application core
-   * - :option:`CONFIG_BT_RPMSG_NRF53`
+   * - :kconfig:`CONFIG_BT_RPMSG_NRF53`
      - :ref:`zephyr:bluetooth-hci-rpmsg-sample`
      - ---
-   * - :option:`CONFIG_NRF_802154_SER_HOST`
+   * - :kconfig:`CONFIG_NRF_802154_SER_HOST`
      - :ref:`zephyr:nrf-ieee802154-rpmsg-sample`
      - ---
-   * - :option:`CONFIG_BT_RPMSG_NRF53` and :option:`CONFIG_NRF_802154_SER_HOST`
+   * - :kconfig:`CONFIG_BT_RPMSG_NRF53` and :kconfig:`CONFIG_NRF_802154_SER_HOST`
      - :ref:`multiprotocol-rpmsg-sample`
      - ---
-   * - :option:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE`
+   * - :kconfig:`CONFIG_NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE`
      - ---
      - :ref:`nrf5340_empty_app_core`
 
@@ -309,7 +312,7 @@ Configuration of the child image
 ================================
 
 When a network sample is built automatically as a child image in a multi-image build, you can define the relevant Kconfig options (if required) in a :file:`.conf` file.
-Name the file *network_sample*\ .conf, where *network_sample* is the name of the child image (for example, ``hci_rpmsg.conf``).
+Name the file *network_sample*\ .conf, where *network_sample* is the name of the child image (for example, :file:`hci_rpmsg.conf`).
 Place the file in a :file:`child_image` subfolder of the application sample directory.
 See :ref:`ug_multi_image_variables` for more information.
 
@@ -335,7 +338,7 @@ To program a multi-image HEX file, you must add the project files for the networ
 Separate images
 ---------------
 
-To build and program only the application core, follow the instructions in :ref:`gs_programming_ses` and use ``nrf5340dk_nrf5340_cpuapp`` or ``nrf5340dk_nrf5340_cpuappns`` as build target.
+To build and program only the application core, follow the instructions in :ref:`gs_programming_ses` and use ``nrf5340dk_nrf5340_cpuapp`` or ``nrf5340dk_nrf5340_cpuapp_ns`` as build target.
 
 To build and program a dedicated network sample, follow the instructions in :ref:`gs_programming_ses` and use ``nrf5340dk_nrf5340_cpunet`` as the build target.
 
@@ -357,7 +360,7 @@ You must manually add a network core project to the application core project to 
 Follow these steps to build and program a multi-image build to the nRF5340 application core and network core:
 
 1. Follow the instructions in :ref:`gs_programming_ses` and open the application core sample (for example, :ref:`peripheral_lbs`) in |SES|.
-   Use ``nrf5340dk_nrf5340_cpuapp`` or ``nrf5340dk_nrf5340_cpuappns`` as the build target.
+   Use ``nrf5340dk_nrf5340_cpuapp`` or ``nrf5340dk_nrf5340_cpuapp_ns`` as the build target.
 #. Build the sample as described in :ref:`gs_programming_ses`.
    This creates both the application core image and the network core image.
 #. Select :guilabel:`File` > :guilabel:`New Project`.
@@ -399,7 +402,7 @@ Follow these steps to build and program a multi-image build to the nRF5340 appli
    * :guilabel:`Target Processor`: Select ``nRF5340_xxAA_Network``.
 
    * :guilabel:`Load File`: Specify the file name of the merged HEX file for the network core that should be programmed.
-     For example, specify ``$(ProjectDir)/hci_rpmsg/zephyr/merged_CPUNET.hex`` for the :ref:`zephyr:bluetooth-hci-rpmsg-sample` sample.
+     For example, specify :file:`$(ProjectDir)/hci_rpmsg/zephyr/merged_CPUNET.hex` for the :ref:`zephyr:bluetooth-hci-rpmsg-sample` sample.
 
     .. figure:: images/ses_nrf5340_netcore_project_settings.png
        :alt: Project settings for programming the network core
@@ -563,6 +566,44 @@ See the following instructions.
 .. include:: ug_nrf52.rst
    :start-after: fota_upgrades_start
    :end-before: fota_upgrades_end
+
+Simultaneous multi-image DFU
+****************************
+
+The simultaneous update of multiple images is available for testing since |NCS| v1.7.0.
+It allows the updating of both the application core and the network core in one go.
+
+To enable the simultaneous update of multiple images in the MCUboot, set the following options:
+
+* :kconfig:`CONFIG_BOOT_UPGRADE_ONLY` - The simultaneous update of multiple images does not support network core image reversion, so you need to disable application image reversion.
+* :kconfig:`CONFIG_PCD_APP` - Enable commands exchange with the network core.
+* :kconfig:`CONFIG_UPDATEABLE_IMAGE_NUMBER` - Enable support for multiple update partitions by setting this option to ``2``.
+
+To enable the simultaneous update of multiple images in the application, in addition to enabling the MCUboot support, set the following options:
+
+* :kconfig:`CONFIG_UPDATEABLE_IMAGE_NUMBER` - Enable support for multiple update partitions by setting this option to ``2``.
+
+Additionally, the memory partitions must be defined and include:
+
+* ``mcuboot_primary`` and ``mcuboot_secondary`` partitions for the application core image slots.
+* ``mcuboot_primary_1`` and ``mcuboot_secondary_1`` partitions for the network core image slots.
+* ``pcd_sram`` partition used for command exchange between the application core and the network core (see :kconfig:`CONFIG_PCD_APP`).
+
+.. note::
+
+   The application core does not have direct access to the network core flash memory.
+   The update image is passed indirectly using RAM.
+   Because of this, the ``mcuboot_primary_1`` must be stored in ``ram_flash`` region.
+   To enable providing such region on the device, see :kconfig:`CONFIG_FLASH_SIMULATOR`.
+
+Samples and applications built for Thingy:53 enable simultaneous update of multiple images by default.
+To learn more about Thingy:53, see :ref:`ug_thingy53`.
+
+Container for firmware update binaries
+======================================
+
+The build system will automatically place both the application core and the network core update binaries (:file:`app_update.bin` and :file:`net_core_app_update.bin`) into a container package named :file:`dfu_application.zip`.
+This container package can be used by update tools to pass both images during the simultaneous update of multiple images.
 
 .. _logging_cpunet:
 

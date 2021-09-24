@@ -18,12 +18,13 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: thingy91_nrf9160ns, nrf9160dk_nrf9160ns
+   :rows: thingy91_nrf9160_ns, nrf9160dk_nrf9160_ns
 
-Before using the Memfault platform, you must register an account in `Memfault`_ and a set up a project according to the instructions in `Memfault documentation <Memfault Docs_>`_.
+Before using the Memfault platform, you must register an account in the `Memfault registration page`_ and `create a new project in Memfault`_.
 
 .. include:: /includes/spm.txt
 
+To get access to all the benefits, like up to 100 free devices connected, register at the `Memfault registration page`_.
 
 Overview
 ********
@@ -42,14 +43,14 @@ There are also some metrics, which are specific to |NCS| that are enabled by def
 
 * LTE metrics:
 
-  * Enabled and disabled using :option:`CONFIG_MEMFAULT_NCS_LTE_METRICS`.
+  * Enabled and disabled using :kconfig:`CONFIG_MEMFAULT_NCS_LTE_METRICS`.
   * ``Ncs_LteTimeToConnect`` - Time from the point when the device starts to search for an LTE network until the time when it gets registered with the network.
   *  ``Ncs_LteConnectionLossCount`` - The number of times that the device has lost the LTE network connection after the initial network registration.
 
 * Stack usage metrics:
 
    * Shows how many bytes of unused space is left in a stack.
-   * Configurable using :option:`CONFIG_MEMFAULT_NCS_STACK_METRICS`.
+   * Configurable using :kconfig:`CONFIG_MEMFAULT_NCS_STACK_METRICS`.
    * ``Ncs_AtCmdUnusedStack`` - The :ref:`at_cmd_readme` library's stack.
    * ``Ncs_ConnectionPollUnusedStack``- Stack used by the cloud libraries for :ref:`lib_nrf_cloud`, :ref:`lib_aws_iot` and :ref:`lib_azure_iot_hub`.
 
@@ -97,7 +98,7 @@ See `Memfault SDK`_ for more information.
 Minimal setup
 =============
 
-To send data to the Memfault cloud, a project key must be configured using :option:`CONFIG_MEMFAULT_NCS_PROJECT_KEY`.
+To send data to the Memfault cloud, a project key must be configured using :kconfig:`CONFIG_MEMFAULT_NCS_PROJECT_KEY`.
 
 .. note::
    The Memfault SDK requires certificates required for the HTTPS transport.
@@ -115,31 +116,31 @@ There are two sources for Kconfig options when using Memfault SDK in |NCS|:
 
 Check and configure the following options in Memfault SDK that are used by the sample:
 
-* :option:`CONFIG_MEMFAULT`
-* :option:`CONFIG_MEMFAULT_ROOT_CERT_STORAGE_NRF9160_MODEM`
-* :option:`CONFIG_MEMFAULT_SHELL`
-* :option:`CONFIG_MEMFAULT_HTTP_ENABLE`
-* :option:`CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD`
-* :option:`CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS`
-* :option:`CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_USE_DEDICATED_WORKQUEUE`
-* :option:`CONFIG_MEMFAULT_COREDUMP_COLLECT_BSS_REGIONS`
+* :kconfig:`CONFIG_MEMFAULT`
+* :kconfig:`CONFIG_MEMFAULT_ROOT_CERT_STORAGE_NRF9160_MODEM`
+* :kconfig:`CONFIG_MEMFAULT_SHELL`
+* :kconfig:`CONFIG_MEMFAULT_HTTP_ENABLE`
+* :kconfig:`CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD`
+* :kconfig:`CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_INTERVAL_SECS`
+* :kconfig:`CONFIG_MEMFAULT_HTTP_PERIODIC_UPLOAD_USE_DEDICATED_WORKQUEUE`
+* :kconfig:`CONFIG_MEMFAULT_COREDUMP_COLLECT_BSS_REGIONS`
 
-If :option:`CONFIG_MEMFAULT_ROOT_CERT_STORAGE_NRF9160_MODEM` is enabled, TLS certificates used for HTTP uploads are provisioned to the nRF9160 modem when :c:func:`memfault_zephyr_port_install_root_certs` is called.
+If :kconfig:`CONFIG_MEMFAULT_ROOT_CERT_STORAGE_NRF9160_MODEM` is enabled, TLS certificates used for HTTP uploads are provisioned to the nRF9160 modem when :c:func:`memfault_zephyr_port_install_root_certs` is called.
 
 Check and configure the following options for Memfault that are specific to |NCS|:
 
-* :option:`CONFIG_MEMFAULT_NCS_PROJECT_KEY`
-* :option:`CONFIG_MEMFAULT_NCS_LTE_METRICS`
-* :option:`CONFIG_MEMFAULT_NCS_STACK_METRICS`
-* :option:`CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`
+* :kconfig:`CONFIG_MEMFAULT_NCS_PROJECT_KEY`
+* :kconfig:`CONFIG_MEMFAULT_NCS_LTE_METRICS`
+* :kconfig:`CONFIG_MEMFAULT_NCS_STACK_METRICS`
+* :kconfig:`CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP`
 
-If :option:`CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP` is enabled, :option:`CONFIG_PM_PARTITION_SIZE_MEMFAULT_STORAGE` can be used to set the flash partition size for the flash storage.
+If :kconfig:`CONFIG_MEMFAULT_NCS_INTERNAL_FLASH_BACKED_COREDUMP` is enabled, :kconfig:`CONFIG_PM_PARTITION_SIZE_MEMFAULT_STORAGE` can be used to set the flash partition size for the flash storage.
 
 
 Configuration files
 ===================
 
-.. include:: ../../../include/memfault_ncs.rst
+.. include:: ../../../doc/nrf/libraries/others/memfault_ncs.rst
    :start-after: memfault_config_files_start
    :end-before: memfault_config_files_end
 
@@ -175,7 +176,7 @@ Before testing, ensure that your device is configured with your Memfault project
 
         <inf> memfault_sample: Connecting to LTE network, this may take several minutes...
 
-#. When the connection is established, the sample displays the captured LTE time-to-connect metric (`Ncs_LteTimeToConnect``) on the terminal:
+#. When the connection is established, the sample displays the captured LTE time-to-connect metric (``Ncs_LteTimeToConnect``) on the terminal:
 
    .. code-block:: console
 
@@ -192,7 +193,17 @@ Before testing, ensure that your device is configured with your Memfault project
         <dbg> <mflt>: Body: Accepted
         <dbg> <mflt>: No more data to send
 
-#. Press <TAB> on your keyboard to confirm that the Memfault shell is working.
+#. Upload the symbol file generated from your build to your Memfault account so that the information from your application can be parsed. The symbol file is located in the build folder: :file:`memfault/build/zephyr/zephyr.elf`:
+
+   a. In a web browser, navigate to `Memfault`_.
+   b. Login to your account and select the project you created earlier.
+   c. Navigate to :guilabel:`Fleet` > :guilabel:`Devices` in the left menu.
+
+      You can see your newly connected device and the software version in the list.
+
+   d. Click on the software version number for your device and then the :guilabel:`Upload` button to upload the symbol file.
+
+#. Back in the terminal, press <TAB> on your keyboard to confirm that the Memfault shell is working.
    The available shell commands are displayed:
 
    .. code-block:: console
@@ -203,13 +214,9 @@ Before testing, ensure that your device is configured with your Memfault project
           mflt               mflt_nrf           nrf_clock_control  resize
           shell
 
-#. Explore the available Memfault shell commands by issuing the command ``mflt help``.
-
+#. Learn about the available Memfault shell commands by issuing the command ``mflt help``.
 #. Press **Button 1** or **Button 2** to trigger a stack overflow or a NULL pointer dereference, respectively.
-
-#. In a web browser, navigate to `Memfault`_, sign in and follow the instructions in `Memfault documentation <Memfault Docs_>`_ to view the uploaded data.
-   Note that the symbol file for the sample must be uploaded for Memfault to parse the information.
-   The symbol file is located at the following path: ``<sample folder>/build/zephyr/zephyr.elf``.
+#. Explore the Memfault user interface to look at the errors and metrics that has been sent from your device.
 
 
 Dependencies

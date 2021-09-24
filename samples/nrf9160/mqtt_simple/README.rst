@@ -16,7 +16,7 @@ The sample supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 Additionally, the sample supports :ref:`qemu_x86`.
 
@@ -81,30 +81,29 @@ Configuration files
 
 The sample provides the following predefined configuration files for the following development kits:
 
-* ``prj.conf`` - For nRF9160 DK
-* ``prj_qemu_x86.conf`` - For x86 Emulation (QEMU)
+* :file:`prj.conf` - For nRF9160 DK
+* :file:`prj_qemu_x86.conf` - For x86 Emulation (QEMU)
 
 In addition, the sample provides overlay configuration files, which are used to enable additional features in the sample:
 
-* ``overlay-tls.conf`` - TLS overlay configuration file for nRF9160 DK
-* ``overlay-qemu-x86-tls.conf`` - TLS overlay configuration file for x86 Emulation (QEMU)
-* ``overlay-carrier.conf`` - LWM2M carrier support for nRF9160 DK
+* :file:`overlay-tls.conf` - TLS overlay configuration file for nRF9160 DK
+* :file:`overlay-qemu-x86-tls.conf` - TLS overlay configuration file for x86 Emulation (QEMU)
+* :file:`overlay-carrier.conf` - LWM2M carrier support for nRF9160 DK
 
-They are located in ``samples/nrf9160/mqtt_simple`` folder.
+They are located in :file:`samples/nrf9160/mqtt_simple` folder.
 
 
-To add a specific overlay configuration file to the build, add the ``-- -DOVERLAY_CONFIG=<overlay_config_file>`` parameter to the ``west build`` command.
-The following command builds the sample with the TLS configuration for nRF9160 DK:
+To add a specific overlay configuration file to the build, add the ``-- -DOVERLAY_CONFIG=<overlay_config_file>`` flag to your build.
+
+See :ref:`cmake_options` for instructions on how to add this option to your build.
+For example, when building on the command line, you can build the sample with the TLS configuration for nRF9160 DK as follows:
 
   .. code-block:: console
 
-     west build -b nrf9160dk_nrf9160ns -- -DOVERLAY_CONFIG=overlay-tls.conf
+     west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG=overlay-tls.conf
 
 .. note::
    The CA certificate for the default MQTT broker is included in the project and automatically provisioned after boot if the sample is built with the TLS configuration.
-
-
-
 
 Building and running
 ********************
@@ -124,10 +123,10 @@ Testing
 #. Observe that the sample displays the following information in the terminal::
 
        The MQTT simple sample started
-#. Observe that the development kit connects to the configured MQTT broker (:option:`CONFIG_MQTT_BROKER_HOSTNAME`) after it gets the LTE connection.
-   At this stage, the development kit is ready to echo the data sent to it on the configured subscribe topic (:option:`CONFIG_MQTT_SUB_TOPIC`).
+#. Observe that the development kit connects to the configured MQTT broker (:kconfig:`CONFIG_MQTT_BROKER_HOSTNAME`) after it gets the LTE connection.
+   At this stage, the development kit is ready to echo the data sent to it on the configured subscribe topic (:kconfig:`CONFIG_MQTT_SUB_TOPIC`).
 #. Use an MQTT client like `Mosquitto`_ to subscribe to and publish data to the broker.
-   Observe that the development kit publishes all the data that you publish to :option:`CONFIG_MQTT_SUB_TOPIC` on :option:`CONFIG_MQTT_PUB_TOPIC`.
+   Observe that the development kit publishes all the data that you publish to :kconfig:`CONFIG_MQTT_SUB_TOPIC` on :kconfig:`CONFIG_MQTT_PUB_TOPIC`.
 
 Sample output
 =============
@@ -155,10 +154,10 @@ Troubleshooting
 ===============
 
 Public MQTT brokers might be unstable.
-If you experience problems connecting to the MQTT broker, try switching to another MQTT broker by changing the value of the :option:`CONFIG_MQTT_BROKER_HOSTNAME` configuration option.
+If you experience problems connecting to the MQTT broker, try switching to another MQTT broker by changing the value of the :kconfig:`CONFIG_MQTT_BROKER_HOSTNAME` configuration option.
 
 .. note::
-   If the :option:`CONFIG_MQTT_BROKER_HOSTNAME` configuration option is changed and the overlay TLS configuration is used, the included CA certificate must be updated with the CA certificate for
+   If the :kconfig:`CONFIG_MQTT_BROKER_HOSTNAME` configuration option is changed and the overlay TLS configuration is used, the included CA certificate must be updated with the CA certificate for
    the newly configurated MQTT broker.
 
 

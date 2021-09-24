@@ -7,7 +7,7 @@ Bluetooth: Mesh light fixture
    :local:
    :depth: 2
 
-The Bluetooth mesh light fixture sample demonstrates how to set up a light control mesh server model application, and control a dimmable LED with Bluetooth mesh using the :ref:`bt_mesh_onoff_readme`.
+The Bluetooth® mesh light fixture sample demonstrates how to set up a light control mesh server model application, and control a dimmable LED with Bluetooth mesh using the :ref:`bt_mesh_onoff_readme`.
 
 Requirements
 ************
@@ -37,6 +37,11 @@ Devices are nodes with a provisionee role in a mesh network.
 Provisioning is performed using the `nRF Mesh mobile app`_.
 This mobile application is also used to configure key bindings, and publication and subscription settings of the Bluetooth mesh model instances in the sample.
 After provisioning and configuring the mesh models supported by the sample in the `nRF Mesh mobile app`_, you can control the dimmable LED on the development kit from the app.
+
+.. note::
+   The Bluetooth mesh specification recommends that a status message is published at the end of transitions.
+   This behavior is not reflected in the light fixture sample.
+   Make sure to implement the end-of-transition publication for your application.
 
 Provisioning
 ============
@@ -158,13 +163,13 @@ You should now see the following actions:
 
 1. The LED fades from 0% to 100% over 500ms :guilabel:`Standby -> On`.
 #. The LED stays at 100% for three seconds :guilabel:`On`.
-#. The LED fades from 100% to :option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` over five seconds :guilabel:`On -> Prolong`.
-#. The LED stays at :option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` for three seconds :guilabel:`Prolong`.
-#. The LED fades from :option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` to 0% over five seconds :guilabel:`Prolong -> Standby`.
+#. The LED fades from 100% to :kconfig:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` over five seconds :guilabel:`On -> Prolong`.
+#. The LED stays at :kconfig:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` for three seconds :guilabel:`Prolong`.
+#. The LED fades from :kconfig:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` to 0% over five seconds :guilabel:`Prolong -> Standby`.
 
-The default value of :option:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` is 10000 (~15%).
+The default value of :kconfig:`CONFIG_BT_MESH_LIGHT_CTRL_SRV_LVL_PROLONG` is 10000 (~15%).
 
-.. figure:: /images/bt_mesh_light_ctrl_levels.svg
+.. figure:: images/bt_mesh_light_ctrl_levels.svg
    :alt: Light level transitions over time
 
    Light level transitions over time

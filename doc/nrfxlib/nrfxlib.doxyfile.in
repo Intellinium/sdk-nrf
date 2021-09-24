@@ -226,7 +226,7 @@ ALIASES                = "rst=\verbatim embed:rst" \
                          "endrststar=\endverbatim" \
                          "r=\verbatim embed:rst:leading-asterisk" \
                          "er=\endverbatim"
-ALIASES += option{1}="\verbatim embed:rst:inline :option:`\1` \endverbatim"
+ALIASES += kconfig{1}="\verbatim embed:rst:inline :kconfig:`\1` \endverbatim"
 ALIASES += "req=\xrefitem req \"Requirement\" \"Requirements\" "
 
 # This tag can be used to specify a number of word-keyword mappings (TCL only).
@@ -805,10 +805,11 @@ EXCLUDE_SYMLINKS       = NO
 EXCLUDE_PATTERNS       = */zboss/* \
                          */openthread/include/* \
                          */openthread/lib/* \
+                         */nrf_802154/sl/* \
+                         */nrf_802154/serialization/* \
                          */nrf_cc312_platform/* \
                          */nrf_cc312_mbedcrypto/* \
                          */nrf_cc310_mbedcrypto/include/mbedtls_extra/* \
-                         */nrf_802154/* \
                          */nrf_cc310_mbedcrypto/include/nrf-config-cc310.h
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
@@ -1980,7 +1981,8 @@ PREDEFINED             = "MBEDTLS_CONFIG_FILE=\"@OUTPUT_DIRECTORY@/mbedtls_doxyg
                          "__attribute__(x)=" \
                          "__syscall=" \
                          "__syscall_inline=" \
-			 "__attribute(x)= DOXYGEN=1" \
+			 "__attribute(x)=" \
+			 "DOXYGEN=1" \
 			 "CONFIG_BT_SCAN_FILTER_ENABLE:=1" \
 			 "CONFIG_BT_SCAN_UUID_CNT:=1" \
 			 "CONFIG_BT_SCAN_NAME_CNT:=1" \

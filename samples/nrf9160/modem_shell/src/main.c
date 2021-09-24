@@ -25,6 +25,9 @@
 #include <modem/modem_info.h>
 #include <modem/lte_lc.h>
 
+#include <dk_buttons_and_leds.h>
+#include "uart/uart_shell.h"
+
 #if defined(CONFIG_MOSH_PPP)
 #include <shell/shell.h>
 #include "ppp_ctrl.h"
@@ -41,9 +44,15 @@
 #if defined(CONFIG_MOSH_FOTA)
 #include "fota.h"
 #endif
+#if defined(CONFIG_MOSH_WORKER_THREADS)
+#include "th/th_ctrl.h"
+#endif
+#include "mosh_defines.h"
 
 /* global variables */
 struct modem_param_info modem_param;
+struct k_poll_signal mosh_signal;
+
 /**
  * @brief Global shell pointer that can be used for printing.
  *
@@ -69,10 +78,33 @@ static void mosh_print_version_info(void)
 #endif
 
 #if defined(BUILD_VARIANT)
+#if defined(BRANCH_NAME)
+	printk("\nMOSH build variant: %s/%s\n\n", STRINGIFY(BRANCH_NAME), STRINGIFY(BUILD_VARIANT));
+#else
 	printk("\nMOSH build variant: %s\n\n", STRINGIFY(BUILD_VARIANT));
+#endif
 #else
 	printk("\nMOSH build variant: dev\n\n");
 #endif
+}
+
+static void button_handler(uint32_t button_states, uint32_t has_changed)
+{
+	if (has_changed & button_states & DK_BTN1_MSK) {
+		shell_print(shell_global, "Button 1 pressed - raising a kill signal");
+		k_poll_signal_raise(&mosh_signal, MOSH_SIGNAL_KILL);
+#if defined(CONFIG_MOSH_WORKER_THREADS)
+		th_ctrl_kill_em_all();
+#endif
+	} else if (has_changed & ~button_states & DK_BTN1_MSK) {
+		shell_print(shell_global, "Button 1 released - resetting a kill signal");
+		k_poll_signal_reset(&mosh_signal);
+	}
+
+	if (has_changed & button_states & DK_BTN2_MSK) {
+		shell_print(shell_global, "Button 2 pressed, toggling UART power state");
+		uart_toggle_power_state(shell_global);
+	}
 }
 
 void main(void)
@@ -126,11 +158,12 @@ void main(void)
 #if defined(CONFIG_MOSH_PPP)
 	ppp_ctrl_init();
 #endif
-
-#if defined(CONFIG_MOSH_GNSS_ENABLE_LNA)
-	gnss_set_lna_enabled(true);
+#if defined(CONFIG_MOSH_WORKER_THREADS)
+	th_ctrl_init();
 #endif
-
+#if defined(CONFIG_MOSH_GNSS)
+	gnss_configure_lna();
+#endif
 #if defined(CONFIG_MOSH_FOTA)
 	err = fota_init();
 	if (err) {
@@ -151,10 +184,21 @@ void main(void)
 	modem_info_params_init(&modem_param);
 #endif
 
+	err = dk_buttons_init(button_handler);
+	if (err) {
+		printk("Failed to initialize DK buttons library, error: %d", err);
+	}
+
 	/* Application started successfully, mark image as OK to prevent
 	 * revert at next reboot.
 	 */
 #if defined(CONFIG_BOOTLOADER_MCUBOOT)
 	boot_write_img_confirmed();
 #endif
+	k_poll_signal_init(&mosh_signal);
+
+	/* Resize terminal width and height of the shell to have proper command editing. */
+	shell_execute_cmd(shell_global, "resize");
+	/* Run empty command because otherwise "resize" would be set to the command line. */
+	shell_execute_cmd(shell_global, "");
 }

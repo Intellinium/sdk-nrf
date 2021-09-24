@@ -1,16 +1,27 @@
 .. _gs_testing:
 
-Testing a sample application
+Testing an application
 ############################
 
 .. contents::
    :local:
    :depth: 2
 
-Follow the instructions in the testing section of the sample documentation to ensure that the application runs as expected.
+|application_sample_definition|
+
+Follow the instructions in the testing section of the application's documentation to make sure that the application runs as expected.
 
 Information about the current state of the application is usually provided through the LEDs or through UART, or through both.
-See the user interface section of the sample documentation for description of the LED states or available UART commands.
+See the user interface section of the application's documentation for description of the LED states or available UART commands.
+
+.. _testing_vscode:
+
+How to connect with the VS Code extension
+*****************************************
+
+The `nRF Connect for Visual Studio Code`_ extension is a complete IDE for developing applications for nRF91, nRF53 and nRF52 Series devices.
+It includes nRF Terminal, which is an integrated serial port and RTT terminal to connect to your board.
+For detailed instructions, see `Testing an application`_ in the extension's README file.
 
 .. _putty:
 
@@ -39,7 +50,7 @@ UART can also be used for logging purposes as one of the :ref:`logging backends 
 How to use RTT
 **************
 
-To view the logging output using Real Time Transfer (RTT), modify the configuration settings of the sample to override the default UART console:
+To view the logging output using Real Time Transfer (RTT), modify the configuration settings of the application to override the default UART console:
 
  .. code-block:: none
 
@@ -92,7 +103,7 @@ To connect to the nRF9160-based kit with LTE Link Monitor, perform the following
 
    .. note::
 
-      Make sure that **Automatic requests** is enabled in LTE Link Monitor.
+      Make sure that :guilabel:`Automatic requests` is enabled in LTE Link Monitor.
 
 #. Connect the nRF9160-based kit to the PC with a USB cable.
 #. Power on the nRF9160-based kit.

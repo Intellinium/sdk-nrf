@@ -52,7 +52,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832
 
 The sample also requires a smartphone or tablet with the NFC feature.
 
@@ -100,7 +100,7 @@ This sample uses the following |NCS| libraries:
 * :ref:`nfc_ndef_msg`
 * :ref:`nfc_text`
 
-In addition, it uses the Type 2 Tag library from nrfxlib:
+In addition, it uses the Type 2 Tag library from `sdk-nrfxlib`_:
 
 * :ref:`nrfxlib:nfc_api_type2`
 

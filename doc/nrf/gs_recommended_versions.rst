@@ -1,14 +1,32 @@
 .. _gs_recommended_versions:
 
-Required tools
-##############
+Requirements
+############
 
 .. contents::
    :local:
    :depth: 2
 
+The |NCS| supports Microsoft Windows, Linux, and macOS for development.
+However, there are some Zephyr features that are currently only available on Linux, including:
+
+* sanitycheck
+* BlueZ integration
+* net-tools integration
+
+.. note::
+
+   .. _gs_update_os:
+
+   Before you start setting up the toolchain, install available updates for your operating system.
+
+Required tools
+**************
+
 The following table shows the tools that are required for working with |NCS| v\ |version|.
 It lists the minimum version that is required and the version that is installed when using the :ref:`gs_app_tcm` as described in :ref:`gs_assistant`.
+
+.. _req_tools_table:
 
 .. tabs::
 
@@ -19,7 +37,7 @@ It lists the minimum version that is required and the version that is installed 
 
          * - Tool
            - Minimum version
-           - Toolchain manager version
+           - Toolchain Manager version
          * - CMake
            - |cmake_min_ver|
            - |cmake_recommended_ver_win10|
@@ -103,7 +121,7 @@ It lists the minimum version that is required and the version that is installed 
 
          * - Tool
            - Minimum version
-           - Toolchain manager version
+           - Toolchain Manager version
          * - CMake
            - |cmake_min_ver|
            - |cmake_recommended_ver_darwin|
@@ -141,7 +159,9 @@ Required Python dependencies
 The following table shows the Python packages that are required for working with |NCS| v\ |version|.
 If no version is specified, the default version provided with pip is recommended.
 If a version is specified, it is important that the installed version matches the required version.
-See :ref:`additional_deps` for instructions on how to install the Python dependencies and :ref:`gs_updating` for information about how to keep them updated.
+
+The :ref:`gs_app_tcm` will install all Python dependencies into a local environment in the Toolchain Manager app, not the system.
+If you install manually, see :ref:`additional_deps` for instructions on how to install the Python dependencies and :ref:`gs_updating` for information about how to keep them updated.
 
 Building and running applications, samples, and tests
 =====================================================

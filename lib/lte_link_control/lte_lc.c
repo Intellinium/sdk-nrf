@@ -45,6 +45,7 @@ enum lte_lc_notif_type {
 	LTE_LC_NOTIF_XT3412,
 	LTE_LC_NOTIF_NCELLMEAS,
 	LTE_LC_NOTIF_XMODEMSLEEP,
+	LTE_LC_NOTIF_MDMEV,
 
 	LTE_LC_NOTIF_COUNT,
 };
@@ -152,23 +153,24 @@ static const char system_mode_preference[] = {
 };
 
 #if !defined(CONFIG_NRF_MODEM_LIB_SYS_INIT) && \
-	defined(CONFIG_BOARD_THINGY91_NRF9160NS)
+	defined(CONFIG_BOARD_THINGY91_NRF9160_NS)
 static const char thingy91_magpio[] = {
 	"AT%XMAGPIO=1,1,1,7,1,746,803,2,698,748,"
 	"2,1710,2200,3,824,894,4,880,960,5,791,849,"
 	"7,1565,1586"
 };
-#endif /* !CONFIG_NRF_MODEM_LIB_SYS_INIT && CONFIG_BOARD_THINGY91_NRF9160NS */
+#endif /* !CONFIG_NRF_MODEM_LIB_SYS_INIT && CONFIG_BOARD_THINGY91_NRF9160_NS */
 
 static struct k_sem link;
 
 static const char *const at_notifs[] = {
-	[LTE_LC_NOTIF_CEREG]	   = "+CEREG",
-	[LTE_LC_NOTIF_CSCON]	   = "+CSCON",
-	[LTE_LC_NOTIF_CEDRXP]	   = "+CEDRXP",
-	[LTE_LC_NOTIF_XT3412]	   = "%XT3412",
-	[LTE_LC_NOTIF_NCELLMEAS]   = "%NCELLMEAS",
-	[LTE_LC_NOTIF_XMODEMSLEEP] = "%XMODEMSLEEP",
+	[LTE_LC_NOTIF_CEREG]		= "+CEREG",
+	[LTE_LC_NOTIF_CSCON]		= "+CSCON",
+	[LTE_LC_NOTIF_CEDRXP]		= "+CEDRXP",
+	[LTE_LC_NOTIF_XT3412]		= "%XT3412",
+	[LTE_LC_NOTIF_NCELLMEAS]	= "%NCELLMEAS",
+	[LTE_LC_NOTIF_XMODEMSLEEP]	= "%XMODEMSLEEP",
+	[LTE_LC_NOTIF_MDMEV]		= "%MDMEV",
 };
 
 BUILD_ASSERT(ARRAY_SIZE(at_notifs) == LTE_LC_NOTIF_COUNT);
@@ -186,6 +188,15 @@ static bool is_relevant_notif(const char *notif, enum lte_lc_notif_type *type)
 	}
 
 	return false;
+}
+
+static bool is_cellid_valid(uint32_t cellid)
+{
+	if (cellid == UINT32_MAX) {
+		return false;
+	}
+
+	return true;
 }
 
 static void at_handler(void *context, const char *response)
@@ -215,9 +226,9 @@ static void at_handler(void *context, const char *response)
 		static struct lte_lc_psm_cfg prev_psm_cfg;
 		static enum lte_lc_lte_mode prev_lte_mode = LTE_LC_LTE_MODE_NONE;
 		enum lte_lc_nw_reg_status reg_status = 0;
-		struct lte_lc_cell cell;
+		struct lte_lc_cell cell = {0};
 		enum lte_lc_lte_mode lte_mode;
-		struct lte_lc_psm_cfg psm_cfg;
+		struct lte_lc_psm_cfg psm_cfg = {0};
 
 		LOG_DBG("+CEREG notification: %s", log_strdup(response));
 
@@ -226,6 +237,13 @@ static void at_handler(void *context, const char *response)
 			LOG_ERR("Failed to parse notification (error %d): %s",
 				err, log_strdup(response));
 			return;
+		}
+
+		/* Set the network registration status to UNKNOWN if the cell ID is parsed to
+		 * UINT32_MAX (FFFFFFFF).
+		 */
+		if (!is_cellid_valid(cell.id)) {
+			reg_status = LTE_LC_NW_REG_UNKNOWN;
 		}
 
 		if ((reg_status == LTE_LC_NW_REG_REGISTERED_HOME) ||
@@ -449,6 +467,19 @@ static void at_handler(void *context, const char *response)
 		notify = true;
 
 		break;
+	case LTE_LC_NOTIF_MDMEV:
+		LOG_DBG("%%MDMEV notification");
+
+		err = parse_mdmev(response, &evt.modem_evt);
+		if (err) {
+			LOG_ERR("Can't parse modem event notification, error: %d", err);
+			return;
+		}
+
+		evt.type = LTE_LC_EVT_MODEM_EVENT;
+		notify = true;
+
+		break;
 	default:
 		LOG_ERR("Unrecognized notification type: %d", notif_type);
 		break;
@@ -572,7 +603,7 @@ static int init_and_config(void)
 	}
 
 #if !defined(CONFIG_NRF_MODEM_LIB_SYS_INIT) && \
-	defined(CONFIG_BOARD_THINGY91_NRF9160NS)
+	defined(CONFIG_BOARD_THINGY91_NRF9160_NS)
 	/* Configuring MAGPIO, so that the correct antenna
 	 * matching network is used for each LTE band and GPS.
 	 */
@@ -1505,6 +1536,16 @@ int lte_lc_conn_eval_params_get(struct lte_lc_conn_eval_params *params)
 	}
 
 	return 0;
+}
+
+int lte_lc_modem_events_enable(void)
+{
+	return at_cmd_write(AT_MDMEV_ENABLE, NULL, 0, NULL);
+}
+
+int lte_lc_modem_events_disable(void)
+{
+	return at_cmd_write(AT_MDMEV_DISABLE, NULL, 0, NULL);
 }
 
 #if defined(CONFIG_LTE_AUTO_INIT_AND_CONNECT)

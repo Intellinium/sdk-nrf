@@ -15,7 +15,7 @@ To pair and control the Matter accessory device remotely over such a network, yo
 A Matter controller is a role within the Matter environment.
 This controller interacts with the accessory devices using the following protocols:
 
-* Bluetooth LE during the commissioning process - to securely pass the network credentials and provision the accessory device into the Thread network.
+* Bluetooth® LE during the commissioning process - to securely pass the network credentials and provision the accessory device into the Thread network.
 * Regular IPv6 communication after the accessory device joins the Thread network - to interact with each other by exchanging application messages.
   For example, to report temperature measurements of a sensor.
 
@@ -36,11 +36,11 @@ Matter controller types
 
 The Matter controller implementation for the nRF Connect platform can be of the following types:
 
-* Python Controller for Linux
-* Mobile Controller for Android
+* Python controller for Linux
+* Mobile controller for Android
 
-.. note::
-    In the Matter upstream repository, you can find information and resources for implementing `other controller setups`_ (for example, for iOS).
+These controller types are also described in :ref:`ug_matter_tools` and are recommended in the |NCS|.
+In the Matter upstream repository, you can find information and resources for implementing `other controller setups`_ (for example, for iOS).
 
 Matter development environment setup options
 ********************************************
@@ -80,7 +80,7 @@ To use this setup, you need the following hardware:
 * 1x PC with Ubuntu (20.04 or newer) or 1x smartphone with Android 8+
 * 1x Raspberry Pi Model 3B+ or newer (along with a SD card with at least 8 GB of memory)
 * 1x Wi-Fi Access Point supporting IPv6 (without the IPv6 Router Advertisement Guard enabled on the router)
-* 1x nRF52840 DK or nRF5840 Dongle - for the Radio Co-Processor (RCP) device
+* 1x nRF52840 DK or nRF52840 Dongle - for the Radio Co-Processor (RCP) device
 * 1x nRF52840 DK or nRF5340 DK - for the Matter accessory device (programmed with one of :ref:`matter_samples`)
 
 For information about how to configure and use the required components, complete steps from the following user guides:
@@ -88,8 +88,8 @@ For information about how to configure and use the required components, complete
 * Configuring the Thread Border Router on a Raspberry Pi - see :ref:`ug_thread_tools_tbr` in the |NCS| documentation
 * Depending on the Matter controller type:
 
-  * Testing with the Python Matter Controller - see `Working with Python Controller`_ in the Matter documentation
-  * Testing with the Android Mobile Controller - see `Commissioning nRF Connect Accessory using Android CHIPTool`_ in the Matter documentation
+  * Python Matter controller - See :ref:`ug_matter_tools` for building instructions and :doc:`matter:python_chip_controller_building` in the Matter documentation for information about testing.
+  * Android Mobile controller - See :ref:`ug_matter_tools` for building instructions and :doc:`matter:nrfconnect_android_commissioning` in the Matter documentation for information about testing.
 
 Running Thread Border Router and Matter controller on the same device
 =====================================================================
@@ -107,13 +107,13 @@ To use this setup, you need the following hardware:
 
 * 1x PC with Ubuntu (20.04 or newer) or Raspberry Pi Model 3B+ or newer with Ubuntu (20.04 or newer) instead of Raspbian OS
 * 1x Bluetooth LE dongle (can be embedded inside the PC, like it is on Raspberry Pi)
-* 1x nRF52840 DK or nRF5840 Dongle - for the Radio Co-Processor (RCP) device
+* 1x nRF52840 DK or nRF52840 Dongle - for the Radio Co-Processor (RCP) device
 * 1x nRF52840 DK or nRF5340 DK - for the Matter accessory device (programmed with one of :ref:`matter_samples`)
 
 For information about how to configure and use the required components, see the following user guides:
 
 * Configuring Thread Border Router on a PC or a Raspberry Pi - see :ref:`ug_thread_tools_tbr` in the |NCS| documentation
-* Testing with the Python Matter Controller - see `Working with Python Controller`_ in the Matter documentation
+* Python Matter controller - See :ref:`ug_matter_tools` for building instructions and :doc:`matter:python_chip_controller_building` in the Matter documentation for information about testing.
 
 .. note::
     The Python Matter controller is currently not supported for building on Raspbian OS.

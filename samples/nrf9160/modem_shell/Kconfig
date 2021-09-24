@@ -32,6 +32,7 @@ config MOSH_PING
 config MOSH_LINK
 	bool "Link control"
 	depends on LTE_LINK_CONTROL
+	depends on MODEM_INFO
 	depends on SETTINGS
 	default y
 	help
@@ -69,6 +70,16 @@ config MOSH_FOTA
 	help
 	  FOTA for performing software updates over-the-air for both modem and application side.
 
+if MOSH_IPERF3
+menu "MoSH iperf3 command selections"
+
+config MOSH_WORKER_THREADS
+	bool "Possibility to run iperf3 instances in separate threads"
+	default y
+
+endmenu
+endif #MOSH_IPERF3
+
 if MOSH_LINK
 menu "MoSH link control selections"
 
@@ -85,22 +96,46 @@ endif #MOSH_LINK
 choice MOSH_GNSS_API
 	bool "GNSS API"
 	depends on MOSH_GNSS
-	default MOSH_GNSS_API_SOCKET
+	default MOSH_GNSS_INTERFACE
 	help
 	  Used GNSS API type.
 
-config MOSH_GNSS_API_SOCKET
-	bool "GNSS socket API"
+config MOSH_GNSS_INTERFACE
+	bool "GNSS interface"
 
-config MOSH_GNSS_API_GPS_DRIVER
+config MOSH_GNSS_SOCKET
+	bool "GNSS socket"
+
+config MOSH_GNSS_GPS_DRIVER
 	bool "GPS driver"
 
 endchoice
 
-config MOSH_GNSS_ENABLE_LNA
-	bool "LNA for GNSS during startup"
+choice MOSH_GNSS_ANTENNA
 	depends on MOSH_GNSS
+	default MOSH_GNSS_ANTENNA_ONBOARD
+	prompt "Select which antenna to use for GNSS"
+config MOSH_GNSS_ANTENNA_ONBOARD
+	bool "Use onboard antenna"
+config MOSH_GNSS_ANTENNA_EXTERNAL
+	bool "Use external antenna"
+
+endchoice
+
+config MOSH_AT_MAGPIO
+	string
+	default "AT\%XMAGPIO=1,0,0,1,1,1574,1577" if BOARD_NRF9160DK_NRF9160_NS
+	default "AT\%XMAGPIO=1,1,1,7,1,746,803,2,698,748,2,1710,2200,3,824,894,4,880,960,5,791,849,7,1565,1586" if BOARD_THINGY91_NRF9160_NS
 	help
-	  Enable Low Noise Amplifier (LNA) for GNSS during startup
+	  Defines what is the AT%XMAGPIO command to be sent to GNSS module. Leave
+	  empty if this command should not be sent.
+
+config MOSH_AT_COEX0
+	string
+	default "AT\%XCOEX0=1,1,1565,1586" if (BOARD_NRF9160DK_NRF9160_NS || BOARD_THINGY91_NRF9160_NS) && MOSH_GNSS_ANTENNA_ONBOARD
+	default "AT\%XCOEX0" if (BOARD_NRF9160DK_NRF9160_NS || BOARD_THINGY91_NRF9160_NS) && MOSH_GNSS_ANTENNA_EXTERNAL
+	help
+	  Defines what is the AT%XCOEX0 command to be sent to GNSS module. Leave
+	  empty if this command should not be sent.
 
 endmenu # Modem Shell

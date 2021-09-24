@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-cmake_minimum_required(VERSION 3.13.1)
+cmake_minimum_required(VERSION 3.20.0)
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(serial_lte_modem)
@@ -15,7 +15,7 @@ target_sources(app PRIVATE src/slm_util.c)
 target_sources(app PRIVATE src/slm_settings.c)
 target_sources(app PRIVATE src/slm_at_host.c)
 target_sources(app PRIVATE src/slm_at_commands.c)
-target_sources(app PRIVATE src/slm_at_tcpip.c)
+target_sources(app PRIVATE src/slm_at_socket.c)
 target_sources(app PRIVATE src/slm_at_tcp_proxy.c)
 target_sources(app PRIVATE src/slm_at_udp_proxy.c)
 target_sources(app PRIVATE src/slm_at_icmp.c)
@@ -25,7 +25,7 @@ target_sources_ifdef(CONFIG_SLM_SMS app PRIVATE src/slm_at_sms.c)
 target_sources_ifdef(CONFIG_SLM_NATIVE_TLS app PRIVATE src/slm_native_tls.c)
 target_sources_ifdef(CONFIG_SLM_NATIVE_TLS app PRIVATE src/slm_at_cmng.c)
 
-add_subdirectory_ifdef(CONFIG_SLM_GPS src/gps)
+add_subdirectory_ifdef(CONFIG_SLM_GNSS src/gnss)
 add_subdirectory_ifdef(CONFIG_SLM_FTPC src/ftp_c)
 add_subdirectory_ifdef(CONFIG_SLM_MQTTC src/mqtt_c)
 add_subdirectory_ifdef(CONFIG_SLM_HTTPC src/http_c)

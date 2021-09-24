@@ -20,9 +20,9 @@ Overview
 You can manually switch between AT-command mode and data mode.
 However, the SLM data mode is applied automatically while using the following modules:
 
-* TCP/TLS server and client
-* UDP server and client, DTLS client
 * Socket ``send()`` and ``sendto()``
+* TCP/TLS proxy send
+* UDP/DTLS proxy send
 * FTP put, uput and mput
 * MQTT publish
 * HTTP request
@@ -30,35 +30,44 @@ However, the SLM data mode is applied automatically while using the following mo
 Entering data mode
 ==================
 
-SLM enters data mode when an AT command to send data out does not carry the payload.
+The SLM application enters data mode when an AT command to send data out does not carry the payload.
 See the following examples:
 
 * ``AT#XSEND`` makes SLM enter data mode to receive arbitrary data to transmit.
 * ``AT#XSEND="data"`` makes SLM transmit data in normal AT Command mode.
 
-TCP and UDP proxies must explicitly specify data mode support using their respective AT commands.
-Also, the following conditions apply:
+Other examples:
 
-* A TCP Server enters data mode after accepting an incoming connection.
-* A TCP Client enters data mode after connecting to a remote server.
-* An UDP Server enters data mode after starting.
-* An UDP Client enters data mode after connecting to a remote server.
+* ``AT#XTCPSEND``
+* ``AT#XUDPSEND``
+* ``AT#XFTP="put",<file>``
+* ``AT#XFTP="uput"``
+* ``AT#XFTP="mput",<file>``
+* ``AT#XMQTTPUB=<topic>,"",<qos>,<retain>``
+
+The SLM application does not send an *OK* response when it enters data mode.
 
 Exiting data mode
 =================
 
 To exit data mode, the MCU sends the termination command set by the ``CONFIG_SLM_DATAMODE_TERMINATOR`` configuration option over UART and also applies the silence period set by the ``CONFIG_SLM_DATAMODE_SILENCE`` option, both before and after the termination command.
 
+When instructed to exit data mode, the SLM application returns the AT command response ``OK``.
+
+If the current sending function fails, the SLM application exits data mode and returns the AT command response ``ERROR``.
+
 The SLM application also exits data mode automatically in the following scenarios:
 
-* The TCP Server is stopped
+* The TCP server is stopped.
 * The remote server disconnects the TCP client.
-* The TCP Client disconnects from the remote server due to an error
-* The UDP Client disconnects from the remote server due to an error
+* The TCP client disconnects from the remote server due to an error.
+* The UDP client disconnects from the remote server due to an error.
 * FTP unique or single put operations are completed.
 * An HTTP request is sent.
 
-After exiting data mode, the Serial LTE Modem application returns to the AT-command mode.
+When exiting data mode automatically, the SLM application sends ``#XDATAMODE: 0`` as an unsolicited notification.
+
+After exiting data mode, the SLM application returns to the AT command mode.
 
 Triggering the transmission
 ===========================
@@ -73,8 +82,11 @@ Two triggers can initiate the transmission of the buffered data to the LTE netwo
 Flow control in data mode
 =========================
 
-The MCU must impose flow control to the SLM application over the UART interface when SLM has filled its receiving buffer.
-SLM disables UART receptions until there is buffer space available after the transmission of the data previously received.
+When SLM fills its receiving buffer, the MCU must impose flow control to the SLM over the UART interface to avoid any buffer overflow.
+Otherwise, if SLM imposes flow control, it disables the UART reception when it runs out of space in the buffer, potentially leading to data loss.
+
+SLM reenables UART receptions after the transmission of the data previously received has freed up buffer space.
+The buffer size is set to 3884 bytes by default.
 
 .. note:
    There is no unsolicited notification defined for this event.

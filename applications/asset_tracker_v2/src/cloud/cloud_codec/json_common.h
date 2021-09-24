@@ -183,6 +183,50 @@ int json_common_ui_data_add(cJSON *parent,
 			    cJSON **parent_ref);
 
 /**
+ * @brief Encode and add neighbor cell data to the parent object.
+ *
+ * @param[out] parent Pointer to object that the encoded data is added to.
+ * @param[in] data Pointer to data that is to be encoded.
+ * @param[in] op Operation that is to be carried out.
+ *
+ * @retval 0 on success.
+ * @retval -ENODATA if the passed in data is not queued or has an invalid timestamp value.
+ * @retval -EINVAL if the passed in input arguments do not match what is required by the OP code.
+ * @retval -ENOMEM if the function fails to allocate memory.
+ */
+int json_common_neighbor_cells_data_add(cJSON *parent,
+					struct cloud_data_neighbor_cells *data,
+					enum json_common_op_code op);
+
+/**
+ * @brief Encode and add A-GPS request data to the parent object.
+ *
+ * @param[out] parent Pointer to object that the encoded data is added to.
+ * @param[in] data Pointer to data that is to be encoded.
+ * @param[in] op Operation that is to be carried out.
+ *
+ * @retval 0 on success.
+ * @retval -ENODATA if the passed in data is not queued.
+ * @retval -EINVAL if the passed in input arguments does not match what is required by the OP code.
+ * @retval -ENOMEM if the function fails to allocate memory.
+ */
+int json_common_agps_request_data_add(cJSON *parent,
+				      struct cloud_data_agps_request *data,
+				      enum json_common_op_code op);
+
+/**
+ * @brief Encode and add P-GPS request data to the parent object.
+ *
+ * @param[out] parent Pointer to object that the encoded data is added to.
+ * @param[in] data Pointer to data that is to be encoded.
+ *
+ * @retval 0 on success.
+ * @retval -ENODATA if the passed in data is not queued.
+ * @retval -ENOMEM if the function fails to allocate memory.
+ */
+int json_common_pgps_request_data_add(cJSON *parent, struct cloud_data_pgps_request *data);
+
+/**
  * @brief Encode and add battery data to the parent object.
  *
  * @param[out] parent Pointer to object that the encoded data is added to.

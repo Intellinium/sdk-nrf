@@ -26,7 +26,7 @@ This can be done per platform, while retaining the ability to default to a stand
 .. figure:: images/ot-arch_2x.png
    :alt: OpenThread architecture
 
-   OpenThread architecture
+   OpenThread architecture adapted from `openthread.io <OpenThread system architecture_>`_
 
 .. _ug_thread_architectures_designs_soc_designs:
 
@@ -74,14 +74,14 @@ This platform design is suitable for the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf21540dk_nrf52840
+   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf21540dk_nrf52840
 
 .. _thread_architectures_designs_soc_designs_multiprotocol:
 
 Single-chip, multiprotocol (SoC)
 ================================
 
-nRF52 and nRF53 Series devices support multiple wireless technologies, including IEEE 802.15.4 and Bluetooth Low Energy (Bluetooth LE).
+nRF52 and nRF53 Series devices support multiple wireless technologies, including IEEE 802.15.4 and Bluetooth® Low Energy (Bluetooth LE).
 
 In a single-chip, multiprotocol design, the application layer and OpenThread run on the same processor.
 
@@ -110,7 +110,7 @@ This platform design is suitable for the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuappns
+   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns
 
 .. _thread_architectures_designs_cp:
 

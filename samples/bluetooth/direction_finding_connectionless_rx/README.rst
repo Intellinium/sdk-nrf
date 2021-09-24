@@ -7,7 +7,7 @@ Bluetooth: Direction finding connectionless locator
    :local:
    :depth: 2
 
-The direction finding connectionless locator sample application demonstrates Bluetooth LE direction finding reception.
+The direction finding connectionless locator sample application demonstrates Bluetooth® LE direction finding reception.
 
 Requirements
 ************
@@ -16,7 +16,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52833dk_nrf52833
+   :rows: nrf52833dk_nrf52833, nrf52833dk_nrf52820, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns
 
 The sample also requires an antenna matrix when operating in angle of arrival mode.
 It can be a Nordic Semiconductor design 12 patch antenna matrix, or any other antenna matrix.
@@ -38,6 +38,15 @@ Configuration
 
 |config|
 
+This sample configuration is split into the following two files:
+
+* generic configuration is available in :file:`prj.conf` file
+* board specific configuration is available in :file:`boards/<BOARD>.conf` file
+
+Board specific configuration involves configuring the Bluetooth LE controller.
+For :ref:`nRF5340 DK <ug_nrf5340>`, the Bluetooth LE controller is part of a ``child image`` aimed to run on the network core.
+Configuration for the child image is stored in :file:`child_image/` subdirectory.
+
 Angle of departure mode
 =======================
 
@@ -45,6 +54,8 @@ To build this sample with angle of departure mode only, set ``OVERLAY_CONFIG`` t
 
 See :ref:`cmake_options` for instructions on how to add this option.
 For more information about using configuration overlay files, see :ref:`zephyr:important-build-vars` in the Zephyr documentation.
+
+To build this sample for :ref:`nRF5340 DK <ug_nrf5340>`, with angle of arrival mode only, add content of :file:`overlay-aod.conf` file to :file:`child_image/hci_rpmsg.conf` file.
 
 Antenna matrix configuration for angle of arrival mode
 ======================================================
@@ -112,7 +123,47 @@ The following table presents the patterns that you can use to switch antennas on
 | RFU    | 15 (0b1111)  |
 +--------+--------------+
 
-Building and Running
+Constant Tone Extension transmit and receive parameters
+=======================================================
+
+Constant Tone Extension works in one of two modes, angle of arrival (AoA) or angle of departure (AoD).
+The transmitter is configured with operation mode that is used for CTE transmission.
+The receiver operating mode depends on the configuration.
+By default, both AoA and AoD modes are enabled, and the CTE type is received in the CTEInfo field in PDU's extended advertising header.
+Depending on the operation mode selected for the CTE reception, the receiver's radio peripheral will either execute both antenna switching and CTE sampling (AoA), or CTE sampling only (AoD).
+
+There are two antenna switch slot lengths allowed, 1 µs or 2 µs.
+The transmitter uses the antenna switch slot length to configure radio peripheral in angle of departure mode only.
+The receiver uses the local setting of the antenna switch slot length in angle of arrival mode only.
+When the CTE type in the received PDU is AoD, the receiver's radio peripheral uses the antenna switch slot length appropriate for the AoD type (1 or 2 µs).
+The antenna switch slot length influences the number of IQ samples provided in the IQ samples report.
+
+Constant Tone Extension length is limited to a range between 16 µs and 160 µs.
+The value is provided in units of 8 µs.
+The transmitter is responsible for setting the CTE length.
+The value is sent to the receiver as part of the CTEInfo field in PDU's extended advertising header.
+The receiver's radio peripheral uses the CTE length, provided in periodic advertising PDU, to execute antenna switching and CTE sampling in AoA mode, or CTE sampling only in AoD mode.
+The CTE length has influence on number of IQ samples provided in the IQ samples report.
+
+Constant Tone Extension consists of three periods:
+
+* Guard period that lasts for 4 µs. There is a gap before the actual CTE reception and the adjacent PDU transmission to avoid interference.
+* Reference period where single antenna is used for sampling. The samples are spaced 1 µs from each other. The period duration is 8 µs.
+* Switch-sample period that is split into switch and sample slots. Each slot may be either 1 µs or 2 µs long.
+
+The total number of IQ samples provided by the IQ samples report varies.
+It depends on the CTE length and the antenna switch slot length.
+There will always be 8 samples from the reference period, 1 to 37 samples with 2 µs antenna switching slots, 2 to 74 samples with 1 µs antenna switching slots, meaning 9 to 82 samples in total.
+
+For example, the CTE length is 120 µs and the antenna switching slot is 1 µs.
+This will result in the following number of IQ samples:
+
+* 8 samples from the reference period.
+* Switch-sample period duration is: 120 µs - 16 µs = 104 µs. For the 1 µs antenna switching slot, the sample is taken every 2 µs (1 µs antenna switch slot, 1 µs sample slot). Meaning, the number of samples from the switch-sample period is 104 µs / 2 µs = 52.
+
+The total number of samples is 60.
+
+Building and running
 ********************
 .. |sample path| replace:: :file:`samples/bluetooth/direction_finding_connectionless_rx`
 

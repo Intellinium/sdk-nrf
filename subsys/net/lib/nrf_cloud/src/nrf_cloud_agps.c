@@ -9,6 +9,7 @@
 #include <drivers/gps.h>
 #include <net/socket.h>
 #include <nrf_socket.h>
+#include <nrf_modem_gnss.h>
 #include <cJSON.h>
 #include <cJSON_os.h>
 #include <modem/modem_info.h>
@@ -21,24 +22,11 @@
 
 LOG_MODULE_REGISTER(nrf_cloud_agps, CONFIG_NRF_CLOUD_GPS_LOG_LEVEL);
 
+#include "nrf_cloud_codec.h"
 #include "nrf_cloud_transport.h"
 #include "nrf_cloud_agps_schema_v1.h"
 
-
-#define AGPS_JSON_MSG_TYPE_KEY		"messageType"
-#define AGPS_JSON_MSG_TYPE_VAL_DATA	"DATA"
-
-#define AGPS_JSON_DATA_KEY		"data"
-#define AGPS_JSON_MCC_KEY		"mcc"
-#define AGPS_JSON_MNC_KEY		"mnc"
-#define AGPS_JSON_AREA_CODE_KEY		"tac"
-#define AGPS_JSON_CELL_ID_KEY		"eci"
-#define AGPS_JSON_PHYCID_KEY		"phycid"
 #define AGPS_JSON_TYPES_KEY		"types"
-#define AGPS_JSON_CELL_LOC_KEY_DOREPLY	"doReply"
-
-#define AGPS_JSON_APPID_KEY		"appId"
-#define AGPS_JSON_APPID_VAL_AGPS	"AGPS"
 
 extern void agps_print(enum nrf_cloud_agps_type type, void *data);
 
@@ -47,7 +35,6 @@ static K_SEM_DEFINE(agps_injection_active, 1, 1);
 static int fd = -1;
 static bool agps_print_enabled;
 static const struct device *gps_dev;
-static bool json_initialized;
 static struct gps_agps_request processed;
 static atomic_t request_in_progress;
 
@@ -70,79 +57,12 @@ void agps_print_enable(bool enable)
 	agps_print_enabled = enable;
 }
 
-static int get_modem_info(struct modem_param_info *const modem_info)
+bool nrf_cloud_agps_request_in_progress(void)
 {
-	__ASSERT_NO_MSG(modem_info != NULL);
-
-	int err = modem_info_init();
-
-	if (err) {
-		LOG_ERR("Could not initialize modem info module");
-		return err;
-	}
-
-	err = modem_info_params_init(modem_info);
-	if (err) {
-		LOG_ERR("Could not initialize modem info parameters");
-		return err;
-	}
-
-	err = modem_info_params_get(modem_info);
-	if (err) {
-		LOG_ERR("Could not obtain cell information");
-		return err;
-	}
-
-	return 0;
+	return atomic_get(&request_in_progress) != 0;
 }
 
-static cJSON *json_create_req_obj(const char *const app_id,
-				   const char *const msg_type)
-{
-	__ASSERT_NO_MSG(app_id != NULL);
-	__ASSERT_NO_MSG(msg_type != NULL);
-
-	if (!json_initialized) {
-		cJSON_Init();
-		json_initialized = true;
-	}
-
-	cJSON *resp_obj = cJSON_CreateObject();
-
-	if (!cJSON_AddStringToObject(resp_obj,
-				     AGPS_JSON_APPID_KEY,
-				     app_id) ||
-	    !cJSON_AddStringToObject(resp_obj,
-				     AGPS_JSON_MSG_TYPE_KEY,
-				     msg_type)) {
-		cJSON_Delete(resp_obj);
-		resp_obj = NULL;
-	}
-
-	return resp_obj;
-}
-
-static int json_format_data_obj(cJSON *const data_obj,
-	const struct modem_param_info *const modem_info)
-{
-	__ASSERT_NO_MSG(data_obj != NULL);
-	__ASSERT_NO_MSG(modem_info != NULL);
-
-	if (!cJSON_AddNumberToObject(data_obj, AGPS_JSON_MCC_KEY,
-		modem_info->network.mcc.value) ||
-	    !cJSON_AddNumberToObject(data_obj, AGPS_JSON_MNC_KEY,
-		modem_info->network.mnc.value) ||
-	    !cJSON_AddNumberToObject(data_obj, AGPS_JSON_AREA_CODE_KEY,
-		modem_info->network.area_code.value) ||
-	    !cJSON_AddNumberToObject(data_obj, AGPS_JSON_CELL_ID_KEY,
-		(uint32_t)modem_info->network.cellid_dec) ||
-	    !cJSON_AddNumberToObject(data_obj, AGPS_JSON_PHYCID_KEY, 0)) {
-		return -ENOMEM;
-	}
-
-	return 0;
-}
-
+#if IS_ENABLED(CONFIG_NRF_CLOUD_MQTT)
 static int json_add_types_array(cJSON *const obj, enum gps_agps_type *types,
 				const size_t type_count)
 {
@@ -171,61 +91,11 @@ static int json_add_types_array(cJSON *const obj, enum gps_agps_type *types,
 
 	return 0;
 }
-
-static int json_add_modem_info(cJSON *const data_obj)
-{
-	__ASSERT_NO_MSG(data_obj != NULL);
-
-	struct modem_param_info modem_info = {0};
-	int err;
-
-	err = get_modem_info(&modem_info);
-	if (err) {
-		return err;
-	}
-
-	return json_format_data_obj(data_obj, &modem_info);
-}
-
-static int json_send_to_cloud(cJSON *const agps_request)
-{
-	__ASSERT_NO_MSG(agps_request != NULL);
-
-	char *msg_string;
-	int err;
-
-	msg_string = cJSON_PrintUnformatted(agps_request);
-	if (!msg_string) {
-		LOG_ERR("Could not allocate memory for A-GPS request message");
-		return -ENOMEM;
-	}
-
-	LOG_DBG("Created A-GPS request: %s", log_strdup(msg_string));
-
-	struct nct_dc_data msg = {
-		.data.ptr = msg_string,
-		.data.len = strlen(msg_string)
-	};
-
-	err = nct_dc_send(&msg);
-	if (err) {
-		LOG_ERR("Failed to send A-GPS request, error: %d", err);
-	} else {
-		LOG_DBG("A-GPS request sent");
-	}
-
-	k_free(msg_string);
-
-	return err;
-}
-
-bool nrf_cloud_agps_request_in_progress(void)
-{
-	return atomic_get(&request_in_progress) != 0;
-}
+#endif /* IS_ENABLED(CONFIG_NRF_CLOUD_MQTT) */
 
 int nrf_cloud_agps_request(const struct gps_agps_request request)
 {
+#if IS_ENABLED(CONFIG_NRF_CLOUD_MQTT)
 	int err;
 	enum gps_agps_type types[9];
 	size_t type_count = 0;
@@ -276,9 +146,9 @@ int nrf_cloud_agps_request(const struct gps_agps_request request)
 	}
 
 	/* Create request JSON containing a data object */
-	agps_req_obj = json_create_req_obj(AGPS_JSON_APPID_VAL_AGPS,
-					   AGPS_JSON_MSG_TYPE_VAL_DATA);
-	data_obj = cJSON_AddObjectToObject(agps_req_obj, AGPS_JSON_DATA_KEY);
+	agps_req_obj = json_create_req_obj(NRF_CLOUD_JSON_APPID_VAL_AGPS,
+					   NRF_CLOUD_JSON_MSG_TYPE_VAL_DATA);
+	data_obj = cJSON_AddObjectToObject(agps_req_obj, NRF_CLOUD_JSON_DATA_KEY);
 
 	if (!agps_req_obj || !data_obj) {
 		err = -ENOMEM;
@@ -286,7 +156,7 @@ int nrf_cloud_agps_request(const struct gps_agps_request request)
 	}
 
 	/* Add modem info and A-GPS types to the data object */
-	err = json_add_modem_info(data_obj);
+	err = nrf_cloud_json_add_modem_info(data_obj);
 	if (err) {
 		LOG_ERR("Failed to add modem info to A-GPS request: %d", err);
 		goto cleanup;
@@ -306,6 +176,12 @@ cleanup:
 	cJSON_Delete(agps_req_obj);
 
 	return err;
+#else /* IS_ENABLED(CONFIG_NRF_CLOUD_MQTT) */
+
+	LOG_ERR("CONFIG_NRF_CLOUD_MQTT must be enabled in order to use this API");
+
+	return -ENOTSUP;
+#endif
 }
 
 int nrf_cloud_agps_request_all(void)
@@ -339,21 +215,21 @@ static int send_to_modem(void *data, size_t data_len,
 		agps_print(type, data);
 	}
 
-	/* At this point, GPS driver or app-provided socket is assumed. */
 	if (gps_dev) {
-		return gps_agps_write(gps_dev, type_socket2gps(type), data,
-				      data_len);
-	}
-
-	err = nrf_sendto(fd, data, data_len, 0, &type, sizeof(type));
-	if (err < 0) {
-		LOG_ERR("Failed to send AGPS data to modem, errno: %d", errno);
-		err = -errno;
+		/* GPS driver */
+		err = gps_agps_write(gps_dev, type_socket2gps(type), data, data_len);
+	} else if (fd != -1) {
+		/* GNSS socket */
+		err = nrf_sendto(fd, data, data_len, 0, &type, sizeof(type));
+		if (err < 0) {
+			err = -errno;
+		} else {
+			err = 0;
+		}
 	} else {
-		err = 0;
+		/* GNSS API */
+		err = nrf_modem_gnss_agps_write(data, data_len, type);
 	}
-
-	LOG_DBG("A-GSP data sent to modem");
 
 	return err;
 }
@@ -680,14 +556,6 @@ int nrf_cloud_agps_process(const char *buf, size_t buf_len, const int *socket)
 	size_t parsed_len = 0;
 	uint8_t version;
 
-
-	err = k_sem_take(&agps_injection_active, K_FOREVER);
-	if (err) {
-		LOG_ERR("A-GPS injection already active.");
-		return err;
-	}
-	LOG_DBG("A-GPS_injection_active LOCKED");
-
 	version = buf[NRF_CLOUD_AGPS_BIN_SCHEMA_VERSION_INDEX];
 	parsed_len += NRF_CLOUD_AGPS_BIN_SCHEMA_VERSION_SIZE;
 
@@ -699,18 +567,25 @@ int nrf_cloud_agps_process(const char *buf, size_t buf_len, const int *socket)
 	LOG_DBG("Received AGPS data. Schema version: %d, length: %d",
 		version, buf_len);
 
+	err = k_sem_take(&agps_injection_active, K_FOREVER);
+	if (err) {
+		LOG_ERR("A-GPS injection already active.");
+		return err;
+	}
+
+	LOG_DBG("A-GPS_injection_active LOCKED");
+
 	if (socket) {
 		LOG_DBG("Using user-provided socket, fd %d", fd);
 
 		gps_dev = NULL;
 		fd = *socket;
-	} else if (gps_dev == NULL) {
+	} else {
 		gps_dev = device_get_binding("NRF9160_GPS");
-		if (gps_dev == NULL) {
-			LOG_ERR("GPS is not enabled, A-GPS response unhandled");
-			LOG_DBG("A-GPS_inject_active UNLOCKED");
-			k_sem_give(&agps_injection_active);
-			return -ENODEV;
+		if (gps_dev != NULL) {
+			LOG_DBG("Using GPS driver to input assistance data");
+		} else {
+			LOG_DBG("Using GNSS API to input assistance data");
 		}
 	}
 
@@ -725,7 +600,7 @@ int nrf_cloud_agps_process(const char *buf, size_t buf_len, const int *socket)
 
 		parsed_len += element_size;
 
-		LOG_DBG("Parsed_len: %d\n", parsed_len);
+		LOG_DBG("Parsed_len: %d", parsed_len);
 
 		if (element.type == NRF_CLOUD_AGPS_GPS_TOWS) {
 			memcpy(&sys_time.sv_tow[element.tow->sv_id - 1],

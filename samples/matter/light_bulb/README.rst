@@ -23,17 +23,12 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp
+   :rows: nrf52840dk_nrf52840, nrf5340dk_nrf5340_cpuapp, nrf21540dk_nrf52840
 
 For remote testing scenarios, you also need the following:
 
-* If you want to commission the light bulb device and :ref:`control it remotely <matter_light_bulb_network_mode>` through a Thread network:
-
-  * A Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>`.
-
-* If you want to use the :ref:`test mode <matter_light_bulb_sample_test_mode>` and control the light bulb using light switch:
-
-  * :ref:`Matter light switch <matter_light_switch_sample>` programmed to another supported development kit.
+* If you want to commission the light bulb device and :ref:`control it remotely <matter_light_bulb_network_mode>` through a Thread network: a Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>` (which requires additional hardware depending on which setup you choose).
+* If you want to use the :ref:`test mode <matter_light_bulb_sample_test_mode>` and control the light bulb using light switch, the :ref:`Matter light switch <matter_light_switch_sample>` sample programmed to another supported development kit.
 
 .. note::
     |matter_gn_required_note|
@@ -83,6 +78,11 @@ Device Firmware Upgrade support
     :start-after: matter_door_lock_sample_build_with_dfu_start
     :end-before: matter_door_lock_sample_build_with_dfu_end
 
+FEM support
+===========
+
+.. include:: /includes/sample_fem_support.txt
+
 User interface
 **************
 
@@ -111,11 +111,12 @@ Button 3:
     If for some reason the light switch device is not able to receive messages during this predefined period of time, you can restart publishing service by pressing this button again.
 
 Button 4:
-    Starts the the NFC tag emulation, enables Bluetooth LE advertising for the predefined period of time, and makes the device discoverable over Bluetooth LE.
+    Starts the NFC tag emulation, enables Bluetooth® LE advertising for the predefined period of time (15 minutes by default), and makes the device discoverable over Bluetooth LE.
     This button is used during the :ref:`commissioning procedure <matter_light_bulb_sample_remote_control_commissioning>`.
 
-SEGGER J-Link USB port:
-    Used for getting logs from the device or communicating with it through the command-line interface.
+.. include:: ../lock/README.rst
+    :start-after: matter_door_lock_sample_jlink_start
+    :end-before: matter_door_lock_sample_jlink_end
 
 NFC port with antenna attached:
     Optionally used for obtaining the commissioning information from the Matter accessory device to start the :ref:`commissioning procedure <matter_light_bulb_sample_remote_control_commissioning>`.
@@ -193,10 +194,16 @@ Commissioning the device
     :start-after: matter_door_lock_sample_commissioning_start
     :end-before: matter_door_lock_sample_commissioning_end
 
+Before starting the commissioning procedure, the device must be made discoverable over Bluetooth LE, which starts automatically upon the device startup, but only for a predefined period of time (15 minutes by default).
+If the Bluetooth LE advertising times out, you can re-enable it by pressing **Button 4**.
+
+When you start the commissioning procedure, the controller must get the commissioning information from the Matter accessory device.
+The data payload, which includes the device discriminator and setup PIN code, is encoded within a QR code, printed to the UART console, and can be shared using an NFC tag.
+
 Upgrading the device firmware
 =============================
 
-To upgrade the device firmware, complete the steps listed for the selected method in the `Performing Device Firmware Upgrade in Matter device`_ tutorial.
+To upgrade the device firmware, complete the steps listed for the selected method in the :doc:`matter:nrfconnect_examples_software_update` tutorial in the Matter documentation.
 
 Dependencies
 ************

@@ -586,10 +586,8 @@ static int send_scheduler_action_status(struct bt_mesh_model *model,
 	return model_send(model, ctx, &buf);
 }
 
-static void action_set(struct bt_mesh_model *model,
-		       struct bt_mesh_msg_ctx *ctx,
-		       struct net_buf_simple *buf,
-		       bool ack)
+static int action_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+		      struct net_buf_simple *buf, bool ack)
 {
 	struct bt_mesh_scheduler_srv *srv = model->user_data;
 	uint8_t idx;
@@ -606,7 +604,7 @@ static void action_set(struct bt_mesh_model *model,
 	    (tmp.action > BT_MESH_SCHEDULER_SCENE_RECALL &&
 			    tmp.action != BT_MESH_SCHEDULER_NO_ACTIONS) ||
 	    idx >= BT_MESH_SCHEDULER_ACTION_ENTRY_COUNT) {
-		return;
+		return -EINVAL;
 	}
 
 	srv->sch_reg[idx] = tmp;
@@ -635,55 +633,58 @@ static void action_set(struct bt_mesh_model *model,
 	if (ack) { /* reply on the action set command */
 		send_scheduler_action_status(model, ctx, idx, false);
 	}
+
+	return 0;
 }
 
-static void handle_scheduler_get(struct bt_mesh_model *model,
-				 struct bt_mesh_msg_ctx *ctx,
-				 struct net_buf_simple *buf)
+static int handle_scheduler_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				struct net_buf_simple *buf)
 {
 	BT_DBG("Rx: scheduler server get");
 	send_scheduler_status(model, ctx);
+
+	return 0;
 }
 
-static void handle_scheduler_action_get(struct bt_mesh_model *model,
-					struct bt_mesh_msg_ctx *ctx,
-					struct net_buf_simple *buf)
+static int handle_scheduler_action_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				       struct net_buf_simple *buf)
 {
 	struct bt_mesh_scheduler_srv *srv = model->user_data;
 	uint8_t idx = net_buf_simple_pull_u8(buf);
 
 	if (idx >= BT_MESH_SCHEDULER_ACTION_ENTRY_COUNT) {
-		return;
+		return -ENOENT;
 	}
 
 	BT_DBG("Rx: scheduler server action index %d get", idx);
 	send_scheduler_action_status(model, ctx, idx,
 			!is_entry_defined(srv, idx));
+
+	return 0;
 }
 
-static void handle_scheduler_action_set(struct bt_mesh_model *model,
-					struct bt_mesh_msg_ctx *ctx,
-					struct net_buf_simple *buf)
+static int handle_scheduler_action_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+				       struct net_buf_simple *buf)
 {
-	action_set(model, ctx, buf, true);
+	return action_set(model, ctx, buf, true);
 }
 
-static void handle_scheduler_action_set_unack(struct bt_mesh_model *model,
-					      struct bt_mesh_msg_ctx *ctx,
-					      struct net_buf_simple *buf)
+static int handle_scheduler_action_set_unack(struct bt_mesh_model *model,
+					     struct bt_mesh_msg_ctx *ctx,
+					     struct net_buf_simple *buf)
 {
-	action_set(model, ctx, buf, false);
+	return action_set(model, ctx, buf, false);
 }
 
 const struct bt_mesh_model_op _bt_mesh_scheduler_srv_op[] = {
 	{
 		BT_MESH_SCHEDULER_OP_GET,
-		BT_MESH_SCHEDULER_MSG_LEN_GET,
+		BT_MESH_LEN_EXACT(BT_MESH_SCHEDULER_MSG_LEN_GET),
 		handle_scheduler_get,
 	},
 	{
 		BT_MESH_SCHEDULER_OP_ACTION_GET,
-		BT_MESH_SCHEDULER_MSG_LEN_ACTION_GET,
+		BT_MESH_LEN_EXACT(BT_MESH_SCHEDULER_MSG_LEN_ACTION_GET),
 		handle_scheduler_action_get,
 	},
 	BT_MESH_MODEL_OP_END,
@@ -692,12 +693,12 @@ const struct bt_mesh_model_op _bt_mesh_scheduler_srv_op[] = {
 const struct bt_mesh_model_op _bt_mesh_scheduler_setup_srv_op[] = {
 	{
 		BT_MESH_SCHEDULER_OP_ACTION_SET,
-		BT_MESH_SCHEDULER_MSG_LEN_ACTION_SET,
+		BT_MESH_LEN_EXACT(BT_MESH_SCHEDULER_MSG_LEN_ACTION_SET),
 		handle_scheduler_action_set,
 	},
 	{
 		BT_MESH_SCHEDULER_OP_ACTION_SET_UNACK,
-		BT_MESH_SCHEDULER_MSG_LEN_ACTION_SET,
+		BT_MESH_LEN_EXACT(BT_MESH_SCHEDULER_MSG_LEN_ACTION_SET),
 		handle_scheduler_action_set_unack,
 	},
 	BT_MESH_MODEL_OP_END,
@@ -725,19 +726,6 @@ static int scheduler_srv_init(struct bt_mesh_model *model)
 	net_buf_simple_init_with_data(&srv->pub_buf, srv->pub_data,
 			sizeof(srv->pub_data));
 	srv->active_bitmap = 0;
-
-	/* Model extensions:
-	 * To simplify the model extension tree, we're flipping the
-	 * relationship between the scheduler server and the scheduler
-	 * setup server. In the specification, the scheduler setup
-	 * server extends the scheduler server, which is the opposite
-	 * of what we're doing here. This makes no difference for
-	 * the mesh stack, but it makes it a lot easier to extend
-	 * this model, as we won't have to support multiple extenders.
-	 */
-	bt_mesh_model_extend(model, bt_mesh_model_find(
-			bt_mesh_model_elem(model),
-			BT_MESH_MODEL_ID_SCHEDULER_SETUP_SRV));
 
 	srv->idx = BT_MESH_SCHEDULER_ACTION_ENTRY_COUNT;
 	k_work_init_delayable(&srv->delayed_work, scheduled_action_handle);
@@ -800,6 +788,17 @@ const struct bt_mesh_model_cb _bt_mesh_scheduler_srv_cb = {
 #ifdef CONFIG_BT_SETTINGS
 	.settings_set = scheduler_srv_settings_set
 #endif
+};
+
+static int scheduler_setup_srv_init(struct bt_mesh_model *model)
+{
+	struct bt_mesh_scheduler_srv *srv = model->user_data;
+
+	return bt_mesh_model_extend(model, srv->model);
+}
+
+const struct bt_mesh_model_cb _bt_mesh_scheduler_setup_srv_cb = {
+	.init = scheduler_setup_srv_init,
 };
 
 int bt_mesh_scheduler_srv_time_update(struct bt_mesh_scheduler_srv *srv)

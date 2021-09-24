@@ -1,34 +1,37 @@
 # Zephyr documentation build configuration file
 
+import os
 from pathlib import Path
 import sys
-import os
 from sphinx.config import eval_config_file
 
 
 # Paths ------------------------------------------------------------------------
 
-NRF_BASE = Path(__file__).absolute().parent / ".." / ".."
-
-ZEPHYR_BASE = os.environ.get("ZEPHYR_BASE")
-if not ZEPHYR_BASE:
-    raise FileNotFoundError("ZEPHYR_BASE not defined")
-ZEPHYR_BASE = Path(ZEPHYR_BASE)
+NRF_BASE = Path(__file__).absolute().parents[2]
 
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
 
-# pylint: disable=undefined-variable
+ZEPHYR_BASE = utils.get_projdir("zephyr")
+
+# pylint: disable=undefined-variable,used-before-assignment
 
 # General ----------------------------------------------------------------------
 
 # Import all Zephyr configuration, override as needed later
+os.environ["ZEPHYR_BASE"] = str(ZEPHYR_BASE)
+os.environ["ZEPHYR_BUILD"] = str(utils.get_builddir() / "zephyr")
+
 conf = eval_config_file(str(ZEPHYR_BASE / "doc" / "conf.py"), tags)
 locals().update(conf)
 
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
 
-extensions.extend(["sphinx.ext.intersphinx", "external_content"])
+extensions = [
+    "sphinx.ext.intersphinx",
+    "ncs_cache",
+] + extensions
 
 # Options for HTML output ------------------------------------------------------
 
@@ -60,22 +63,14 @@ kconfig_mapping = utils.get_intersphinx_mapping("kconfig")
 if kconfig_mapping:
     intersphinx_mapping["kconfig"] = kconfig_mapping
 
-# Options for external_content -------------------------------------------------
+# Options for ncs_cache --------------------------------------------------------
 
-external_content_contents = [
-    (ZEPHYR_BASE / "doc", "[!_]*"),
-    (ZEPHYR_BASE, "boards/**/*.rst"),
-    (ZEPHYR_BASE, "boards/**/doc"),
-    (ZEPHYR_BASE, "samples/**/*.rst"),
-    (ZEPHYR_BASE, "samples/**/doc"),
-]
-external_content_keep = [
-    "reference/devicetree/bindings.rst",
-    "reference/devicetree/bindings/**/*",
-    "reference/devicetree/compatibles/**/*",
-]
+ncs_cache_docset = "zephyr"
+ncs_cache_build_dir = utils.get_builddir()
+ncs_cache_config = NRF_BASE / "doc" / "cache.yml"
+ncs_cache_manifest = NRF_BASE / "west.yml"
 
-# pylint: enable=undefined-variable
+# pylint: enable=undefined-variable,used-before-assignment
 
 
 def setup(app):

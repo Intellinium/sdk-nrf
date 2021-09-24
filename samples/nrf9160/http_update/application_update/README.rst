@@ -27,7 +27,7 @@ The sample supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 The sample also requires a signed firmware image that is available for download from an HTTP server.
 This image is automatically generated when building the application.
@@ -41,7 +41,7 @@ Building and running
 
 .. include:: /includes/build_and_run.txt
 
-The sample is built as a non-secure firmware image for the nrf9160dk_nrf9160ns build target.
+The sample is built as a non-secure firmware image for the nrf9160dk_nrf9160_ns build target.
 Because of this, it automatically includes the :ref:`secure_partition_manager`.
 The sample also uses MCUboot, which is automatically built and merged into the final HEX file when building the sample.
 
@@ -82,7 +82,7 @@ After programming the sample to your development kit, test it by performing the 
    To do so, either change ``CONFIG_APPLICATION_VERSION`` to 2 in the :file:`prj.conf` file, or select :guilabel:`Project` > :guilabel:`Configure nRF Connect SDK Project` > :guilabel:`HTTP application update sample` in |SES| and change the value for :guilabel:`Application version`.
    Then rebuild the application.
 #. Upload the file :file:`update.bin` to the server you have chosen.
-   To upload the file on nRF Connect for Cloud, click :guilabel:`Upload` for the firmware URL that you generated earlier.
+   To upload the file on nRF Cloud, click :guilabel:`Upload` for the firmware URL that you generated earlier.
    Then select the file :file:`update.bin` and upload it.
 #. Reset your nRF9160 DK to start the application.
 #. Open a terminal emulator and observe that an output similar to this is printed:

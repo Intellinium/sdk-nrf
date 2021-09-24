@@ -55,7 +55,9 @@ endif()
 #
 # The dynamic partition is specified by the parent domain (i.e. the domain
 # which creates the current domain through 'create_domain_image()'.
-if("${IMAGE_NAME}" STREQUAL "${${DOMAIN}_PM_DOMAIN_DYNAMIC_PARTITION}_")
+if(DEFINED ${DOMAIN}_PM_DOMAIN_DYNAMIC_PARTITION
+   AND "${IMAGE_NAME}" STREQUAL "${${DOMAIN}_PM_DOMAIN_DYNAMIC_PARTITION}"
+)
   set(is_dynamic_partition_in_domain TRUE)
 endif()
 
@@ -111,22 +113,22 @@ set_property(GLOBAL PROPERTY
 # Prepare the input_files, header_files, and images lists
 set(generated_path include/generated)
 foreach (image ${PM_IMAGES})
-  set(shared_vars_file ${CMAKE_BINARY_DIR}/${image}/shared_vars.cmake)
-  if (NOT (EXISTS ${shared_vars_file}))
-    message(FATAL_ERROR "Could not find shared vars file: ${shared_vars_file}")
-  endif()
-  include(${shared_vars_file})
   list(APPEND prefixed_images ${DOMAIN}:${image})
   list(APPEND images ${image})
-  list(APPEND input_files  ${${image}_PM_YML_FILES})
-  list(APPEND header_files ${${image}_ZEPHYR_BINARY_DIR}/${generated_path}/pm_config.h)
+
+  get_shared(${image}_input_files IMAGE ${image} PROPERTY PM_YML_FILES)
+  get_shared(${image}_binary_dir  IMAGE ${image} PROPERTY ZEPHYR_BINARY_DIR)
+
+  list(APPEND input_files  ${${image}_input_files})
+  list(APPEND header_files ${${image}_binary_dir}/${generated_path}/pm_config.h)
 
   # Re-configure (Re-execute all CMakeLists.txt code) when original
   # (not preprocessed) configuration file changes.
+  get_shared(dependencies IMAGE ${image} PROPERTY PM_YML_DEP_FILES)
   set_property(
     DIRECTORY APPEND PROPERTY
     CMAKE_CONFIGURE_DEPENDS
-    ${${image}_PM_YML_DEP_FILES}
+    ${dependencies}
     )
 endforeach()
 
@@ -175,13 +177,61 @@ add_region(
   DEVICE NRF_FLASH_DRV_NAME
   )
 
-if (CONFIG_PM_EXTERNAL_FLASH)
+dt_chosen(ext_flash_dev PROPERTY nordic,pm-ext-flash)
+if (DEFINED ext_flash_dev)
+  dt_prop(dev_name PATH ${ext_flash_dev} PROPERTY label)
+  dt_prop(num_bits PATH ${ext_flash_dev} PROPERTY size)
+  math(EXPR num_bytes "${num_bits} / 8")
+
+  add_region(
+    NAME external_flash
+    SIZE ${num_bytes}
+    BASE ${CONFIG_PM_EXTERNAL_FLASH_BASE}
+    PLACEMENT start_to_end
+    DEVICE ${dev_name}
+    )
+elseif(CONFIG_PM_EXTERNAL_FLASH)
+  if (NOT CONFIG_PM_EXTERNAL_FLASH_SUPPORT_LEGACY)
+    message(WARNING "\
+External flash for partition manager is configured through Kconfig. This \
+should now be done through devicetree instead. See 'Using external flash \
+memory partitions' chapter in the documentation for instructions on how to \
+fix this, or enable `CONFIG_PM_EXTERNAL_FLASH_SUPPORT_LEGACY` in Kconfig.")
+  endif()
+
   add_region(
     NAME external_flash
     SIZE ${CONFIG_PM_EXTERNAL_FLASH_SIZE}
     BASE ${CONFIG_PM_EXTERNAL_FLASH_BASE}
     PLACEMENT start_to_end
     DEVICE ${CONFIG_PM_EXTERNAL_FLASH_DEV_NAME}
+    )
+endif()
+
+# If simultaneous updates of the network core and application core is supported
+# we add a region which is used to emulate flash. In reality this data is being
+# placed in RAM. This is used to bank the network core update in RAM while
+# the application core update is banked in flash. This works since the nRF53
+# application core has 512kB of RAM and the network core only has 256kB of flash
+get_shared(
+  mcuboot_NRF53_MULTI_IMAGE_UPDATE
+  IMAGE mcuboot
+  PROPERTY NRF53_MULTI_IMAGE_UPDATE
+  )
+
+if (DEFINED mcuboot_NRF53_MULTI_IMAGE_UPDATE)
+  # This region will contain the 'mcuboot_secondary' partition, and the banked
+  # updates for the network core will be stored here.
+  get_shared(ram_flash_label IMAGE mcuboot PROPERTY RAM_FLASH_LABEL)
+  get_shared(ram_flash_addr IMAGE mcuboot PROPERTY RAM_FLASH_ADDR)
+  get_shared(ram_flash_size IMAGE mcuboot PROPERTY RAM_FLASH_SIZE)
+
+  add_region(
+    NAME ram_flash
+    SIZE ${ram_flash_size}
+    BASE ${ram_flash_addr}
+    PLACEMENT start_to_end
+    DEVICE ${ram_flash_label}
     )
 endif()
 
@@ -271,8 +321,11 @@ foreach(part ${PM_ALL_BY_SIZE})
     list(APPEND explicitly_assigned ${part})
   else()
     if(${part} IN_LIST images)
-      set(${part}_PM_HEX_FILE ${${part}_ZEPHYR_BINARY_DIR}/${${part}_KERNEL_HEX_NAME})
-      set(${part}_PM_ELF_FILE ${${part}_ZEPHYR_BINARY_DIR}/${${part}_KERNEL_ELF_NAME})
+      get_shared(${part}_bin_dir  IMAGE ${part} PROPERTY ZEPHYR_BINARY_DIR)
+      get_shared(${part}_hex_file IMAGE ${part} PROPERTY KERNEL_HEX_NAME)
+      get_shared(${part}_elf_file IMAGE ${part} PROPERTY KERNEL_ELF_NAME)
+      set(${part}_PM_HEX_FILE ${${part}_bin_dir}/${${part}_hex_file})
+      set(${part}_PM_ELF_FILE ${${part}_bin_dir}/${${part}_elf_file})
       set(${part}_PM_TARGET ${part}_subimage)
     elseif(${part} IN_LIST containers)
       set(${part}_PM_HEX_FILE ${PROJECT_BINARY_DIR}/${part}.hex)
@@ -371,18 +424,21 @@ if (is_dynamic_partition_in_domain)
   # Expose the generated partition manager configuration files to parent image.
   # This is used by the root image to create the global configuration in
   # pm_config.h.
-  share("set(${DOMAIN}_PM_DOMAIN_PARTITIONS ${pm_out_partition_file})")
-  share("set(${DOMAIN}_PM_DOMAIN_REGIONS ${pm_out_region_file})")
-  share("set(${DOMAIN}_PM_DOMAIN_HEADER_FILES ${header_files})")
-  share("set(${DOMAIN}_PM_DOMAIN_IMAGES ${prefixed_images})")
-  share("set(${DOMAIN}_PM_HEX_FILE ${PROJECT_BINARY_DIR}/${merged}.hex)")
-  share("set(${DOMAIN}_PM_DOTCONF_FILES ${pm_out_dotconf_file})")
-  share("set(${DOMAIN}_PM_APP_HEX ${PROJECT_BINARY_DIR}/app.hex)")
-  share("set(${DOMAIN}_PM_SIGNED_APP_HEX ${PROJECT_BINARY_DIR}/signed_by_b0_app.hex)")
-  share("list(APPEND ${IMAGE_NAME}BUILD_BYPRODUCTS ${PROJECT_BINARY_DIR}/${merged}.hex)")
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_DOMAIN_PARTITIONS ${pm_out_partition_file})
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_DOMAIN_REGIONS ${pm_out_region_file})
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_DOMAIN_HEADER_FILES ${header_files})
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_DOMAIN_IMAGES ${prefixed_images})
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_HEX_FILE ${PROJECT_BINARY_DIR}/${merged}.hex)
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_DOTCONF_FILES ${pm_out_dotconf_file})
+  set_shared(IMAGE ${DOMAIN} PROPERTY PM_APP_HEX ${PROJECT_BINARY_DIR}/app.hex)
+  set_shared(IMAGE ${IMAGE_NAME} APPEND PROPERTY BUILD_BYPRODUCTS ${PROJECT_BINARY_DIR}/${merged}.hex)
+  if(CONFIG_SECURE_BOOT)
+    # Only when secure boot is enabled the app will be signed.
+    set_shared(IMAGE ${DOMAIN} PROPERTY PM_SIGNED_APP_HEX ${PROJECT_BINARY_DIR}/signed_by_b0_app.hex)
+  endif()
 else()
   # This is the root image, generate the global pm_config.h
-  # First, include the shared_vars.cmake file for all child images.
+  # First, include the shared properties for all child images.
   if (PM_DOMAINS)
     # We ensure the existence of PM_DOMAINS to support older cmake versions.
     # When version >= 3.17 is required this check can be removed.
@@ -391,19 +447,18 @@ else()
   foreach (d ${PM_DOMAINS})
     # Don't include shared vars from own domain.
     if (NOT ("${DOMAIN}" STREQUAL "${d}"))
-      set(shared_vars_file
-        ${CMAKE_BINARY_DIR}/${${d}_PM_DOMAIN_DYNAMIC_PARTITION}/shared_vars.cmake
-        )
-      if (NOT (EXISTS ${shared_vars_file}))
-        message(FATAL_ERROR "Could not find shared vars file: ${shared_vars_file}")
-      endif()
-      include(${shared_vars_file})
-      list(APPEND header_files ${${d}_PM_DOMAIN_HEADER_FILES})
-      list(APPEND prefixed_images ${${d}_PM_DOMAIN_IMAGES})
-      list(APPEND pm_out_partition_file ${${d}_PM_DOMAIN_PARTITIONS})
-      list(APPEND pm_out_region_file ${${d}_PM_DOMAIN_REGIONS})
-      list(APPEND global_hex_depends ${${d}_PM_DOMAIN_DYNAMIC_PARTITION}_subimage)
-      list(APPEND domain_hex_files ${${d}_PM_HEX_FILE})
+      get_shared(shared_header_files          IMAGE ${d} PROPERTY PM_DOMAIN_HEADER_FILES)
+      get_shared(shared_prefixed_images       IMAGE ${d} PROPERTY PM_DOMAIN_IMAGES)
+      get_shared(shared_pm_out_partition_file IMAGE ${d} PROPERTY PM_DOMAIN_PARTITIONS)
+      get_shared(shared_pm_out_region_file    IMAGE ${d} PROPERTY PM_DOMAIN_REGIONS)
+      get_shared(shared_domain_hex_files      IMAGE ${d} PROPERTY PM_HEX_FILE)
+
+      list(APPEND header_files          ${shared_header_files})
+      list(APPEND prefixed_images       ${shared_prefixed_images})
+      list(APPEND pm_out_partition_file ${shared_pm_out_partition_file})
+      list(APPEND pm_out_region_file    ${shared_pm_out_region_file})
+      list(APPEND domain_hex_files      ${shared_domain_hex_files})
+      list(APPEND global_hex_depends    ${${d}_PM_DOMAIN_DYNAMIC_PARTITION}_subimage)
 
       # Add domain prefix cmake variables for all partitions
       # Here, we actually overwrite the already imported kconfig values
@@ -411,7 +466,8 @@ else()
       # are accessed through the 'partition_manager' target, and most likely
       # through generator expression, as this file is one of the last
       # cmake files executed in the configure stage.
-      import_kconfig(PM_ ${${d}_PM_DOTCONF_FILES} ${d}_pm_var_names)
+      get_shared(conf_file IMAGE ${d} PROPERTY PM_DOTCONF_FILES)
+      import_kconfig(PM_ ${conf_file} ${d}_pm_var_names)
 
       foreach(name ${${d}_pm_var_names})
         set_property(
@@ -420,35 +476,101 @@ else()
           ${${name}}
           )
       endforeach()
-
-      if (CONFIG_NRF53_UPGRADE_NETWORK_CORE
-          AND CONFIG_HCI_RPMSG_BUILD_STRATEGY_FROM_SOURCE)
-          # Create symbols for the offset reqired for moving the signed network
-          # core application to MCUBoots secondary slot. This is needed
-          # because  objcopy does not support arithmetic expressions as argument
-          # (e.g. '0x100+0x200'), and all of the symbols used to generate the
-          # offset are only available as a generator expression when MCUBoots
-          # cmake code exectues.
-
-          get_target_property(
-            net_app_addr
-            partition_manager
-            CPUNET_PM_APP_ADDRESS
-            )
-
-          # There is no padding in front of the network core application.
-          math(EXPR net_app_TO_SECONDARY
-            "${PM_MCUBOOT_SECONDARY_ADDRESS} - ${net_app_addr} + ${PM_MCUBOOT_PAD_SIZE}")
-
-          set_property(
-            TARGET partition_manager
-            PROPERTY net_app_TO_SECONDARY
-            ${net_app_TO_SECONDARY}
-            )
-        endif()
-
     endif()
   endforeach()
+
+  if (CONFIG_BOOTLOADER_MCUBOOT)
+    if (CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
+      # First we see if an ext flash dev has been chosen, if not, then we look
+      # up the 'qspi' node and assume that this has the required address.
+      if (DEFINED ext_flash_dev)
+        get_filename_component(qspi_node ${ext_flash_dev} DIRECTORY)
+      else()
+        dt_nodelabel(qspi_node NODELABEL "qspi")
+      endif()
+
+      # If the qspi node is still not defined we are building on a platform
+      # which does not have the qspi peripheral, in which case no hex files
+      # will be generated for the secondary slot.
+      if(DEFINED qspi_node)
+        dt_reg_addr(xip_addr PATH ${qspi_node} NAME qspi_mm)
+        if(NOT DEFINED xip_addr)
+          message(WARNING "\
+Could not find memory mapped address for XIP. Generated update hex files will \
+not have the correct base address. Hence they can not be programmed directly \
+to the external flash")
+        endif()
+      endif()
+    endif()
+
+    # Create symbols for the offset required for moving the signed network
+    # core application to MCUBoots secondary slot. This is needed
+    # because  objcopy does not support arithmetic expressions as argument
+    # (e.g. '0x100+0x200'), and all of the symbols used to generate the
+    # offset are only available as a generator expression when MCUBoots
+    # cmake code executes.
+
+    # Check if a signed version of the network core application is defined.
+    # If so, this indicates that we need to support firmware updates on the
+    # network core. This again means that we should generate the required
+    # hex files.
+    get_shared(cpunet_signed_app_hex IMAGE CPUNET PROPERTY PM_SIGNED_APP_HEX)
+
+    if (CONFIG_NRF53_UPGRADE_NETWORK_CORE
+        AND DEFINED cpunet_signed_app_hex)
+      # The address coming from other domains are not available in this scope
+      # since it is imported by a different domain. Hence, it must be fetched
+      # through the 'partition_manager' target.
+      get_target_property(net_app_addr partition_manager CPUNET_PM_APP_ADDRESS)
+
+      get_shared(
+        mcuboot_NRF53_MULTI_IMAGE_UPDATE
+        IMAGE mcuboot
+        PROPERTY NRF53_MULTI_IMAGE_UPDATE
+        )
+
+      # Check if multi image updates are enabled, in which case we need
+      # to use the "_1" variant of the secondary partition for the network core.
+      if(DEFINED mcuboot_NRF53_MULTI_IMAGE_UPDATE)
+        set(sec_slot_idx "_1")
+      endif()
+
+      # Calculate the offset from the address which the net/app core app is linked
+      # against to the secondary slot. We need these values to generate hex files
+      # which targets the secondary slot.
+      math(EXPR net_app_to_secondary
+        "${xip_addr} \
+        + ${PM_MCUBOOT_SECONDARY${sec_slot_idx}_ADDRESS} \
+        - ${net_app_addr} \
+        + ${PM_MCUBOOT_PAD_SIZE}"
+        )
+
+      set_property(
+        TARGET partition_manager
+        PROPERTY net_app_TO_SECONDARY
+        ${net_app_to_secondary}
+        )
+
+      # This value is needed by `imgtool.py` which is used to sign the images.
+      set_property(
+        TARGET partition_manager
+        PROPERTY net_app_slot_size
+        ${PM_MCUBOOT_SECONDARY${sec_slot_idx}_SIZE}
+        )
+    endif()
+
+    math(EXPR app_to_secondary
+      "${xip_addr} \
+      + ${PM_MCUBOOT_SECONDARY_ADDRESS} \
+      - ${PM_MCUBOOT_PRIMARY_ADDRESS}"
+      )
+
+    set_property(
+      TARGET partition_manager
+      PROPERTY app_TO_SECONDARY
+      ${app_to_secondary}
+      )
+  endif()
 
   # Explicitly add the root image domain hex file to the list
   list(APPEND domain_hex_files ${PROJECT_BINARY_DIR}/${merged}.hex)
@@ -513,6 +635,25 @@ else()
   set(ZEPHYR_RUNNER_CONFIG_KERNEL_HEX "${final_merged}"
     CACHE STRING "Path to merged image in Intel Hex format" FORCE)
 
+endif()
+
+# Ensure that the size of the second slot matches the primary slot when
+# external flash is used. This check must be here since the size of
+# the primary slot is not known during the configure stage of the mcuboot
+# child image.
+if (CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
+  if (NOT ${PM_MCUBOOT_SECONDARY_SIZE} EQUAL ${PM_MCUBOOT_PRIMARY_SIZE})
+    if (DEFINED static_configuration)
+      set(last_part "If the size of 'mcuboot_secondary' is set in your static \
+configuration you need to update the value there. Otherwise, this is done by \
+setting CONFIG_PM_PARTITION_SIZE_MCUBOOT_SECONDARY")
+    else()
+      set(last_part "This is done by setting CONFIG_PM_PARTITION_SIZE_MCUBOOT_SECONDARY")
+    endif()
+    message(WARNING "\
+The size of the 'mcuboot_secondary' partition is incorrect (${PM_MCUBOOT_SECONDARY_SIZE}).
+Its size must be ${PM_MCUBOOT_PRIMARY_SIZE} to match the  primary partition. ${last_part}")
+  endif()
 endif()
 
 # We need to tell the flash runner use the merged hex file instead of

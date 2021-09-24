@@ -16,7 +16,7 @@ A power-optimized development ecosystem typically consists of the following deve
 * `Power Profiler Kit II (PPK2)`_
 
 Together, they provide a unified solution for developers to evaluate, develop and characterize ultra-low power designs with ease.
-See :ref:`getting_started` for more information on |NCS| and the development environment.
+See :ref:`getting_started` for more information about the |NCS| and the development environment.
 
 Online Power Profiler for LTE is a tool to estimate the current consumption of the nRF9160 LTE modem.
 See the `Online Power Profiler user guide`_ for a basic overview of the tool and explanation of different parameters.
@@ -30,7 +30,7 @@ Disabling serial logging
 ************************
 
 Current measurements on devices that have the |NCS| samples or applications programmed with the default configuration, might show elevated current values, when compared to the expected current values from  Nordic ultra-low power SoCs.
-It is because most of the samples and applications in |NCS| are configured to perform logging over serial port (associated with UART(E) peripheral) by default.
+It is because most of the samples and applications in the |NCS| are configured to perform logging over serial port (associated with UART(E) peripheral) by default.
 
 The image below shows the power measurement output on Power Profiler Kit II for an nRF9160 DK with the :ref:`zephyr:blinky-sample` sample compiled for the ``nrf9160dk_nrf9160`` build target without modifications in the sample configuration.
 
@@ -51,7 +51,8 @@ To disable serial output, you must change the project configuration associated w
     See :ref:`ug_nrf5340` and :ref:`ug_multi_image`.
 
 1. Set the project configuration ``CONFIG_SERIAL`` to ``n`` irrespective of whether you are building the sample for the secure or non-secure build targets.
-#. For the non-secure build target (``nrf9160dk_nrf9160ns``), ensure that serial logging is also disabled in :ref:`secure_partition_manager`. To disable serial logging in Secure Partition Manager, complete the following steps:
+#. For the non-secure build target (``nrf9160dk_nrf9160_ns``), ensure that serial logging is also disabled in :ref:`secure_partition_manager`.
+   To disable serial logging in Secure Partition Manager, complete the following steps:
 
    a. Add a :file:`spm.conf` file in the project directory with the following content:
 
@@ -78,7 +79,7 @@ The average current reduces to 4 µA, which implies 14 years of battery life on 
 
 For a similar configuration, see the :ref:`udp` sample, which transmits UDP packets to an LTE network using an nRF9160 DK.
 You can use the sample to characterize the current consumption of the nRF9160 SiP.
-It is optimized for low power operation on the ``nrf9160dk_nrf9160ns`` build target without any modifications.
+It is optimized for low power operation on the ``nrf9160dk_nrf9160_ns`` build target without any modifications.
 
 Idle current due to other peripherals
 *************************************
@@ -167,7 +168,8 @@ To simulate the use case with Online Power Profiler, complete the following step
 
 	The average current is now 48.93 µA, which is below the calculated maximum limit of 57 µA.
 
-#. Export the settings from the Online Power Profiler tool and compare them with the measurements in real networks. Complete the following sub-steps to export the settings from Online Power Profiler:
+#. Export the settings from the Online Power Profiler tool and compare them with the measurements in real networks.
+   Complete the following sub-steps to export the settings from Online Power Profiler:
 
    a. Click :guilabel:`Export settings` to store current Online Power Profiler settings to a :file:`.json` file.
    #. Click :guilabel:`Export project config` to export the configuration parameters in a :file:`opp.conf` file that you can use when building the firmware.
@@ -192,7 +194,7 @@ To measure current on an nRF9160 DK using the Power Profiler Kit II, while it is
    Even though the requested time-out value in the use case is 60 minutes, it is decided by the network.
    The PSM floor current is now 4.69 µA.
 
-#. Since the data transfer interval is 20 minutes, you can increase the frequency of transmission. Set :option:`CONFIG_UDP_DATA_UPLOAD_FREQUENCY_SECONDS` to ``120`` in :file:`prj.conf`.
+#. Since the data transfer interval is 20 minutes, you can increase the frequency of transmission. Set :kconfig:`CONFIG_UDP_DATA_UPLOAD_FREQUENCY_SECONDS` to ``120`` in :file:`prj.conf`.
 #. Rebuild and program the sample.
 #. A 40-byte data packet is now sent every two minutes. Make sure that the frequency is sufficiently higher than the duration of RRC inactivity present in the network.
 
@@ -217,7 +219,7 @@ To measure current on an nRF9160 DK using the Power Profiler Kit II, while it is
    It is recommended to send a batch of six measurements for every 60 minutes to have some margin.
    Hence, you can change the payload size to a value of 120 bytes in the :file:`prj.conf` to observe how it affects the charge in a single transmission.
 
-#. To change the payload size, set :option:`CONFIG_UDP_DATA_UPLOAD_SIZE_BYTES` to ``120`` in :file:`prj.conf`
+#. To change the payload size, set :kconfig:`CONFIG_UDP_DATA_UPLOAD_SIZE_BYTES` to ``120`` in :file:`prj.conf`
 #. Rebuild and program the sample.
 
    Observe the results in the Power Profiler Kit II interface:
@@ -309,7 +311,8 @@ To tune the network parameters for the example use case, complete the following 
 
 For the example use case, an estimate (based on the values from Online Power Profiler) calculated with the recommended factor is:
 
-   .. code-block:: none
+   .. parsed-literal::
+      :class: highlight
 
       (Total charge - cDRX charge) + cDRX charge * 1.5 = (108.91 mC - 68.73 mC) + 68.73 mC * 1.5 = 143.28 mC (which is close to the 142 mC from the Power Profiler Kit II measurements).
 

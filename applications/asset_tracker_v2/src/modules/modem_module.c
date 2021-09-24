@@ -8,9 +8,11 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <event_manager.h>
-
+#include <math.h>
 #include <modem/lte_lc.h>
 #include <modem/modem_info.h>
+#include <modem/at_cmd.h>
+#include <modem/at_notif.h>
 
 #define MODULE modem_module
 
@@ -20,6 +22,12 @@
 #include "events/modem_module_event.h"
 #include "events/util_module_event.h"
 #include "events/cloud_module_event.h"
+
+#ifdef CONFIG_LWM2M_CARRIER
+#include <lwm2m_carrier.h>
+
+#include "carrier_certs.h"
+#endif /* CONFIG_LWM2M_CARRIER */
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_MODEM_MODULE_LOG_LEVEL);
@@ -38,6 +46,10 @@ struct modem_msg_data {
 
 /* Modem module super states. */
 static enum state_type {
+	/* Initialization state where all libraries that the module depends
+	 * on need to be initialized before you can enter any other state.
+	 */
+	STATE_INIT,
 	STATE_DISCONNECTED,
 	STATE_CONNECTING,
 	STATE_CONNECTED,
@@ -48,7 +60,7 @@ static enum state_type {
 static struct modem_param_info modem_param;
 
 /* Value that always holds the latest RSRP value. */
-static uint16_t rsrp_value_latest;
+static int16_t rsrp_value_latest;
 const k_tid_t module_thread;
 
 /* Modem module message queue. */
@@ -66,6 +78,7 @@ static struct module_data self = {
 
 /* Forward declarations. */
 static void send_cell_update(uint32_t cell_id, uint32_t tac);
+static void send_neighbor_cell_update(struct lte_lc_cells_info *cell_info);
 static void send_psm_update(int tau, int active_time);
 static void send_edrx_update(float edrx, float ptw);
 
@@ -73,6 +86,8 @@ static void send_edrx_update(float edrx, float ptw);
 static char *state2str(enum state_type state)
 {
 	switch (state) {
+	case STATE_INIT:
+		return "STATE_INIT";
 	case STATE_DISCONNECTED:
 		return "STATE_DISCONNECTED";
 	case STATE_CONNECTING:
@@ -166,7 +181,9 @@ static void lte_evt_handler(const struct lte_lc_evt *const evt)
 			evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME ?
 			"Connected - home network" : "Connected - roaming");
 
-		SEND_EVENT(modem, MODEM_EVT_LTE_CONNECTED);
+		if (!IS_ENABLED(CONFIG_LWM2M_CARRIER)) {
+			SEND_EVENT(modem, MODEM_EVT_LTE_CONNECTED);
+		}
 		break;
 	case LTE_LC_EVT_PSM_UPDATE:
 		LOG_DBG("PSM parameter update: TAU: %d, Active time: %d",
@@ -197,6 +214,10 @@ static void lte_evt_handler(const struct lte_lc_evt *const evt)
 			evt->cell.id, evt->cell.tac);
 		send_cell_update(evt->cell.id, evt->cell.tac);
 		break;
+	case LTE_LC_EVT_NEIGHBOR_CELL_MEAS:
+		LOG_DBG("Neighbor cell measurements received");
+		send_neighbor_cell_update((struct lte_lc_cells_info *)&evt->cells_info);
+		break;
 	default:
 		break;
 	}
@@ -205,7 +226,7 @@ static void lte_evt_handler(const struct lte_lc_evt *const evt)
 static void modem_rsrp_handler(char rsrp_value)
 {
 	/* RSRP raw values that represent actual signal strength are
-	 * 0 through 97 (per "nRF91 AT Commands" v1.1).
+	 * 0 through 97. RSRP is converted to dBm per "nRF91 AT Commands" v1.7.
 	 */
 
 	if (rsrp_value > 97) {
@@ -217,11 +238,146 @@ static void modem_rsrp_handler(char rsrp_value)
 	 * This temporarily saves the latest value which are sent to
 	 * the Data module upon a modem data request.
 	 */
-	rsrp_value_latest = rsrp_value;
+	rsrp_value_latest = rsrp_value - 140;
 
 	LOG_DBG("Incoming RSRP status message, RSRP value is %d",
 		rsrp_value_latest);
 }
+
+#ifdef CONFIG_LWM2M_CARRIER
+static void print_carrier_error(const lwm2m_carrier_event_t *evt)
+{
+	const lwm2m_carrier_event_error_t *err = (lwm2m_carrier_event_error_t *)evt->data;
+	static const char *const strerr[] = {
+		[LWM2M_CARRIER_ERROR_NO_ERROR] =
+			"No error",
+		[LWM2M_CARRIER_ERROR_BOOTSTRAP] =
+			"Bootstrap error",
+		[LWM2M_CARRIER_ERROR_CONNECT_FAIL] =
+			"Failed to connect to the LTE network",
+		[LWM2M_CARRIER_ERROR_DISCONNECT_FAIL] =
+			"Failed to disconnect from the LTE network",
+		[LWM2M_CARRIER_ERROR_FOTA_PKG] =
+			"Package refused from modem",
+		[LWM2M_CARRIER_ERROR_FOTA_PROTO] =
+			"Protocol error",
+		[LWM2M_CARRIER_ERROR_FOTA_CONN] =
+			"Connection to remote server failed",
+		[LWM2M_CARRIER_ERROR_FOTA_CONN_LOST] =
+			"Connection to remote server lost",
+		[LWM2M_CARRIER_ERROR_FOTA_FAIL] =
+			"Modem firmware update failed",
+		[LWM2M_CARRIER_ERROR_CONFIGURATION] =
+			"Illegal object configuration detected",
+	};
+
+	__ASSERT(PART_OF_ARRAY(strerr, &strerr[err->code]), "Unhandled carrier library error");
+
+	LOG_ERR("%s, reason %d\n", strerr[err->code], err->value);
+}
+
+static void print_carrier_deferred_reason(const lwm2m_carrier_event_t *evt)
+{
+	const lwm2m_carrier_event_deferred_t *def = (lwm2m_carrier_event_deferred_t *)evt->data;
+	static const char *const strdef[] = {
+		[LWM2M_CARRIER_DEFERRED_NO_REASON] =
+			"No reason given",
+		[LWM2M_CARRIER_DEFERRED_PDN_ACTIVATE] =
+			"Failed to activate PDN",
+		[LWM2M_CARRIER_DEFERRED_BOOTSTRAP_NO_ROUTE] =
+			"No route to bootstrap server",
+		[LWM2M_CARRIER_DEFERRED_BOOTSTRAP_CONNECT] =
+			"Failed to connect to bootstrap server",
+		[LWM2M_CARRIER_DEFERRED_BOOTSTRAP_SEQUENCE] =
+			"Bootstrap sequence not completed",
+		[LWM2M_CARRIER_DEFERRED_SERVER_NO_ROUTE] =
+			"No route to server",
+		[LWM2M_CARRIER_DEFERRED_SERVER_CONNECT] =
+			"Failed to connect to server",
+		[LWM2M_CARRIER_DEFERRED_SERVER_REGISTRATION] =
+			"Server registration sequence not completed",
+		[LWM2M_CARRIER_DEFERRED_SERVICE_UNAVAILABLE] =
+			"Server in maintenance mode",
+	};
+
+	__ASSERT(PART_OF_ARRAY(strdef, &strdef[def->reason]),
+		"Unhandled deferred carrier library error");
+
+	LOG_ERR("Reason: %s, timeout: %d seconds\n", strdef[def->reason], def->timeout);
+}
+
+int lwm2m_carrier_event_handler(const lwm2m_carrier_event_t *evt)
+{
+	int err = 0;
+
+	switch (evt->type) {
+	case LWM2M_CARRIER_EVENT_MODEM_INIT:
+		LOG_INF("LWM2M_CARRIER_EVENT_MODEM_INIT");
+		SEND_EVENT(modem, MODEM_EVT_CARRIER_INITIALIZED);
+		break;
+	case LWM2M_CARRIER_EVENT_CONNECTING:
+		LOG_INF("LWM2M_CARRIER_EVENT_CONNECTING");
+		break;
+	case LWM2M_CARRIER_EVENT_CONNECTED:
+		LOG_INF("LWM2M_CARRIER_EVENT_CONNECTED");
+		break;
+	case LWM2M_CARRIER_EVENT_DISCONNECTING:
+		LOG_INF("LWM2M_CARRIER_EVENT_DISCONNECTING");
+		break;
+	case LWM2M_CARRIER_EVENT_DISCONNECTED:
+		LOG_INF("LWM2M_CARRIER_EVENT_DISCONNECTED");
+		break;
+	case LWM2M_CARRIER_EVENT_BOOTSTRAPPED:
+		LOG_INF("LWM2M_CARRIER_EVENT_BOOTSTRAPPED");
+		break;
+	case LWM2M_CARRIER_EVENT_LTE_READY: {
+		LOG_INF("LWM2M_CARRIER_EVENT_LTE_READY");
+		SEND_EVENT(modem, MODEM_EVT_LTE_CONNECTED);
+		break;
+	}
+	case LWM2M_CARRIER_EVENT_REGISTERED:
+		LOG_INF("LWM2M_CARRIER_EVENT_REGISTERED");
+		break;
+	case LWM2M_CARRIER_EVENT_DEFERRED:
+		LOG_INF("LWM2M_CARRIER_EVENT_DEFERRED");
+		print_carrier_deferred_reason(evt);
+		break;
+	case LWM2M_CARRIER_EVENT_FOTA_START: {
+		LOG_INF("LWM2M_CARRIER_EVENT_FOTA_START");
+		SEND_EVENT(modem, MODEM_EVT_CARRIER_FOTA_PENDING);
+		break;
+	}
+	case LWM2M_CARRIER_EVENT_REBOOT: {
+		LOG_INF("LWM2M_CARRIER_EVENT_REBOOT");
+		SEND_EVENT(modem, MODEM_EVT_CARRIER_REBOOT_REQUEST);
+
+		/* 1 is returned here to indicate to the carrier library that
+		 * the application will handle rebooting of the system to
+		 * ensure it happens gracefully. The alternative is to
+		 * return 0 and let the library reboot at its convenience.
+		 */
+		return 1;
+	}
+	case LWM2M_CARRIER_EVENT_ERROR: {
+		const lwm2m_carrier_event_error_t *err = (lwm2m_carrier_event_error_t *)evt->data;
+
+		LOG_ERR("LWM2M_CARRIER_EVENT_ERROR");
+		print_carrier_error(evt);
+
+		if (err->code == LWM2M_CARRIER_ERROR_FOTA_FAIL) {
+			SEND_EVENT(modem, MODEM_EVT_CARRIER_FOTA_STOPPED);
+		}
+		break;
+	}
+	case LWM2M_CARRIER_EVENT_CERTS_INIT:
+		err = carrier_certs_provision((ca_cert_tags_t *)evt->data);
+		break;
+	}
+
+	return err;
+}
+#endif /* CONFIG_LWM2M_CARRIER */
+
 
 /* Static module functions. */
 static void send_cell_update(uint32_t cell_id, uint32_t tac)
@@ -253,6 +409,48 @@ static void send_edrx_update(float edrx, float ptw)
 	evt->type = MODEM_EVT_LTE_EDRX_UPDATE;
 	evt->data.edrx.edrx = edrx;
 	evt->data.edrx.ptw = ptw;
+
+	EVENT_SUBMIT(evt);
+}
+
+static inline int adjust_rsrp(int input)
+{
+	return input - 140;
+}
+
+static inline int adjust_rsrq(int input)
+{
+	return round(input * 0.5 - 19.5);
+}
+
+static void send_neighbor_cell_update(struct lte_lc_cells_info *cell_info)
+{
+	struct modem_module_event *evt = new_modem_module_event();
+
+	BUILD_ASSERT(sizeof(evt->data.neighbor_cells.cell_data) ==
+		     sizeof(struct lte_lc_cells_info));
+	BUILD_ASSERT(sizeof(evt->data.neighbor_cells.neighbor_cells) >=
+		     sizeof(struct lte_lc_ncell) * CONFIG_LTE_NEIGHBOR_CELLS_MAX);
+
+	memcpy(&evt->data.neighbor_cells.cell_data, cell_info, sizeof(struct lte_lc_cells_info));
+	memcpy(&evt->data.neighbor_cells.neighbor_cells, cell_info->neighbor_cells,
+	       sizeof(struct lte_lc_ncell) * evt->data.neighbor_cells.cell_data.ncells_count);
+
+	/* Convert RSRP to dBm and RSRQ to dB per "nRF91 AT Commands" v1.7. */
+	evt->data.neighbor_cells.cell_data.current_cell.rsrp =
+			adjust_rsrp(evt->data.neighbor_cells.cell_data.current_cell.rsrp);
+	evt->data.neighbor_cells.cell_data.current_cell.rsrq =
+			adjust_rsrq(evt->data.neighbor_cells.cell_data.current_cell.rsrq);
+
+	for (size_t i = 0; i < evt->data.neighbor_cells.cell_data.ncells_count; i++) {
+		evt->data.neighbor_cells.neighbor_cells[i].rsrp =
+			adjust_rsrp(evt->data.neighbor_cells.neighbor_cells[i].rsrp);
+		evt->data.neighbor_cells.neighbor_cells[i].rsrq =
+			adjust_rsrq(evt->data.neighbor_cells.neighbor_cells[i].rsrq);
+	}
+
+	evt->type = MODEM_EVT_NEIGHBOR_CELLS_DATA_READY;
+	evt->data.neighbor_cells.timestamp = k_uptime_get();
 
 	EVENT_SUBMIT(evt);
 }
@@ -458,6 +656,18 @@ static bool battery_data_requested(enum app_module_data_type *data_list,
 	return false;
 }
 
+static bool neighbor_cells_data_requested(enum app_module_data_type *data_list,
+				     size_t count)
+{
+	for (size_t i = 0; i < count; i++) {
+		if (data_list[i] == APP_DATA_NEIGHBOR_CELLS) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static int battery_data_get(void)
 {
 	int err;
@@ -480,6 +690,19 @@ static int battery_data_get(void)
 	modem_module_event->type = MODEM_EVT_BATTERY_DATA_READY;
 
 	EVENT_SUBMIT(modem_module_event);
+
+	return 0;
+}
+
+static int neighbor_cells_measurement_start(void)
+{
+	int err;
+
+	err = lte_lc_neighbor_cell_measurement();
+	if (err) {
+		LOG_ERR("Failed to start neighbor cell measurements, error: %d", err);
+		return err;
+	}
 
 	return 0;
 }
@@ -544,10 +767,12 @@ static int setup(void)
 {
 	int err;
 
-	err = lte_lc_init();
-	if (err) {
-		LOG_ERR("lte_lc_init, error: %d", err);
-		return err;
+	if (!IS_ENABLED(CONFIG_LWM2M_CARRIER)) {
+		err = lte_lc_init();
+		if (err) {
+			LOG_ERR("lte_lc_init, error: %d", err);
+			return err;
+		}
 	}
 
 	if (IS_ENABLED(CONFIG_MODEM_AUTO_REQUEST_POWER_SAVING_FEATURES)) {
@@ -567,6 +792,26 @@ static int setup(void)
 	return 0;
 }
 
+/* Message handler for STATE_INIT */
+static void on_state_init(struct modem_msg_data *msg)
+{
+	if (IS_EVENT(msg, modem, MODEM_EVT_CARRIER_INITIALIZED)) {
+		int err;
+
+		state_set(STATE_DISCONNECTED);
+
+		err = at_cmd_init();
+		__ASSERT(err == 0, "Failed initializing at_cmd");
+
+		err = at_notif_init();
+		__ASSERT(err == 0, "Failed initializing at_notif");
+
+		err = setup();
+		__ASSERT(err == 0, "Failed running setup()");
+
+		SEND_EVENT(modem, MODEM_EVT_INITIALIZED);
+	}
+}
 
 /* Message handler for STATE_DISCONNECTED. */
 static void on_state_disconnected(struct modem_msg_data *msg)
@@ -615,6 +860,13 @@ static void on_all_states(struct modem_msg_data *msg)
 	if (IS_EVENT(msg, app, APP_EVT_START)) {
 		int err;
 
+		if (IS_ENABLED(CONFIG_LWM2M_CARRIER)) {
+			/* The carrier library handles the LTE connection
+			 * establishment.
+			 */
+			return;
+		}
+
 		err = lte_connect();
 		if (err) {
 			LOG_ERR("Failed connecting to LTE, error: %d", err);
@@ -659,6 +911,16 @@ static void on_all_states(struct modem_msg_data *msg)
 					MODEM_EVT_BATTERY_DATA_NOT_READY);
 			}
 		}
+
+		if (neighbor_cells_data_requested(msg->module.app.data_list,
+						  msg->module.app.count)) {
+			int err;
+
+			err = neighbor_cells_measurement_start();
+			if (err) {
+				SEND_EVENT(modem, MODEM_EVT_NEIGHBOR_CELLS_DATA_NOT_READY);
+			}
+		}
 	}
 
 	if (IS_EVENT(msg, util, UTIL_EVT_SHUTDOWN_REQUEST)) {
@@ -681,18 +943,26 @@ static void module_thread_fn(void)
 		SEND_ERROR(modem, MODEM_EVT_ERROR, err);
 	}
 
-	state_set(STATE_DISCONNECTED);
+	if (IS_ENABLED(CONFIG_LWM2M_CARRIER)) {
+		state_set(STATE_INIT);
+	} else {
+		state_set(STATE_DISCONNECTED);
+		SEND_EVENT(modem, MODEM_EVT_INITIALIZED);
 
-	err = setup();
-	if (err) {
-		LOG_ERR("Failed setting up the modem, error: %d", err);
-		SEND_ERROR(modem, MODEM_EVT_ERROR, err);
+		err = setup();
+		if (err) {
+			LOG_ERR("Failed setting up the modem, error: %d", err);
+			SEND_ERROR(modem, MODEM_EVT_ERROR, err);
+		}
 	}
 
 	while (true) {
 		module_get_next_msg(&self, &msg);
 
 		switch (state) {
+		case STATE_INIT:
+			on_state_init(&msg);
+			break;
 		case STATE_DISCONNECTED:
 			on_state_disconnected(&msg);
 			break;

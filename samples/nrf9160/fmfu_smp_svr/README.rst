@@ -18,7 +18,7 @@ This sample supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 .. include:: /includes/spm.txt
 
@@ -48,7 +48,7 @@ For example, when building on the command line, add the UART overlay for nRF9160
 
   .. code-block:: console
 
-     west build -b nrf9160dk_nrf9160ns -- -DDTC_OVERLAY_FILE=uart.overlay
+     west build -b nrf9160dk_nrf9160_ns -- -DDTC_OVERLAY_FILE=uart.overlay
 
 Testing
 =======
@@ -122,15 +122,15 @@ You can use the mcumgr CLI tool to test if the sample is running correctly, as f
 Dependencies
 ************
 
-This sample uses the following nRF Connect SDK libraries:
+This sample uses the following |NCS| libraries:
 
 * :ref:`lib_fmfu_mgmt`
 * :ref:`modem_info_readme`
 
-This sample uses the following nrfxlib libraries:
+This sample uses the following `sdk-nrfxlib` library:
 
 * :ref:`nrfxlib:nrf_modem`
 
-In addition, it uses the following nRF Connect SDK sample:
+In addition, it uses the following |NCS| sample:
 
 * :ref:`secure_partition_manager`

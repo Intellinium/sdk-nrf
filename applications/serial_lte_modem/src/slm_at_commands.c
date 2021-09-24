@@ -21,15 +21,15 @@
 #include "slm_at_host.h"
 #include "slm_at_tcp_proxy.h"
 #include "slm_at_udp_proxy.h"
-#include "slm_at_tcpip.h"
+#include "slm_at_socket.h"
 #if defined(CONFIG_SLM_NATIVE_TLS)
 #include "slm_at_cmng.h"
 #endif
 #include "slm_at_icmp.h"
 #include "slm_at_sms.h"
 #include "slm_at_fota.h"
-#if defined(CONFIG_SLM_GPS)
-#include "slm_at_gps.h"
+#if defined(CONFIG_SLM_GNSS)
+#include "slm_at_gnss.h"
 #endif
 #if defined(CONFIG_SLM_FTPC)
 #include "slm_at_ftp.h"
@@ -58,13 +58,14 @@ enum shutdown_modes {
 typedef int (*slm_at_handler_t) (enum at_cmd_type);
 
 static struct slm_work_info {
-	struct k_work_delayable work;
+	struct k_work_delayable uart_work;
+	struct k_work_delayable sleep_work;
 	uint32_t data;
 } slm_work;
 
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
-extern char rsp_buf[CONFIG_SLM_SOCKET_RX_MAX * 2];
+extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
 extern uint16_t datamode_time_limit;
 extern struct uart_config slm_uart;
 
@@ -114,8 +115,28 @@ static int handle_at_slmver(enum at_cmd_type type)
 	return ret;
 }
 
+static void go_sleep_wk(struct k_work *work)
+{
+	ARG_UNUSED(work);
+
+	if (slm_work.data == SHUTDOWN_MODE_IDLE) {
+		slm_at_host_uninit();
+		enter_idle(true);
+	} else if (slm_work.data == SHUTDOWN_MODE_SLEEP) {
+		slm_at_host_uninit();
+		modem_power_off();
+		enter_sleep();
+	} else if (slm_work.data == SHUTDOWN_MODE_UART) {
+		if (poweroff_uart() == 0) {
+			enter_idle(false);
+		} else {
+			LOG_ERR("failed to power off UART");
+		}
+	}
+}
+
 /**@brief handle AT#XSLEEP commands
- *  AT#XSLEEP[=<shutdown_mode>]
+ *  AT#XSLEEP=<shutdown_mode>
  *  AT#XSLEEP? not supported
  *  AT#XSLEEP=?
  */
@@ -124,34 +145,13 @@ static int handle_at_sleep(enum at_cmd_type type)
 	int ret = -EINVAL;
 
 	if (type == AT_CMD_TYPE_SET_COMMAND) {
-		uint16_t shutdown_mode = SHUTDOWN_MODE_IDLE;
-
-		if (at_params_valid_count_get(&at_param_list) > 1) {
-			ret = at_params_unsigned_short_get(&at_param_list, 1, &shutdown_mode);
-			if (ret < 0) {
-				return -EINVAL;
-			}
+		ret = at_params_unsigned_int_get(&at_param_list, 1, &slm_work.data);
+		if (ret) {
+			return -EINVAL;
 		}
-		if (shutdown_mode == SHUTDOWN_MODE_IDLE) {
-			slm_at_host_uninit();
-			enter_idle(true);
-			ret = -ESHUTDOWN; /*Will send no "OK"*/
-		} else if (shutdown_mode == SHUTDOWN_MODE_SLEEP) {
-#if defined(CONFIG_SLM_GPIO_WAKEUP)
-			slm_at_host_uninit();
-			modem_power_off();
-			enter_sleep();
-			ret = 0; /* Cannot reach here */
-#else
-			LOG_ERR("Enter sleep without wakeup");
-			ret = -EINVAL;
-#endif
-		} else if (shutdown_mode == SHUTDOWN_MODE_UART) {
-			ret = poweroff_uart();
-			if (ret == 0) {
-				enter_idle(false);
-				ret = -ESHUTDOWN; /*Will send no "OK"*/
-			}
+		if (slm_work.data == SHUTDOWN_MODE_IDLE || slm_work.data == SHUTDOWN_MODE_SLEEP ||
+		    slm_work.data == SHUTDOWN_MODE_UART) {
+			k_work_reschedule(&slm_work.sleep_work, K_MSEC(100));
 		} else {
 			LOG_ERR("AT parameter error");
 			ret = -EINVAL;
@@ -226,7 +226,7 @@ static int handle_at_slmuart(enum at_cmd_type type)
 		case 921600:
 		case 1000000:
 			slm_work.data = baudrate;
-			k_work_reschedule(&slm_work.work, K_MSEC(50));
+			k_work_reschedule(&slm_work.uart_work, K_MSEC(50));
 			ret = 0;
 			break;
 		default:
@@ -300,11 +300,10 @@ static int handle_at_datactrl(enum at_cmd_type cmd_type)
 int handle_at_clac(enum at_cmd_type cmd_type);
 
 /* TCP proxy commands */
-int handle_at_tcp_filter(enum at_cmd_type cmd_type);
 int handle_at_tcp_server(enum at_cmd_type cmd_type);
 int handle_at_tcp_client(enum at_cmd_type cmd_type);
 int handle_at_tcp_send(enum at_cmd_type cmd_type);
-int handle_at_tcp_recv(enum at_cmd_type cmd_type);
+int handle_at_tcp_hangup(enum at_cmd_type cmd_type);
 
 /* UDP proxy commands */
 int handle_at_udp_server(enum at_cmd_type cmd_type);
@@ -313,7 +312,9 @@ int handle_at_udp_send(enum at_cmd_type cmd_type);
 
 /* Socket-type TCPIP commands */
 int handle_at_socket(enum at_cmd_type cmd_type);
+int handle_at_secure_socket(enum at_cmd_type cmd_type);
 int handle_at_socketopt(enum at_cmd_type cmd_type);
+int handle_at_secure_socketopt(enum at_cmd_type cmd_type);
 int handle_at_bind(enum at_cmd_type cmd_type);
 int handle_at_connect(enum at_cmd_type cmd_type);
 int handle_at_listen(enum at_cmd_type cmd_type);
@@ -339,8 +340,12 @@ int handle_at_sms(enum at_cmd_type cmd_type);
 /* FOTA commands */
 int handle_at_fota(enum at_cmd_type cmd_type);
 
-#if defined(CONFIG_SLM_GPS)
+#if defined(CONFIG_SLM_GNSS)
 int handle_at_gps(enum at_cmd_type cmd_type);
+int handle_at_nrf_cloud(enum at_cmd_type cmd_type);
+int handle_at_agps(enum at_cmd_type cmd_type);
+int handle_at_pgps(enum at_cmd_type cmd_type);
+int handle_at_cellpos(enum at_cmd_type cmd_type);
 #endif
 
 #if defined(CONFIG_SLM_FTPC)
@@ -379,11 +384,10 @@ static struct slm_at_cmd {
 	{"AT#XDATACTRL", handle_at_datactrl},
 
 	/* TCP proxy commands */
-	{"AT#XTCPFILTER", handle_at_tcp_filter},
 	{"AT#XTCPSVR", handle_at_tcp_server},
 	{"AT#XTCPCLI", handle_at_tcp_client},
 	{"AT#XTCPSEND", handle_at_tcp_send},
-	{"AT#XTCPRECV", handle_at_tcp_recv},
+	{"AT#XTCPHANGUP", handle_at_tcp_hangup},
 
 	/* UDP proxy commands */
 	{"AT#XUDPSVR", handle_at_udp_server},
@@ -392,7 +396,9 @@ static struct slm_at_cmd {
 
 	/* Socket-type TCPIP commands */
 	{"AT#XSOCKET", handle_at_socket},
+	{"AT#XSSOCKET", handle_at_secure_socket},
 	{"AT#XSOCKETOPT", handle_at_socketopt},
+	{"AT#XSSOCKETOPT", handle_at_secure_socketopt},
 	{"AT#XBIND", handle_at_bind},
 	{"AT#XCONNECT", handle_at_connect},
 	{"AT#XLISTEN", handle_at_listen},
@@ -418,9 +424,19 @@ static struct slm_at_cmd {
 	/* FOTA commands */
 	{"AT#XFOTA", handle_at_fota},
 
-#if defined(CONFIG_SLM_GPS)
-	/* GPS commands */
+#if defined(CONFIG_SLM_GNSS)
+	/* GNSS commands */
 	{"AT#XGPS", handle_at_gps},
+	{"AT#XNRFCLOUD", handle_at_nrf_cloud},
+#if defined(CONFIG_SLM_AGPS)
+	{"AT#XAGPS", handle_at_agps},
+#endif
+#if defined(CONFIG_SLM_PGPS)
+	{"AT#XPGPS", handle_at_pgps},
+#endif
+#if defined(CONFIG_SLM_CELL_POS)
+	{"AT#XCELLPOS", handle_at_cellpos},
+#endif
 #endif
 
 #if defined(CONFIG_SLM_FTPC)
@@ -474,6 +490,7 @@ int slm_at_parse(const char *at_cmd)
 		if (slm_util_cmd_casecmp(at_cmd, slm_at_cmd_list[i].string)) {
 			enum at_cmd_type type = at_parser_cmd_type_get(at_cmd);
 
+			at_params_list_clear(&at_param_list);
 			ret = at_parser_params_from_str(at_cmd, NULL, &at_param_list);
 			if (ret) {
 				LOG_ERR("Failed to parse AT command %d", ret);
@@ -491,7 +508,8 @@ int slm_at_init(void)
 {
 	int err;
 
-	k_work_init_delayable(&slm_work.work, set_uart_wk);
+	k_work_init_delayable(&slm_work.uart_work, set_uart_wk);
+	k_work_init_delayable(&slm_work.sleep_work, go_sleep_wk);
 
 	err = slm_at_tcp_proxy_init();
 	if (err) {
@@ -503,7 +521,7 @@ int slm_at_init(void)
 		LOG_ERR("UDP Server could not be initialized: %d", err);
 		return -EFAULT;
 	}
-	err = slm_at_tcpip_init();
+	err = slm_at_socket_init();
 	if (err) {
 		LOG_ERR("TCPIP could not be initialized: %d", err);
 		return -EFAULT;
@@ -532,8 +550,8 @@ int slm_at_init(void)
 		LOG_ERR("FOTA could not be initialized: %d", err);
 		return -EFAULT;
 	}
-#if defined(CONFIG_SLM_GPS)
-	err = slm_at_gps_init();
+#if defined(CONFIG_SLM_GNSS)
+	err = slm_at_gnss_init();
 	if (err) {
 		LOG_ERR("GPS could not be initialized: %d", err);
 		return -EFAULT;
@@ -583,7 +601,7 @@ void slm_at_uninit(void)
 	if (err) {
 		LOG_WRN("UDP Server could not be uninitialized: %d", err);
 	}
-	err = slm_at_tcpip_uninit();
+	err = slm_at_socket_uninit();
 	if (err) {
 		LOG_WRN("TCPIP could not be uninitialized: %d", err);
 	}
@@ -597,7 +615,7 @@ void slm_at_uninit(void)
 	if (err) {
 		LOG_WRN("ICMP could not be uninitialized: %d", err);
 	}
-#if defined(CONFIG_SLM_GPS)
+#if defined(CONFIG_SLM_SMS)
 	err = slm_at_sms_uninit();
 	if (err) {
 		LOG_WRN("SMS could not be uninitialized: %d", err);
@@ -607,8 +625,8 @@ void slm_at_uninit(void)
 	if (err) {
 		LOG_WRN("FOTA could not be uninitialized: %d", err);
 	}
-#if defined(CONFIG_SLM_GPS)
-	err = slm_at_gps_uninit();
+#if defined(CONFIG_SLM_GNSS)
+	err = slm_at_gnss_uninit();
 	if (err) {
 		LOG_WRN("GPS could not be uninitialized: %d", err);
 	}

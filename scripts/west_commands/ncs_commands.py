@@ -28,7 +28,7 @@ from pygit2_helpers import commit_affects_files, commit_shortlog
 def add_zephyr_rev_arg(parser):
     parser.add_argument('-z', '--zephyr-rev', metavar='REF',
                         help='''zephyr git ref (commit, branch, etc.);
-                        default: upstream/master''')
+                        default: upstream/main''')
 
 def add_projects_arg(parser):
     parser.add_argument('projects', metavar='PROJECT', nargs='*',
@@ -142,7 +142,7 @@ class NcsWestCommand(WestCommand):
         if args.zephyr_rev:
             zephyr_rev = args.zephyr_rev
         else:
-            zephyr_rev = 'upstream/master'
+            zephyr_rev = 'upstream/main'
         zephyr_project = self.manifest.get_projects(['zephyr'])[0]
         try:
             self.zephyr_sha = zephyr_project.sha(zephyr_rev)
@@ -262,7 +262,8 @@ class NcsLoot(NcsWestCommand):
             return
 
         log.banner(name_path)
-        log.inf(f'NCS commit (manifest-rev): {nsha}, upstream commit: {zsha}')
+        log.inf(f'     NCS commit: {nsha}\n'
+                f'upstream commit: {zsha}')
         log.inf('OOT patches: ' +
                 (f'{len(loot)} total' if loot else 'none') +
                 (', output limited by --file' if args.files else ''))
@@ -288,6 +289,9 @@ class NcsLoot(NcsWestCommand):
 
         if args.json:
             json_data[name] = {
+                'path': project.path,
+                'ncs-commit': nsha,
+                'upstream-commit': zsha,
                 'shas': json_sha_list,
                 'shortlogs': json_shortlog_list,
             }
@@ -319,14 +323,14 @@ class NcsCompare(NcsWestCommand):
         # Get a dict containing projects that are in the NCS which are
         # *not* imported from Zephyr in nrf/west.yml. We will treat
         # these specially to make the output easier to understand.
-        ignored_imports = Manifest.from_file(
-            import_flags=ImportFlag.IGNORE_PROJECTS)
-        in_nrf = set(p.name for p in
-                     ignored_imports.projects[MANIFEST_PROJECT_INDEX + 1:])
+        ncs_only = Manifest.from_file(import_flags=ImportFlag.IGNORE_PROJECTS)
+        ncs_only_projects = ncs_only.projects[MANIFEST_PROJECT_INDEX + 1:]
+        ncs_only_names = set(p.name for p in ncs_only_projects)
         # This is a dict mapping names of projects which *are* imported
         # from zephyr to the Project instances.
-        self.imported_pmap = {name: project for name, project in
-                              self.ncs_pmap.items() if name not in in_nrf}
+        self.imported_pmap = {name: project
+                              for name, project in self.ncs_pmap.items()
+                              if name not in ncs_only_names}
 
         log.inf('Comparing your manifest-rev branches with zephyr/west.yml '
                 f'at {self.zephyr_rev}' +
@@ -442,7 +446,8 @@ class NcsCompare(NcsWestCommand):
         else:
             status = f'diverged: {ahead} ahead, {behind} behind'
 
-        commits = f'NCS commit: {nsha}, upstream commit: {zsha}'
+        commits = (f'     NCS commit: {nsha}\n'
+                   f'upstream commit: {zsha}')
         if 'up to date' in status or 'ahead by' in status:
             if log.VERBOSE > log.VERBOSE_NONE:
                 # Up to date or ahead: only print in verbose mode.
@@ -485,6 +490,7 @@ _BLOCKED_PROJECTS = set(
      'modules/hal/quicklogic',
      'modules/hal/silabs',
      'modules/hal/stm32',
+     'modules/hal/telink',
      'modules/hal/ti',
      'modules/hal/xtensa',
      ])

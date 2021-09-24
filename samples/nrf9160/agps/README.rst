@@ -7,9 +7,9 @@ nRF9160: A-GPS
    :local:
    :depth: 2
 
-The A-GPS sample demonstrates how the `nRF Connect for Cloud`_ Assisted GPS (`A-GPS`_) feature or an external :ref:`SUPL client <supl_client>` can be used to implement A-GPS in your application.
-The sample uses the generic A-GPS library, which allows the selection of different A-GPS sources via the :option:`CONFIG_AGPS_SRC_SUPL` configurable option.
-By default, `nRF Connect for Cloud`_ is used for A-GPS and cloud communication.
+The A-GPS sample demonstrates how the `nRF Cloud`_ Assisted GPS (`A-GPS`_) feature or an external :ref:`SUPL client <supl_client>` can be used to implement A-GPS in your application.
+The sample uses the generic A-GPS library, which allows the selection of different A-GPS sources via the :kconfig:`CONFIG_AGPS_SRC_SUPL` configurable option.
+By default, `nRF Cloud`_ is used for A-GPS and cloud communication.
 
 Requirements
 ************
@@ -18,9 +18,9 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: thingy91_nrf9160ns, nrf9160dk_nrf9160ns
+   :rows: thingy91_nrf9160_ns, nrf9160dk_nrf9160_ns
 
-The sample also requires an nRF Connect for Cloud account.
+The sample also requires an nRF Cloud account.
 
 .. include:: /includes/spm.txt
 
@@ -42,6 +42,12 @@ The Assistance GPS data includes the following information:
 * GPS system clock
 * Ionospheric correction parameters for `Klobuchar Ionospheric Model`_
 
+.. note::
+
+   .. include:: ../../../doc/nrf/libraries/networking/nrf_cloud_agps.rst
+      :start-after: agpslimitation_start
+      :end-before: agpslimitation_end
+
 TTFF is expected to be less when compared to that in the scenario of GPS without assistance data, performing a cold or a warm start.
 The TTFF is expected to be comparable to that of a GPS hot start and is usually in the range of 5 to 20 seconds in good satellite signaling conditions.
 Good satellite signaling conditions in this context means that the device is positioned in a way to have a direct line of sight to a large portion of the sky.
@@ -59,7 +65,7 @@ In RRC idle mode, the GPS is usually able to operate.
 It is recommended to use LTE Power Saving Mode (PSM) and extended Discontinuous Reception (eDRX) mode to increase the allowed time of operation for GPS.
 During the defined intervals of PSM and eDRX, LTE communication does not occur, and the GPS has full access to the radio resources.
 In this sample, both PSM and eDRX are enabled by default.
-You can enable or disable these features by using the :option:`CONFIG_LTE_POWER_SAVING_MODE` and :option:`CONFIG_LTE_EDRX_REQ` configuration options.
+You can enable or disable these features by using the :kconfig:`CONFIG_LTE_POWER_SAVING_MODE` and :kconfig:`CONFIG_LTE_EDRX_REQ` configuration options.
 
 .. include:: /applications/asset_tracker/README.rst
    :start-after: external_antenna_note_start
@@ -68,18 +74,18 @@ You can enable or disable these features by using the :option:`CONFIG_LTE_POWER_
 User interface
 **************
 
-You can send a predefined message to nRF Connect for Cloud by pressing button 1.
-The message can be changed by setting the :option:`CONFIG_CLOUD_MESSAGE` to a new message.
+You can send a predefined message to nRF Cloud by pressing button 1.
+The message can be changed by setting the :kconfig:`CONFIG_CLOUD_MESSAGE` to a new message.
 
 To ease outdoors and remote testing of A-GPS feature, two methods for resetting the kit are provided, if the default A-GPS source is used.
 Both are equivalent to pressing the reset button on the nRF9160 DK, or power-cycling the nRF9160 DK or Thingy:91.
 
 Button 1:
-   Press the button to send a predefined message to nRF Connect for Cloud (the default A-GPS source).
+   Press the button to send a predefined message to nRF Cloud (the default A-GPS source).
    Press the button for a minimum of 3 seconds to reset the nRF9160-based device.
 
-nRF Connect for Cloud:
-   Use the terminal pane in the device view for a particular device in nRF Connect for Cloud and send the ``"{"reboot":true}"`` command to reset the nRF9160-based device.
+nRF Cloud:
+   Use the terminal pane in the device view for a particular device in nRF Cloud and send the ``"{"reboot":true}"`` command to reset the nRF9160-based device.
 
 Configuration
 *************
@@ -99,7 +105,7 @@ Additional configuration
 
 Check and configure the following library options that are used by the sample:
 
-* :option:`CONFIG_LTE_EDRX_REQ`
+* :kconfig:`CONFIG_LTE_EDRX_REQ`
 
 
 Building and running
@@ -140,14 +146,14 @@ Testing
    This is to achieve sufficient satellite coverage to get a position fix.
 #. Optionally, connect the nRF9160-based device to a PC with a USB cable. The kit is assigned a COM port (Windows) or ttyACM device (Linux), which is visible in the Device Manager.
 #. Optionally, connect to the kit with a terminal emulator (for example, PuTTY) to see log output. See How to connect with PuTTY for the required settings.
-   You can also use the Bluetooth LE service of Thingy:91 to see log output on a mobile device.
-#. Log into your nRF Connect for Cloud account and select your device.
+   You can also use the Bluetooth® LE service of Thingy:91 to see log output on a mobile device.
+#. Log into your nRF Cloud account and select your device.
 #. Power on the nRF9160-based device.
 
    .. note::
-      The sample outputs shown in the subsequent steps correspond to the scenario when nRF Connect for Cloud is used as the A-GPS source.
+      The sample outputs shown in the subsequent steps correspond to the scenario when nRF Cloud is used as the A-GPS source.
 
-#. The device connects to the LTE network and nRF Connect for Cloud as shown below:
+#. The device connects to the LTE network and nRF Cloud as shown below:
 
    .. code-block:: console
 
@@ -161,7 +167,7 @@ Testing
 	  I: Network registration status: Connected - home network
 
    .. note::
-      If the credentials on the device are used to connect to nRF Connect for Cloud for the first time, the device will be disconnected, and a :cpp:enumerator:`CLOUD_EVT_DISCONNECTED <cloud_api::CLOUD_EVT_DISCONNECTED>` event will be logged on the terminal.
+      If the credentials on the device are used to connect to nRF Cloud for the first time, the device will be disconnected, and a :cpp:enumerator:`CLOUD_EVT_DISCONNECTED <cloud_api::CLOUD_EVT_DISCONNECTED>` event will be logged on the terminal.
       This happens due to the configuring of the device on the cloud by `AWS IoT Just-in-time-provisioning`_ and the subsequent termination of the connection.
       In general, the devices reconnect automatically.
       However, for the simplicity of the sample, reconnection is not implemented.
@@ -334,7 +340,7 @@ Testing
 	  D: PVT: Position fix
 	  D: Stopping GPS
 
-#. Observe that the current position of the device shows up on the GPS position map in nRF Connect for Cloud, after acquiring the GPS position fix.
+#. Observe that the current position of the device shows up on the GPS position map in nRF Cloud, after acquiring the GPS position fix.
    The position details are also displayed on the terminal as shown below:
 
    .. code-block:: console
@@ -361,7 +367,7 @@ Testing
 	  I: GPS position sent to cloud
 
 
-#. Optionally, press Button 1 and observe that the predefined message is sent from the device to nRF Connect for Cloud.
+#. Optionally, press Button 1 and observe that the predefined message is sent from the device to nRF Cloud.
    Note that this interrupts the GPS search for a period of time since LTE requires the use of the radio resources of the device.
 
 Dependencies
@@ -371,14 +377,3 @@ This sample uses the following |NCS| libraries:
 
 * :ref:`lib_nrf_cloud`
 * :ref:`lib_nrf_cloud_agps`
-
-
-Known issues and limitations
-****************************
-
-.. agpslimitation_start
-
-Approximate location assistance data is based on LTE cell location.
-Since all cell locations are not always available, the location data is sometimes absent in the A-GPS response.
-
-.. agpslimitation_end

@@ -12,7 +12,7 @@
 # is used to link documentation sets together. It is configured in the Sphinx
 # configuration files.
 
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.20.0)
 project(nrf-connect-sdk-doc LANGUAGES NONE)
 
 set(NO_BOILERPLATE TRUE)
@@ -29,7 +29,7 @@ set(SPHINXOPTS_EXTRA "" CACHE STRING "Extra Sphinx Options")
 
 find_package(PythonInterp 3.4)
 set(DOXYGEN_SKIP_DOT True)
-find_package(Doxygen REQUIRED)
+find_package(Doxygen 1.8.18 REQUIRED)
 
 find_program(SPHINXBUILD sphinx-build)
 if(NOT SPHINXBUILD)
@@ -87,7 +87,9 @@ endfunction()
 #
 # Args:
 # - name: Docset name.
-# - env: Environment passed to the Sphinx build.
+# - DODGY: Enable/disable "dodgy" mode. If enabled, the ${SPHINXOPTS_EXTRA}
+#   option (used to enable things like -W) will not be passed to Sphinx. It can
+#   be useful for external docsets that are likely to generate build warnings.
 #
 # This function configures multiple targets which can be used to build a docset.
 # The docset configuration (conf.py) is expected to be at the ${name} folder
@@ -105,21 +107,30 @@ endfunction()
 # - ${name}-linkcheck: Run Sphinx "linkcheck" target.
 # - ${name}-clean: Clean build artifacts.
 #
-function(add_docset name env)
+function(add_docset name)
+  cmake_parse_arguments(DOCSET "DODGY" "" "" ${ARGN})
+
   set(DOCSET_CFG_DIR ${CMAKE_CURRENT_LIST_DIR}/${name})
   set(DOCSET_BUILD_DIR ${CMAKE_BINARY_DIR}/${name})
   set(DOCSET_SRC_DIR ${CMAKE_BINARY_DIR}/${name}/src)
+  set(DOCSET_DOCTREE_DIR ${CMAKE_BINARY_DIR}/${name}/doctree)
   set(DOCSET_HTML_DIR ${CMAKE_BINARY_DIR}/html/${name})
   set(DOCSET_MAKE_DIRS ${DOCSET_BUILD_DIR};${DOCSET_SRC_DIR})
   set(DOCSET_CLEAN_DIRS ${DOCSET_BUILD_DIR};${DOCSET_HTML_DIR})
+  set(DOCSET_ENV DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE})
+
+  if(NOT ${DOCSET_DODGY})
+    set(EXTRA_ARGS ${SPHINXOPTS_EXTRA})
+  endif()
 
   add_doc_target(
     ${name}-inventory
     COMMAND ${CMAKE_COMMAND} -E make_directory ${DOCSET_MAKE_DIRS}
-    COMMAND ${CMAKE_COMMAND} -E env ${env}
+    COMMAND ${CMAKE_COMMAND} -E env ${DOCSET_ENV}
     ${SPHINXBUILD}
       -b inventory
       -c ${DOCSET_CFG_DIR}
+      -d ${DOCSET_DOCTREE_DIR}
       -w ${DOCSET_BUILD_DIR}/inventory.log
       ${SPHINXOPTS_DEFAULT}
       ${DOCSET_SRC_DIR}
@@ -130,13 +141,14 @@ function(add_docset name env)
   add_doc_target(
     ${name}-html
     COMMAND ${CMAKE_COMMAND} -E make_directory ${DOCSET_MAKE_DIRS}
-    COMMAND ${CMAKE_COMMAND} -E env ${env}
+    COMMAND ${CMAKE_COMMAND} -E env ${DOCSET_ENV}
     ${SPHINXBUILD}
       -b html
       -c ${DOCSET_CFG_DIR}
+      -d ${DOCSET_DOCTREE_DIR}
       -w ${DOCSET_BUILD_DIR}/html.log
       ${SPHINXOPTS_DEFAULT}
-      ${SPHINXOPTS_EXTRA}
+      ${EXTRA_ARGS}
       ${DOCSET_SRC_DIR}
       ${DOCSET_HTML_DIR}
     USES_TERMINAL
@@ -145,13 +157,14 @@ function(add_docset name env)
   add_custom_target(
     ${name}-linkcheck
     COMMAND ${CMAKE_COMMAND} -E make_directory ${DOCSET_MAKE_DIRS}
-    COMMAND ${CMAKE_COMMAND} -E env ${env}
+    COMMAND ${CMAKE_COMMAND} -E env ${DOCSET_ENV}
     ${SPHINXBUILD}
       -b linkcheck
       -c ${DOCSET_CFG_DIR}
+      -d ${DOCSET_DOCTREE_DIR}
       -w ${DOCSET_BUILD_DIR}/linkcheck.log
       ${SPHINXOPTS_DEFAULT}
-      ${SPHINXOPTS_EXTRA}
+      ${EXTRA_ARGS}
       ${DOCSET_SRC_DIR}
       ${DOCSET_BUILD_DIR}
     USES_TERMINAL
@@ -202,77 +215,12 @@ function(add_doc_target name)
 endfunction()
 
 #-------------------------------------------------------------------------------
-# Environment & Paths
-
-# Set various *_BASE variables pointing to the nrf/, zephyr/, etc.,
-# directories. Derive them automatically if they're not set in the environment,
-# by assuming that e.g. nrfxlib can be found at ../../nrfxlib/. Also add them
-# to the environment if they're not there.
-#
+# Paths
 
 get_filename_component(NRF_BASE ${CMAKE_CURRENT_LIST_DIR}../ DIRECTORY)
-set(ENV{NRF_BASE} ${NRF_BASE})
 
-# -- Intellinium addition
-set(DOCSET_EXT_DIR ${CMAKE_CURRENT_LIST_DIR}/_external)
-
-if(NOT DEFINED ENV{MCUBOOT_BASE})
-  get_filename_component(MCUBOOT_BASE ${CMAKE_CURRENT_LIST_DIR}/../../bootloader/mcuboot/ REALPATH)
-  set(ENV{MCUBOOT_BASE} ${MCUBOOT_BASE})
-endif()
-
-if(NOT DEFINED ENV{NRFXLIB_BASE})
-  get_filename_component(NRFXLIB_BASE ${CMAKE_CURRENT_LIST_DIR}/../../nrfxlib/ REALPATH)
-  set(ENV{NRFXLIB_BASE} ${NRFXLIB_BASE})
-endif()
-
-if(NOT DEFINED ENV{NRFX_BASE})
-  get_filename_component(NRFX_BASE ${CMAKE_CURRENT_LIST_DIR}/../../modules/hal/nordic/nrfx/ REALPATH)
-  set(ENV{NRFX_BASE} ${NRFX_BASE})
-endif()
-
-# -- Intellinium addition
-if(NOT DEFINED ENV{ITL_CAR_POD_BASE})
-  get_filename_component(ITL_CAR_POD_BASE ${DOCSET_EXT_DIR}/itl_car_pod/ REALPATH)
-  set(ENV{ITL_CAR_POD_BASE} ${ITL_CAR_POD_BASE})
-endif()
-
-# -- Intellinium addition
-if(NOT DEFINED ENV{ITL_LIB_BASE})
-  get_filename_component(ITL_LIB_BASE ${CMAKE_CURRENT_LIST_DIR}/../../modules/itl-lib/ REALPATH)
-  set(ENV{ITL_LIB_BASE} ${ITL_LIB_BASE})
-endif()
-
-# -- Intellinium addition
-if(NOT DEFINED ENV{ITL_MAT_POD_BASE})
-  get_filename_component(ITL_MAT_POD_BASE ${DOCSET_EXT_DIR}/itl_mat_pod/ REALPATH)
-  set(ENV{ITL_MAT_POD_BASE} ${ITL_MAT_POD_BASE})
-endif()
-
-# -- Intellinium addition
-if(NOT DEFINED ENV{ITL_TFL_BASE})
-  get_filename_component(ITL_TFL_BASE ${DOCSET_EXT_DIR}/itl_tfl/ REALPATH)
-  set(ENV{ITL_TFL_BASE} ${ITL_TFL_BASE})
-endif()
-
-message(STATUS "ZEPHYR_BASE: ${ZEPHYR_BASE}")
-message(STATUS "NRF_BASE: $ENV{NRF_BASE}")
-message(STATUS "MCUBOOT_BASE: $ENV{MCUBOOT_BASE}")
-message(STATUS "NRFXLIB_BASE: $ENV{NRFXLIB_BASE}")
-message(STATUS "NRFX_BASE: $ENV{NRFX_BASE}")
-message(STATUS "ITL_CAR_POD_BASE: $ENV{ITL_CAR_POD_BASE}") # -- Intellinium addition
-message(STATUS "ITL_LIB_BASE: $ENV{ITL_LIB_BASE}") # -- Intellinium addition
-message(STATUS "ITL_MAT_POD_BASE: $ENV{ITL_MAT_POD_BASE}") # -- Intellinium addition
-message(STATUS "ITL_TFL_BASE: $ENV{ITL_TFL_BASE}") # -- Intellinium addition
-
-set(ZEPHYR_BINARY_DIR ${CMAKE_BINARY_DIR}/zephyr)
 set(NRF_BINARY_DIR ${CMAKE_BINARY_DIR}/nrf)
-set(NRFXLIB_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfxlib)
-set(NRFX_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfx)
-set(ITL_CAR_POD_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_car_pod) # -- Intellinium addition
-set(ITL_LIB_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_lib) # -- Intellinium addition
-set(ITL_MAT_POD_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_mat_pod) # -- Intellinium addition
-set(ITL_TFL_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_tfl) # -- Intellinium addition
+set(ZEPHYR_BINARY_DIR ${CMAKE_BINARY_DIR}/zephyr)
 
 # HTML output directory
 set(HTML_DIR ${CMAKE_BINARY_DIR}/html)
@@ -295,13 +243,7 @@ add_custom_target(
   USES_TERMINAL
 )
 
-set(zephyr_env
-  ZEPHYR_BASE=${ZEPHYR_BASE}
-  ZEPHYR_BUILD=${ZEPHYR_BINARY_DIR}
-  DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
-)
-
-add_docset(zephyr "${zephyr_env}")
+add_docset(zephyr DODGY)
 add_dependencies(zephyr-html zephyr-devicetree)
 add_dependencies(zephyr-html-all zephyr-devicetree)
 
@@ -318,7 +260,7 @@ set(tools_version_files
 set(pip_requirements_files
     ${ZEPHYR_BASE}/scripts/requirements-base.txt
     ${ZEPHYR_BASE}/scripts/requirements-doc.txt
-    ${MCUBOOT_BASE}/scripts/requirements.txt
+    ${ZEPHYR_MCUBOOT_MODULE_DIR}/scripts/requirements.txt
     ${NRF_BASE}/scripts/requirements-base.txt
     ${NRF_BASE}/scripts/requirements-doc.txt
     ${NRF_BASE}/scripts/requirements-build.txt
@@ -343,55 +285,40 @@ add_custom_command(
     ${pip_requirements_files}
 )
 
-set(nrf_env
-  ZEPHYR_BASE=${ZEPHYR_BASE}
-  NRF_BASE=${NRF_BASE}
-  NRF_BUILD=${NRF_BINARY_DIR}
-  DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
-)
-
 add_custom_target(
   nrf-versions
   DEPENDS
     ${NRF_BINARY_DIR}/src/versions.txt
 )
 
-add_docset(nrf "${nrf_env}")
+add_docset(nrf)
 add_dependencies(nrf-html nrf-versions)
 add_dependencies(nrf-html-all nrf-versions)
 
 #-------------------------------------------------------------------------------
 # docset: mcuboot
 
-set(mcuboot_env
-  NRF_BASE=${NRF_BASE}
-  MCUBOOT_BASE=${MCUBOOT_BASE}
-)
-
-add_docset(mcuboot "${mcuboot_env}")
+add_docset(mcuboot)
 
 #-------------------------------------------------------------------------------
 # docset: nrfx
 
-set(nrfx_env
-  NRF_BASE=${NRF_BASE}
-  NRFX_BASE=${NRFX_BASE}
-  NRFX_BUILD=${NRFX_BINARY_DIR}
-)
+add_docset(nrfx DODGY)
 
-add_docset(nrfx "${nrfx_env}")
+#-------------------------------------------------------------------------------
+# docset: tfm
+
+add_docset(tfm DODGY)
+
+#-------------------------------------------------------------------------------
+# docset: matter
+
+add_docset(matter)
 
 #-------------------------------------------------------------------------------
 # docset: nrfxlib
 
-set(nrfxlib_env
-  NRF_BASE=${NRF_BASE}
-  NRFXLIB_BASE=${NRFXLIB_BASE}
-  NRFXLIB_BUILD=${NRFXLIB_BINARY_DIR}
-  DOXYGEN_EXECUTABLE=${DOXYGEN_EXECUTABLE}
-)
-
-add_docset(nrfxlib "${nrfxlib_env}")
+add_docset(nrfxlib DODGY)
 
 #-------------------------------------------------------------------------------
 # -- Intellinium addition
@@ -518,14 +445,13 @@ add_custom_target(
         --separate-all-index
         --modules Zephyr,zephyr,${ZEPHYR_BASE}
                   nRF,nrf,${NRF_BASE}
-                  nrfxlib,nrfxlib,${NRFXLIB_BASE}
-                  itl-lib,itl_lib,${ITL_LIB_BASE} # -- Intellinium addition
+                  nrfxlib,nrfxlib,${ZEPHYR_NRFXLIB_MODULE_DIR}
         --no-index-modules BuildDir,${CMAKE_BINARY_DIR}
-                           MCUboot,${MCUBOOT_BASE}
+                           MCUboot,${ZEPHYR_MCUBOOT_MODULE_DIR}
   VERBATIM
 )
 
-add_docset(kconfig "")
+add_docset(kconfig)
 add_dependencies(kconfig-html kconfig-content)
 add_dependencies(kconfig-html-all kconfig-content)
 
@@ -538,10 +464,29 @@ add_custom_target(
   COMMAND ${CMAKE_COMMAND} -E copy ${NRF_BASE}/doc/versions.json ${HTML_DIR}
 )
 
+add_custom_target(
+  merge-search-indexes
+  COMMAND
+    ${PYTHON_EXECUTABLE}
+    ${NRF_BASE}/doc/_scripts/merge_search_indexes.py
+    -b ${CMAKE_BINARY_DIR}
+  COMMENT "Merging search indexes..."
+)
+
+add_dependencies(merge-search-indexes
+    nrf-html-all
+    nrfx-html-all
+    nrfxlib-html-all
+    zephyr-html-all
+    mcuboot-html-all
+    tfm-html-all
+    kconfig-html-all
+)
+
 add_dependencies(zephyr-html-all kconfig-html-all)
 add_dependencies(mcuboot-html-all kconfig-html-all)
 add_dependencies(nrfxlib-inventory-all kconfig-html-all)
-add_dependencies(nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html-all kconfig-html-all)
+add_dependencies(nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html-all matter-html-all kconfig-html-all)
 add_dependencies(nrfxlib-html-all nrf-html-all)
 
 # -- Intellinium additions
@@ -553,11 +498,14 @@ add_dependencies(itl_tfl-html-all itl_lib-html-all)
 add_custom_target(build-all ALL)
 add_dependencies(build-all
     copy-extra-content
+    merge-search-indexes
     nrf-html-all
     nrfx-html-all
     nrfxlib-html-all
     zephyr-html-all
     mcuboot-html-all
+    tfm-html-all
+    matter-html-all
     kconfig-html-all
     itl_car_pod-html-all # -- Intellinium addition
     itl_lib-html-all # -- Intellinium addition

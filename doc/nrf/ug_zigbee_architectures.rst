@@ -54,12 +54,12 @@ This platform design is suitable for the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf21540dk_nrf52840
+   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf21540dk_nrf52840
 
 Single-chip, multiprotocol (SoC)
 ================================
 
-With the nRF devices supporting multiple wireless technologies, including IEEE 802.15.4 and Bluetooth Low Energy (Bluetooth LE), the application layer and the Zigbee and Bluetooth LE stack run on the same chip.
+With the nRF devices supporting multiple wireless technologies, including IEEE 802.15.4 and Bluetooth® Low Energy (Bluetooth LE), the application layer and the Zigbee and Bluetooth LE stack run on the same chip.
 
 This design has the following advantages:
 
@@ -85,7 +85,7 @@ This platform design is suitable for the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuappns
+   :rows: nrf52840dk_nrf52840, nrf52833dk_nrf52833, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns
 
 .. _ug_zigbee_platform_design_ncp:
 

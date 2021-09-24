@@ -11,6 +11,8 @@
 static char *get_evt_type_str(enum modem_module_event_type type)
 {
 	switch (type) {
+	case MODEM_EVT_INITIALIZED:
+		return "MODEM_EVT_INITIALIZED";
 	case MODEM_EVT_LTE_CONNECTED:
 		return "MODEM_EVT_LTE_CONNECTED";
 	case MODEM_EVT_LTE_DISCONNECTED:
@@ -35,10 +37,22 @@ static char *get_evt_type_str(enum modem_module_event_type type)
 		return "MODEM_EVT_BATTERY_DATA_NOT_READY";
 	case MODEM_EVT_BATTERY_DATA_READY:
 		return "MODEM_EVT_BATTERY_DATA_READY";
+	case MODEM_EVT_NEIGHBOR_CELLS_DATA_NOT_READY:
+		return "MODEM_EVT_NEIGHBOR_CELLS_DATA_NOT_READY";
+	case MODEM_EVT_NEIGHBOR_CELLS_DATA_READY:
+		return "MODEM_EVT_NEIGHBOR_CELLS_DATA_READY";
 	case MODEM_EVT_SHUTDOWN_READY:
 		return "MODEM_EVT_SHUTDOWN_READY";
 	case MODEM_EVT_ERROR:
 		return "MODEM_EVT_ERROR";
+	case MODEM_EVT_CARRIER_INITIALIZED:
+		return "MODEM_EVT_CARRIER_INITIALIZED";
+	case MODEM_EVT_CARRIER_FOTA_PENDING:
+		return "MODEM_EVT_CARRIER_FOTA_PENDING";
+	case MODEM_EVT_CARRIER_FOTA_STOPPED:
+		return "MODEM_EVT_CARRIER_FOTA_STOPPED";
+	case MODEM_EVT_CARRIER_REBOOT_REQUEST:
+		return "MODEM_EVT_CARRIER_REBOOT_REQUEST";
 	default:
 		return "Unknown event";
 	}
@@ -65,10 +79,9 @@ static void profile_event(struct log_event_buf *buf,
 	const struct modem_module_event *event = cast_modem_module_event(eh);
 
 #if defined(CONFIG_PROFILER_EVENT_TYPE_STRING)
-	profiler_log_encode_string(buf, get_evt_type_str(event->type),
-		strlen(get_evt_type_str(event->type)));
+	profiler_log_encode_string(buf, get_evt_type_str(event->type));
 #else
-	profiler_log_encode_u32(buf, event->type);
+	profiler_log_encode_uint8(buf, event->type);
 #endif
 }
 
@@ -76,7 +89,7 @@ EVENT_INFO_DEFINE(modem_module_event,
 #if defined(CONFIG_PROFILER_EVENT_TYPE_STRING)
 		  ENCODE(PROFILER_ARG_STRING),
 #else
-		  ENCODE(PROFILER_ARG_U32),
+		  ENCODE(PROFILER_ARG_U8),
 #endif
 		  ENCODE("type"),
 		  profile_event);

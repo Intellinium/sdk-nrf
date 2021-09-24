@@ -21,7 +21,7 @@ This sample exposes the HID GATT Service.
 It uses a report map for a generic mouse.
 
 You can also disable directed advertising feature by clearing the BT_DIRECTED_ADVERTISING flag in the application configuration.
-This feature is enabled by default and it changes the way in which advertising works in comparison to the other Bluetooth LE samples.
+This feature is enabled by default and it changes the way in which advertising works in comparison to the other Bluetooth® Low Energy samples.
 When the device wants to advertise, it starts with high duty cycle directed advertising provided that it has bonding information.
 If the timeout occurs, then the device starts directed advertising to the next bonded peer.
 If all bonding information is used and there is still no connection, then the regular advertising starts.
@@ -33,7 +33,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf52833dk_nrf52820
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf52833dk_nrf52820
 
 .. include:: /includes/hci_rpmsg_overlay.txt
 
@@ -97,7 +97,7 @@ To test with `nRF Connect for Desktop`_, complete the following steps:
 #. Optionally, bond to the device.
    To do so, click the settings button for the device in nRF Connect, select :guilabel:`Pair`, check :guilabel:`Perform Bonding`, and click :guilabel:`Pair`.
    Optionally check :guilabel:`Enable MITM protection` to pair with MITM protection and use a button on the device to confirm or reject passkey value.
-#. Clik Match in nRF Connect app.
+#. Click Match in nRF Connect app.
    Wait until the bond is established before you continue.
 #. Observe that the services of the connected device are shown.
 #. Click the :guilabel:`Play` button for all HID Report characteristics.

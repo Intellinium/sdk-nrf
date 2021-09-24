@@ -13,7 +13,7 @@ However, this sample supports LE Coded PHY.
 Overview
 ********
 
-The sample demonstrates a basic Bluetooth LE Peripheral role functionality that exposes the Heart Rate GATT Service with LE Coded PHY support which not available in Zephyr Bluetooth LE Controller (See :ref:`ug_ble_controller` for more information).
+The sample demonstrates a basic Bluetooth® Low Energy Peripheral role functionality that exposes the Heart Rate GATT Service with LE Coded PHY support, which is not available in Zephyr Bluetooth LE Controller (See :ref:`ug_ble_controller` for more information).
 Once it connects to a Central device, it generates dummy heart rate values.
 It can be used together with the :ref:`bluetooth_central_hr_coded` sample.
 
@@ -24,7 +24,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dongle_nrf52840, nrf52840dk_nrf52840
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dongle_nrf52840, nrf52840dk_nrf52840
 
 .. include:: /includes/hci_rpmsg_overlay.txt
 
@@ -33,7 +33,7 @@ The sample also requires:
 * A device running a Heart Rate Server with LE Coded PHY support to connect to.
   For example, another development kit running the :ref:`bluetooth_central_hr_coded` sample.
 
-Building and Running
+Building and running
 ********************
 .. |sample path| replace:: :file:`samples/bluetooth/peripheral_hr_coded`
 

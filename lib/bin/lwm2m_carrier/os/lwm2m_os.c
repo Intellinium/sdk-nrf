@@ -146,6 +146,12 @@ int lwm2m_os_storage_delete(uint16_t id)
 	__ASSERT((id >= LWM2M_OS_STORAGE_BASE) || (id <= LWM2M_OS_STORAGE_END),
 		 "Storage ID out of range");
 
+	if ((id == LWM2M_OS_STORAGE_END - 16) ||
+	    (id == LWM2M_OS_STORAGE_END - 18) ||
+	    (id == LWM2M_OS_STORAGE_END - 19)) {
+		return 0;
+	}
+
 	return nvs_delete(&fs, id);
 }
 
@@ -239,7 +245,10 @@ void lwm2m_os_timer_release(lwm2m_os_timer_t *timer)
 		return;
 	}
 
-	work->handler = NULL;
+	/* Workaround. The work is being reused by the library without ever reassigning
+	 * the handler, hence the timer cannot be released. Instead, only cancel the work.
+	 */
+	k_work_cancel_delayable_sync(&work->work_item, &work->work_sync);
 }
 
 int lwm2m_os_timer_start(lwm2m_os_timer_t *timer, int64_t msec)

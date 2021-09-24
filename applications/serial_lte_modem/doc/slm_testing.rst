@@ -64,15 +64,16 @@ Complete the following steps to test the functionality provided by the :ref:`SLM
       #XSLEEP: (0,1,2)
       OK
 
-   ``AT#XSLEEP`` puts the kit in idle mode, and you can wake up by GPIO.
+   ``AT#XSLEEP=0`` puts the kit in idle mode.
+   You can exit idle by GPIO.
 
    Alternatively, you can use different modes for #XSLEEP:
 
    * ``AT#XSLEEP=1`` puts the kit in sleep mode.
-     If you are testing with :option:`CONFIG_SLM_GPIO_WAKEUP` enabled, you can wake up by GPIO.
+     You can wake it up by GPIO.
 
    * ``AT#XSLEEP=2`` powers off UART.
-     You can power on UART by GPIO.
+     You can power on UART again by GPIO.
 
 TCP/IP AT commands
 ******************
@@ -93,7 +94,7 @@ TCP client
          #XSOCKET: (0,1),(1,2),(0,1),<sec-tag>
          OK
 
-   #. Open a TCP socket, read information (handle, protocol, and role) about the open socket, and set the receive timeout of the open socket to 30 seconds.
+   #. Open a TCP socket, read the information (handle, protocol, and role) about the open socket, and set the receive timeout of the open socket to 30 seconds.
 
       .. parsed-literal::
          :class: highlight
@@ -110,7 +111,7 @@ TCP client
          OK
 
    #. Connect to a TCP server on a specified port.
-      Replace *example.com* with the host name or IPv4 address of a TCP server and *1234* with the corresponding port.
+      Replace *example.com* with the hostname or IPv4 address of a TCP server and *1234* with the corresponding port.
       Then read the connection status.
       ``1`` indicates that the connection is established.
 
@@ -135,7 +136,7 @@ TCP client
          OK
 
          **AT#XRECV**
-         PONG: b'Test TCP'
+         PONG: 'Test TCP'
          #XRECV: 17
          OK
 
@@ -185,7 +186,10 @@ TCP client
            Connection: close<CR><LF>
            <CR><LF>
 
-      Exit data mode.
+   #. Exit data mode.
+
+      .. parsed-literal::
+         :class: highlight
 
          +++
          OK
@@ -229,8 +233,8 @@ TCP client
          OK
 
    #. Create a TCP/TLS client and connect to a server.
-      Replace *example.com* with the host name or IPv4 address of a TCP server and *1234* with the corresponding port.
-      Then read information about the connection.
+      Replace *example.com* with the hostname or IPv4 address of a TCP server and *1234* with the corresponding port.
+      Then read the information about the connection.
 
       .. parsed-literal::
          :class: highlight
@@ -274,8 +278,8 @@ TCP client
 #. Test a TCP client with TCP proxy service in data mode:
 
    a. Create a TCP/TLS client and connect to a server with data mode support.
-      Replace ``*example.com*`` with the host name or IPv4 address of a TCP server and ``*1234*`` with the corresponding port.
-      Then read information about the connection.
+      Replace ``*example.com*`` with the hostname or IPv4 address of a TCP server and ``*1234*`` with the corresponding port.
+      Then read the information about the connection.
 
       .. parsed-literal::
          :class: highlight
@@ -310,7 +314,7 @@ UDP client
 
 1. Test a UDP client with connectionless UDP:
 
-   a. Open a UDP socket and read information (handle, protocol, and role) about the open socket.
+   a. Open a UDP socket and read the information (handle, protocol, and role) about the open socket.
 
       .. parsed-literal::
          :class: highlight
@@ -323,7 +327,7 @@ UDP client
          OK
 
    #. Send plain text data to a UDP server on a specified port.
-      Replace *example.com* with the host name or IPv4 address of a UDP server and *1234* with the corresponding port.
+      Replace *example.com* with the hostname or IPv4 address of a UDP server and *1234* with the corresponding port.
       Then retrieve the returned data.
 
       .. parsed-literal::
@@ -349,7 +353,7 @@ UDP client
 #. Test a UDP client with connection-based UDP:
 
    a. Open a UDP socket and connect to a UDP server on a specified port.
-      Replace *example.com* with the host name or IPv4 address of a UDP server and *1234* with the corresponding port.
+      Replace *example.com* with the hostname or IPv4 address of a UDP server and *1234* with the corresponding port.
 
       .. parsed-literal::
          :class: highlight
@@ -397,7 +401,7 @@ UDP client
          OK
 
    #. Create a UDP client and connect to a server.
-      Replace *example.com* with the host name or IPv4 address of a UDP server and *1234* with the corresponding port.
+      Replace *example.com* with the hostname or IPv4 address of a UDP server and *1234* with the corresponding port.
 
       .. parsed-literal::
          :class: highlight
@@ -428,8 +432,8 @@ UDP client
 #. Test a connection-based UDP client with UDP proxy service in data mode:
 
    a. Create a UDP client and connect to a server with data mode support.
-      Replace *example.com* with the host name or IPv4 address of a UDP server and *1234* with the corresponding port.
-      Then read information about the connection.
+      Replace *example.com* with the hostname or IPv4 address of a UDP server and *1234* with the corresponding port.
+      Then read the information about the connection.
 
       .. parsed-literal::
          :class: highlight
@@ -485,7 +489,7 @@ You must register the corresponding credentials on the server side.
          OK
 
    #. Open a TCP/TLS socket that uses the security tag 16842755 and connect to a TLS server on a specified port.
-      Replace *example.com* with the host name or IPv4 address of a TLS server and *1234* with the corresponding port.
+      Replace *example.com* with the hostname or IPv4 address of a TLS server and *1234* with the corresponding port.
 
       .. parsed-literal::
          :class: highlight
@@ -524,8 +528,8 @@ You must register the corresponding credentials on the server side.
 #. Test a TLS client with TCP proxy service:
 
    a. Create a TCP/TLS client and connect to a server.
-      Replace *example.com* with the host name or IPv4 address of a TLS server and *1234* with the corresponding port.
-      Then read information about the connection.
+      Replace *example.com* with the hostname or IPv4 address of a TLS server and *1234* with the corresponding port.
+      Then read the information about the connection.
 
       .. parsed-literal::
          :class: highlight
@@ -595,7 +599,7 @@ You must register the corresponding credentials on the server side.
 	     OK
 
        #. Open a TCP/DTLS socket that uses the security tag 16842756 and connect to a DTLS server on a specified port.
-	  Replace *example.com* with the host name or IPv4 address of a DTLS server and *1234* with the corresponding port.
+	  Replace *example.com* with the hostname or IPv4 address of a DTLS server and *1234* with the corresponding port.
 
 	 .. parsed-literal::
 	     :class: highlight
@@ -634,8 +638,8 @@ You must register the corresponding credentials on the server side.
     #. Test a DTLS client with UDP proxy service:
 
        a. Create a UDP/DTLS client and connect to a server.
-	  Replace *example.com* with the host name or IPv4 address of a DTLS server and *1234* with the corresponding port.
-	  Then read information about the connection.
+	  Replace *example.com* with the hostname or IPv4 address of a DTLS server and *1234* with the corresponding port.
+	  Then read the information about the connection.
 
 	  .. parsed-literal::
 	     :class: highlight
@@ -666,7 +670,7 @@ To act as a TCP server, |global_private_address|
 
 |global_private_address_check|
 
-1. Create a Python script :file:`client_tcp.py` that acts a TCP client.
+1. Create a Python script :file:`client_tcp.py` that acts as a TCP client.
    See the following sample code (make sure to use the correct IP address and port):
 
    .. code-block:: python
@@ -776,7 +780,7 @@ To act as a TCP server, |global_private_address|
 
 #. Test the TCP server with TCP proxy service:
 
-   a. Check the available values for the XTCPSVR command and read information about the current state.
+   a. Check the available values for the XTCPSVR command and read the information about the current state.
 
       .. parsed-literal::
          :class: highlight
@@ -789,7 +793,7 @@ To act as a TCP server, |global_private_address|
          #XTCPSVR: -1,-1
          OK
 
-   #. Create a TCP server and read information about the current state.
+   #. Create a TCP server and read the information about the current state.
       Replace *1234* with the correct port number.
 
       .. parsed-literal::
@@ -806,7 +810,7 @@ To act as a TCP server, |global_private_address|
    #. Run the :file:`client_tcp.py` script to start sending data to the server.
 
    #. Observe that the server accepts the connection from the client.
-      Read information about the current state again.
+      Read the information about the current state again.
 
       .. parsed-literal::
          :class: highlight
@@ -862,7 +866,7 @@ To act as a TCP server, |global_private_address|
          TCP3/4/5 received
          Closing connection
 
-   #. Read information about the current state.
+   #. Read the information about the current state.
 
       .. parsed-literal::
          :class: highlight
@@ -886,7 +890,7 @@ To act as a TCP server, |global_private_address|
 
 #. Test the TCP server with TCP proxy service in data mode:
 
-   a. Create a TCP server and read information about the current state.
+   a. Create a TCP server and read the information about the current state.
       Replace *1234* with the correct port number.
 
       .. parsed-literal::
@@ -941,7 +945,7 @@ To act as a UDP server, |global_private_address|
 
 |global_private_address_check|
 
-1. Create a Python script :file:`client_udp.py` that acts a UDP client.
+1. Create a Python script :file:`client_udp.py` that acts as a UDP client.
    See the following sample code (make sure to use the correct IP addresses and port):
 
    .. code-block:: python
@@ -999,7 +1003,7 @@ To act as a UDP server, |global_private_address|
    #. Run the :file:`client_udp.py` script to start sending data to the server.
 
    #. Start receiving and acknowledging the data.
-      Replace *example.com* with the host name or IPv4 address of the UDP client and *1234* with the corresponding port.
+      Replace *example.com* with the hostname or IPv4 address of the UDP client and *1234* with the corresponding port.
 
       .. parsed-literal::
          :class: highlight
@@ -1140,7 +1144,7 @@ To act as a UDP server, |global_private_address|
 
 #. Test the UDP server with UDP proxy service in data mode:
 
-   a. Create a UDP server and read information about the current state.
+   a. Create a UDP server and read the information about the current state.
       Replace *1234* with the correct port number.
 
       .. parsed-literal::
@@ -1220,7 +1224,7 @@ The DTLS server role is currently not supported (modem limitation).
 DNS lookup
 ==========
 
-1. Look up the IP address for a host name.
+1. Look up the IP address for a hostname.
 
    .. parsed-literal::
       :class: highlight
@@ -1337,9 +1341,9 @@ Complete the following steps to test the functionality provided by the :ref:`SLM
 FTP AT commands
 ***************
 
-Note that these commands are available only if :option:`CONFIG_SLM_FTPC` is defined.
-Before you test the FTP AT commands, check the setting of the :option:`CONFIG_FTP_CLIENT_KEEPALIVE_TIME` option.
-By default, the :ref:`lib_ftp_client` library keeps the connection to the FTP server alive for 60 seconds, but you can change the duration or turn KEEPALIVE off by setting :option:`CONFIG_FTP_CLIENT_KEEPALIVE_TIME` to 0.
+Note that these commands are available only if :kconfig:`CONFIG_SLM_FTPC` is defined.
+Before you test the FTP AT commands, check the setting of the :kconfig:`CONFIG_FTP_CLIENT_KEEPALIVE_TIME` option.
+By default, the :ref:`lib_ftp_client` library keeps the connection to the FTP server alive for 60 seconds, but you can change the duration or turn KEEPALIVE off by setting :kconfig:`CONFIG_FTP_CLIENT_KEEPALIVE_TIME` to 0.
 
 The FTP client behavior depends on the FTP server that is used for testing.
 Complete the following steps to test the functionality provided by the :ref:`SLM_AT_FTP` with two example servers:
@@ -1736,274 +1740,3 @@ Complete the following steps to test the functionality provided by the :ref:`SLM
          221-Goodbye. You uploaded 1 and downloaded 0 kbytes.
          221 Logout.
          OK
-
-GPS AT commands
-***************
-
-Note that these commands are available only if :option:`CONFIG_SLM_GPS` is defined.
-Before you test the GPS AT commands, check the following configuration values:
-
-* :option:`CONFIG_SUPL_CLIENT_LIB` - must be enabled to use the :ref:`supl_client`
-* :option:`CONFIG_SLM_SUPL_SERVER` - use the default ("supl.google.com") or specify a different server
-* :option:`CONFIG_SLM_SUPL_PORT` - use the default (7276) or specify a different port
-
-Complete the following steps to test the functionality provided by the :ref:`SLM_AT_GPS`:
-
-1. Test standalone GPS:
-
-   a. Enable support for GNSS in the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CFUN=0**
-         OK
-
-         **AT%XSYSTEMMODE=0,0,1,0**
-         OK
-
-   .. modem_config_start
-
-   b. Configure the Low-Noise Amplifier (LNA).
-      The required commands depend on the version of the nRF9160 DK.
-
-      For nRF9160 DK versions up to v0.9.0, configure the MAGPIO pin:
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT%XMAGPIO=1,0,0,1,1,1574,1577**
-         OK
-
-      For nRF9160 DK versions starting with v0.10.x, configure the COEX0 pin:
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT%XCOEX0=1,1,1565,1586**
-         OK
-
-   .. modem_config_end
-
-   c. Turn on the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CFUN=1**
-         OK
-
-   #. Start GPS with GPS fix data and geographic position latitude/longitude and time, and observe the output.
-      Then check the GPS status.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT#XGPS=1,3**
-         #XGPS: 1,3
-         OK
-         #XGPSS: tracking 1 using 1 unhealthy 0
-         #XGPSS: tracking 2 using 2 unhealthy 0
-         *[...]*
-
-         **AT#XGPS?**
-         #XGPS: 1,3
-         OK
-
-   #. Turn off GPS and check the status again.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT#XGPS=0**
-         #XGPS: 0
-         OK
-
-         **AT#XGPS?**
-         #XGPS: 0
-         OK
-
-#. Test GPS in PSM mode:
-
-   a. Subscribe to unsolicited network status notifications.
-      Then enable support for LTE Cat-M1 and GNSS in the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CFUN=0**
-         OK
-
-         **AT+CEREG=5**
-         OK
-
-         **AT%XSYSTEMMODE=1,0,1,0**
-         OK
-
-.. include:: slm_testing.rst
-   :start-after: modem_config_start
-   :end-before: modem_config_end
-
-..
-
-   c. Enable power saving mode.
-      Then turn on the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CPSMS=1,,,"00100100","00100001"**
-         OK
-
-         **AT+CFUN=1**
-         OK
-         +CEREG: 2,"106A","00A3965D",7,0,0,"11100000","11100000"
-         +CEREG: 1,"106A","00A3965D",7,,,"00011110","00011000"
-
-   #. Start GPS with GPS fix data and geographic position latitude/longitude and time, and observe the output.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT#XGPS=1,3**
-         #XGPS: 1,3
-         OK
-         #XGPSS: tracking 1 using 1 unhealthy 0
-         #XGPSS: tracking 2 using 2 unhealthy 0
-         *[...]*
-
-   #. Turn off GPS.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT#XGPS=0**
-         #XGPS: 0
-         OK
-
-#. Test GPS in eDRX mode:
-
-   a. Subscribe to unsolicited network status notifications.
-      Then enable support for LTE Cat-M1 and GNSS in the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CFUN=0**
-         OK
-
-         **AT+CEREG=2**
-         OK
-
-         **AT%XSYSTEMMODE=1,0,1,0**
-         OK
-
-.. include:: slm_testing.rst
-   :start-after: modem_config_start
-   :end-before: modem_config_end
-
-..
-
-   c. Enable the use of eDRX and configure the PTW parameters.
-      Then turn on the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CEDRXS=2,4,"1010"**
-         OK
-
-         **AT%XPTW=4,"0001"**
-         OK
-
-         **AT+CFUN=1**
-         OK
-         +CEREG: 2,"106A","00A3965D",7
-         +CEREG: 1,"106A","00A3965D",7
-         +CEDRXP: 4,"1010","1010","0001"
-
-   #. Start GPS with GPS fix data and geographic position latitude/longitude and time, and observe the output.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT#XGPS=1,3**
-         #XGPS: 1,3
-         OK
-         #XGPSS: tracking 1 using 1 unhealthy 0
-         #XGPSS: tracking 2 using 2 unhealthy 0
-         *[...]*
-
-   #. Turn off GPS.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT#XGPS=0**
-         #XGPS: 0
-         OK
-
-#. Test A-GPS:
-
-   a. Subscribe to unsolicited network status notifications.
-      Then enable support for LTE Cat-M1 and GNSS in the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CFUN=0**
-         OK
-
-         **AT+CEREG=2**
-         OK
-
-         **AT%XSYSTEMMODE=1,0,1,0**
-         OK
-
-.. include:: slm_testing.rst
-   :start-after: modem_config_start
-   :end-before: modem_config_end
-
-..
-
-   c. Turn on the modem.
-
-      .. parsed-literal::
-         :class: highlight
-
-         **AT+CFUN=1**
-         OK
-         +CEREG: 2,"107E","00B02C03",7
-         +CEREG: 1,"107E","00B02C03",7
-
-   #. Start GPS with GPS fix data and geographic position latitude/longitude and time, and observe the output.
-      Note that the TTFF printed in the AT response is from then time when AT#XGPS was issued.
-      For A-GPS, this includes the SUPL injection time.
-
-      .. parsed-literal::
-         :class: highlight
-
-          **AT#XGPS=1,3**
-         #XGPS: 1,3
-         OK
-         GPS suspended
-         SUPL injection done
-         GPS resumed
-         #XGPSS: track 3 use 3 unhealthy 0
-         #XGPSS: track 4 use 4 unhealthy 0
-         #XGPSS: track 5 use 5 unhealthy 0
-         #XGPSS: track 4 use 4 unhealthy 0
-         #XGPSS: track 5 use 5 unhealthy 0
-         #XGPSS: track 6 use 6 unhealthy 0
-         #XGPSS: track 7 use 7 unhealthy 0
-         #XGPSS: track 6 use 6 unhealthy 0
-         #XGPSP: long 139.721966 lat 35.534159
-         #XGPSP: 2020-04-30 00:11:55
-         #XGPSP: TTFF 57s
-         $GPGGA,001155.87,3532.04954,N,13943.31794,E,1,06,17.40,109.53,M,0,,*19
-         $GPGLL,3532.04954,N,13943.31794,E,001155.87,A,A*69
-         #XGPSP: long 139.721969 lat 35.534148
-         #XGPSP: 2020-04-30 00:11:56
-         $GPGGA,001156.87,3532.04889,N,13943.31811,E,1,07,17.38,111.08,M,0,,*10
-         $GPGLL,3532.04889,N,13943.31811,E,001156.87,A,A*69
-         #XGPSP: long 139.721982 lat 35.534138

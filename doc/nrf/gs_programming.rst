@@ -1,20 +1,27 @@
 .. _gs_programming:
 
-Building and programming a sample application
-#############################################
+Building and programming an application
+#######################################
 
 .. contents::
    :local:
    :depth: 2
 
-The recommended way of building and programming an |NCS| sample is to use the Nordic Edition of the SEGGER Embedded Studio (SES) IDE.
+|application_sample_definition|
 
+For additional information, check the user guide for the hardware platform that you are using.
+These user guides contain platform-specific instructions for building and programming.
+For additional information, check the user guide for the hardware platform that you are using.
+For example, see :ref:`ug_nrf5340_building` in the :ref:`ug_nrf5340` user guide for information about programming an nRF5340 DK, or :ref:`precompiled_fw` and :ref:`building_pgming` for information about programming a Thingy:91.
 
-.. note::
+.. _gs_programming_vsc:
 
-   For additional information, check the user guide for the hardware platform that you are using.
-   These user guides contain platform-specific instructions for building and programming.
-   For example, see :ref:`ug_nrf5340_building` in the :ref:`ug_nrf5340` user guide for information about programming an nRF5340 DK, or :ref:`precompiled_fw` and :ref:`building_pgming` for information about programming a Thingy:91.
+Building with the VS Code extension
+***********************************
+
+|vsc_extension_instructions|
+For detailed instructions on how to set up your build configuration, see `Creating an application`_ in the extension's README file.
+
 
 .. _gs_programming_ses:
 
@@ -27,8 +34,8 @@ Complete the following steps to build |NCS| projects with SES after :ref:`instal
 
 1. Start SEGGER Embedded Studio.
 
-   If you have installed the |NCS| using the :ref:`gs_app_tcm`, click :guilabel:`Open IDE` next to the version you installed to start SES.
-   If you have installed SES manually, run :file:`bin/emStudio`.
+   If you have installed the |NCS| using the :ref:`gs_app_tcm`, click the :guilabel:`Open Segger Embedded Studio` button next to the version you installed to start SES.
+   If you have installed SES manually, run the :file:`emStudio` executable file from the :file:`bin` directory.
 
    .. figure:: images/gs-assistant_tm_installed.png
       :alt: The Toolchain Manager options after installing the nRF Connect SDK version, cropped
@@ -48,7 +55,7 @@ Complete the following steps to build |NCS| projects with SES after :ref:`instal
 
      The drop-down list contains the current version of all |NCS| installation directories that SES knows about.
      To add a missing |NCS| installation directory to that list, run ``west zephyr-export`` in the installation repository or define the Zephyr base to point to the directory (see :ref:`setting_up_SES`).
-   * :guilabel:`nRF Connect Toolchain Version` - If you used the Toolchain manager to install the |NCS|, select the version of the toolchain that works with the selected |NCS| version.
+   * :guilabel:`nRF Connect Toolchain Version` - If you used the Toolchain Manager to install the |NCS|, select the version of the toolchain that works with the selected |NCS| version.
      Otherwise, select NONE and make sure that your SES environment is configured correctly (see :ref:`setting_up_SES`).
 
      .. note::
@@ -56,8 +63,8 @@ Complete the following steps to build |NCS| projects with SES after :ref:`instal
 
    * :guilabel:`Projects` - Select the project that you want to work with.
 
-     The drop-down list contains a selection of samples and applications from the sdk-nrf and sdk-zephyr repositories.
-     Select any of the checkboxes underneath to add the samples from that area to the drop-down list.
+     The drop-down list contains a selection of applications from the sdk-nrf and sdk-zephyr repositories.
+     Select any of the checkboxes underneath to add the applications from that area to the drop-down list.
      To add projects to the drop-down list, for example, your own custom projects, click :guilabel:`...` and select the folder that contains the projects that you want to add.
    * :guilabel:`Board Name` - Select the board that you want to work with.
 
@@ -72,7 +79,7 @@ Complete the following steps to build |NCS| projects with SES after :ref:`instal
 
    .. build_SES_projimport_open_end
 
-   The following figure shows an example configuration for the Asset Tracker application built for the ``nrf9160dk_nrf9160ns`` build target:
+   The following figure shows an example configuration for the Asset Tracker application built for the ``nrf9160dk_nrf9160_ns`` build target:
 
    .. figure:: images/ses_config.png
       :alt: Opening the Asset Tracker project
@@ -119,10 +126,14 @@ Complete the following steps to build |NCS| projects with SES after :ref:`instal
 
       a. Select your project in the Project Explorer.
       #. From the menu, select :guilabel:`Build` > :guilabel:`Build Solution`.
-      #. When the build completes, you can program the sample to a connected development kit:
+      #. When the build completes, you can program the application to a connected development kit:
 
          * For a single-image application, select :guilabel:`Target` > :guilabel:`Download zephyr/zephyr.elf`.
          * For a multi-image application, select :guilabel:`Target` > :guilabel:`Download zephyr/merged.hex`.
+
+      .. warning::
+	   For nRF53 family SoC, programming :file:`merged.hex` file updates only the application core.
+	   If you need to update also the network core, you must follow additional steps described in :ref:`ug_nrf5340`.
 
       .. note::
 	   Alternatively, choose the :guilabel:`Build and Debug` option.
@@ -135,14 +146,14 @@ Complete the following steps to build |NCS| projects with SES after :ref:`instal
    	In a multi-image build, this allows you to debug the source code of your application only.
 
 If you get an error that a tool or command cannot be found, first make sure that the tool is installed.
-If it is installed, verify that its location is correct in the PATH variable or, if applicable, in the SES settings.
+If it is installed, verify that its location is correct in the :envvar:`PATH` variable or, if applicable, in the SES settings.
 
 .. _gs_programming_cmd:
 
 Building on the command line
 ****************************
 
-Complete the following steps to build |NCS| projects on the command line after completing the :ref:`command-line build setup <build_environment_cli>`.
+After completing the :ref:`manual <build_environment_cli>` or :ref:`automatic <gs_app_installing-ncs-tcm>` command-line build setup, use the following steps to build |NCS| projects on the command line.
 
 1.    Open a terminal window.
 
@@ -153,15 +164,15 @@ Complete the following steps to build |NCS| projects on the command line after c
 
          The Toolchain Manager dropdown menu options
 
-#.    Go to the specific sample or application directory.
-      For example, to build the :ref:`at_client_sample` sample, run the following command to navigate to the sample directory:
+#.    Go to the specific application directory.
+      For example, to build the :ref:`at_client_sample` sample, run the following command to navigate to its directory:
 
       .. code-block:: console
 
          cd nrf/samples/nRF9160/at_client
 
 
-#.    Build the sample or application using the west command.
+#.    Build the application using the west command.
       The build target is specified by the parameter *build_target* in the west command as follows:
 
       .. parsed-literal::
@@ -184,7 +195,7 @@ Complete the following steps to build |NCS| projects on the command line after c
 
       See :ref:`configure_application` for additional information about configuring an application.
 
-      After running the ``west build`` command, the build files can be found in ``build/zephyr``.
+      After running the ``west build`` command, the build files can be found in :file:`build/zephyr`.
       For more information on the contents of the build directory, see :ref:`zephyr:build-directory-contents`.
 
       .. include:: gs_programming.rst
@@ -197,7 +208,7 @@ Complete the following steps to build |NCS| projects on the command line after c
          To program the nRF52840 Dongle instead of a development kit, skip the following instructions and follow the programming instructions in :ref:`zephyr:nrf52840dongle_nrf52840`.
 
 #.    Power on the development kit.
-#.    Program the sample or application to the kit using the following command:
+#.    Program the application to the kit using the following command:
 
       .. code-block:: console
 

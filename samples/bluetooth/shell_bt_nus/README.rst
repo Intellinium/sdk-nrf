@@ -7,7 +7,7 @@ Bluetooth: NUS shell transport
    :local:
    :depth: 2
 
-The Nordic UART Service (NUS) shell transport sample demonstrates how to use the :ref:`shell_bt_nus_readme` to receive shell commands from a remote device.
+The Nordic UART Service (NUS) shell transport sample demonstrates how to use the :ref:`shell_bt_nus_readme` to receive shell commands from a remote device over Bluetooth®.
 
 Overview
 ********
@@ -23,7 +23,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833
 
 You also need an additional nRF52 development kit, like the PCA10040 for connecting using the :file:`bt_nus_shell.py` script.
 Alternatively, you can use :ref:`ble_console_readme` for connecting, using Linux only.
@@ -46,7 +46,7 @@ The |NCS| provides two alternatives for testing the sample:
 Testing using shell_bt_nus
 ==========================
 
-.. include:: ../../../include/shell/shell_bt_nus.rst
+.. include:: ../../../doc/nrf/libraries/shell/shell_bt_nus.rst
    :start-after: testing_bt_nus_shell_intro_start
    :end-before: testing_bt_nus_shell_intro_end
 

@@ -16,7 +16,7 @@ The sample supports the following development kit:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160ns
+   :rows: nrf9160dk_nrf9160_ns
 
 .. include:: /includes/spm.txt
 
@@ -48,7 +48,7 @@ Testing
 #. Power on or reset your nRF9160 DK.
 #. Observe that the sample starts, creates and configures a PDP context, and then activates a PDN connection.
 
-Sample Output
+Sample output
 =============
 
 The sample shows the following output, which may vary based on the network provider:

@@ -10,6 +10,8 @@
  * @file gps.h
  *
  * @brief Public APIs for the GPS interface.
+ *
+ * @deprecated since v1.7.0.
  */
 
 #include <zephyr.h>
@@ -27,7 +29,6 @@ extern "C" {
 
 #define GPS_NMEA_SENTENCE_MAX_LENGTH	83
 #define GPS_PVT_MAX_SV_COUNT		12
-#define GPS_SOCKET_NOT_PROVIDED		0
 
 struct gps_nmea {
 	char buf[GPS_NMEA_SENTENCE_MAX_LENGTH];
@@ -248,6 +249,7 @@ enum gps_event_type {
  */
 enum gps_error {
 	GPS_ERROR_GPS_DISABLED,
+	GPS_ERROR_EVT_QUEUE_FULL
 };
 
 struct gps_event {
@@ -329,11 +331,12 @@ struct gps_driver_api {
 /**
  * @brief Function to start GPS operation.
  *
- * If gps is already running a call to this function will
- * restart the gps.
+ * If GPS is already running a call to this function will restart the GPS.
  *
  * @param dev Pointer to GPS device
  * @param cfg Pointer to GPS configuration.
+ *
+ * @return Zero on success or (negative) error code otherwise.
  */
 static inline int gps_start(const struct device *dev, struct gps_config *cfg)
 {
@@ -356,6 +359,8 @@ static inline int gps_start(const struct device *dev, struct gps_config *cfg)
  * @brief Function to stop GPS operation.
  *
  * @param dev Pointer to GPS device
+ *
+ * @return Zero on success or (negative) error code otherwise.
  */
 static inline int gps_stop(const struct device *dev)
 {
@@ -452,38 +457,6 @@ static inline int gps_deinit(const struct device *dev)
 
 	return api->deinit(dev);
 }
-
-/**
- * @brief Function to send a request for A-GPS data to the configured A-GPS
- *	  data source. See the A-GPS Library Kconfig documentation for alternatives.
- *
- * @param request Assistance data to request from A-GPS service.
- * @param socket GPS socket to which assistance data will be written
- *               when it's received from the selected A-GPS service.
- *               If zero the GPS driver will be used to write the data instead
- *               of directly to the provided socket.
- *
- * @return Zero on success or (negative) error code otherwise.
- */
-int gps_agps_request_send(struct gps_agps_request request, int socket);
-
-/**
- * @brief Processes A-GPS data.
- *
- * @param buf Pointer to A-GPS data.
- * @param len Buffer size of data to be processed.
- *
- * @return Zero on success or (negative) error code otherwise.
- */
-int gps_process_agps_data(const uint8_t *buf, size_t len);
-
-/**@brief Gets most recent location from cell-based location request.
- *
- * @param lat Pointer where last cell-based latitude is to be copied.
- * @param lon Pointer where last cell-based longitude is to be copied.
- * @return 0 if successful, otherwise a (negative) error code.
- */
-int gps_get_last_cell_location(double *const lat, double *const lon);
 
 /** @} */
 

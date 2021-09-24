@@ -4,13 +4,23 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-cmake_minimum_required(VERSION 3.13.1)
+cmake_minimum_required(VERSION 3.20.0)
+
+option(BUILD_WITH_DFU "Build target with Device Firmware Upgrade support" OFF)
+if(BUILD_WITH_DFU)
+    set(CONF_FILE prj_dfu.conf)
+    if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/configuration/${BOARD}/pm_static.yml")
+        set(PM_STATIC_YML_FILE ${CMAKE_CURRENT_SOURCE_DIR}/configuration/${BOARD}/pm_static.yml)
+    else()
+        message(FATAL_ERROR "The ${BOARD} target does not support DFU")
+    endif()
+endif()
 
 find_package(Zephyr HINTS $ENV{ZEPHYR_BASE})
 
 project(matter-lock)
 
-set(COMMON_ROOT ${CMAKE_CURRENT_LIST_DIR}/../common)
+set(COMMON_ROOT ${ZEPHYR_NRF_MODULE_DIR}/samples/matter/common)
 set(NLIO_ROOT ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/third_party/nlio/repo)
 include(${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/config/nrfconnect/app/enable-gnu-std.cmake)
 
@@ -33,7 +43,7 @@ target_sources(app PRIVATE
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/af-event.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/af-main-common.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/attribute-list-byte-span.cpp
-               ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/attribute-size.cpp
+               ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/attribute-size-util.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/attribute-storage.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/attribute-table.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/binding-table.cpp
@@ -41,17 +51,18 @@ target_sources(app PRIVATE
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/client-api.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/ember-compatibility-functions.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/ember-print.cpp
+               ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/error-mapping.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/message.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/process-cluster-message.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/process-global-message.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/util/util.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/basic/basic.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/bindings/bindings.cpp
+               ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/diagnostic-logs-server/diagnostic-logs-server.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/general-commissioning-server/general-commissioning-server.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/network-commissioning/network-commissioning-ember.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/network-commissioning/network-commissioning.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/operational-credentials-server/operational-credentials-server.cpp
-               ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/trusted-root-certificates-server/trusted-root-certificates-server.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/clusters/on-off-server/on-off-server.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/server/EchoHandler.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/server/Mdns.cpp
@@ -60,3 +71,7 @@ target_sources(app PRIVATE
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/server/Server.cpp
                ${ZEPHYR_CONNECTEDHOMEIP_MODULE_DIR}/src/app/server/StorablePeerConnection.cpp)
 # NORDIC SDK APP END
+
+if(BUILD_WITH_DFU)
+    target_sources(app PRIVATE ${COMMON_ROOT}/src/dfu_over_smp.cpp)
+endif()

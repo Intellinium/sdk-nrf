@@ -8,7 +8,7 @@ Bluetooth: Mesh Silvair EnOcean
    :depth: 2
 
 The :ref:`ug_bt_mesh` Silvair EnOcean sample can be used to change the state of light sources on other devices within the same mesh network.
-It also demonstrates how to use Bluetooth mesh models by using the Silvair EnOcean Proxy Server model in an application.
+It also demonstrates how to use Bluetooth® mesh models by using the Silvair EnOcean Proxy Server model in an application.
 
 Use the Silvair EnOcean sample with the :ref:`bluetooth_mesh_light_lc` sample to demonstrate its function in a Bluetooth mesh network.
 
@@ -19,7 +19,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833
 
 You need at least two development kits:
 

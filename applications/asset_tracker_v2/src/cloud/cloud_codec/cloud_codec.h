@@ -12,8 +12,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "cJSON_os.h"
+#include <cJSON_os.h>
 #include <net/net_ip.h>
+#include <modem/lte_lc.h>
+#include <drivers/gps.h>
 
 /**@file
  *
@@ -79,6 +81,17 @@ struct cloud_data_gps {
 	bool queued : 1;
 };
 
+/** Structure containing boolean variables used to enable/disable inclusion of the corresponding
+ *  data type in sample requests sent out by the application module.
+ */
+struct cloud_data_no_data {
+	/** If this flag is set GNSS data is not included in sample requests. */
+	bool gnss;
+
+	/** If this flag is set neighbor cell data is not included sample requests. */
+	bool neighbor_cell;
+};
+
 struct cloud_data_cfg {
 	/** Device mode. */
 	bool active_mode;
@@ -94,6 +107,8 @@ struct cloud_data_cfg {
 	int movement_timeout;
 	/** Accelerometer trigger threshold value in m/s2. */
 	double accelerometer_threshold;
+	/** Variable used to govern what data types are requested by the application. */
+	struct cloud_data_no_data no_data;
 
 	/** Flags to signify if the corresponding data value is fresh and can be used. */
 	bool active_mode_fresh		   : 1;
@@ -102,6 +117,7 @@ struct cloud_data_cfg {
 	bool movement_resolution_fresh	   : 1;
 	bool movement_timeout_fresh	   : 1;
 	bool accelerometer_threshold_fresh : 1;
+	bool nod_list_fresh		   : 1;
 };
 
 struct cloud_data_accelerometer {
@@ -187,12 +203,56 @@ struct cloud_codec_data {
 	size_t len;
 };
 
+struct cloud_data_neighbor_cells {
+	struct lte_lc_cells_info cell_data;
+	struct lte_lc_ncell neighbor_cells[17];
+	int64_t ts;
+	bool queued : 1;
+};
+
+struct cloud_data_agps_request {
+	/** Mobile Country Code */
+	int mcc;
+	/** Mobile Network Code */
+	int mnc;
+	/** Cell ID */
+	uint32_t cell;
+	/** Area Code */
+	uint32_t area;
+	/** AGPS request types */
+	struct gps_agps_request request;
+	/** Flag signifying that the data entry is to be encoded. */
+	bool queued : 1;
+};
+struct cloud_data_pgps_request {
+	/** Number of requested predictions. */
+	uint16_t count;
+	/** Time in between predictions, in minutes. */
+	uint16_t interval;
+	/** The day to start the prediction from. Days since GPS epoch. */
+	uint16_t day;
+	/** The start time of the prediction in seconds in a day. */
+	uint32_t time;
+	/** Flag signifying that the data entry is to be encoded. */
+	bool queued : 1;
+};
+
 static inline void cloud_codec_init(void)
 {
 	cJSON_Init();
 }
 
-int cloud_codec_decode_config(char *input, struct cloud_data_cfg *cfg);
+int cloud_codec_encode_neighbor_cells(struct cloud_codec_data *output,
+				      struct cloud_data_neighbor_cells *neighbor_cells);
+
+int cloud_codec_encode_agps_request(struct cloud_codec_data *output,
+				    struct cloud_data_agps_request *agps_request);
+
+int cloud_codec_encode_pgps_request(struct cloud_codec_data *output,
+				    struct cloud_data_pgps_request *pgps_request);
+
+int cloud_codec_decode_config(char *input, size_t input_len,
+			      struct cloud_data_cfg *cfg);
 
 int cloud_codec_encode_config(struct cloud_codec_data *output,
 			      struct cloud_data_cfg *cfg);

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2020-2021 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import argparse
 from contextlib import closing
 from collections import defaultdict
@@ -22,8 +26,16 @@ class pr_info(NamedTuple):
     html_url: str
     commits: List[pygit2.Commit]
 
+NO_PULL_REQUEST = -1
+
 # A tuple describing the results of querying the file system and
 # GitHub API for information about a commit.
+#
+# pr_num is either a positive pull request number or NO_PULL_REQUEST.
+#
+# NO_PULL_REQUEST happens when commits are directly pushed to a branch
+# without a PR. In that case, pr_title and pr_url will be empty
+# strings.
 class commit_result(NamedTuple):
     sha: str
     remote_org: str
@@ -31,6 +43,11 @@ class commit_result(NamedTuple):
     pr_num: int
     pr_title: str
     pr_url: str
+
+def check_commit_result(result: commit_result):
+    if result.pr_num == NO_PULL_REQUEST:
+        assert result.pr_title == ''
+        assert result.pr_url == ''
 
 class ResultsDatabase:
     '''Object oriented interface for accessing the results database.
@@ -93,7 +110,9 @@ class ResultsDatabase:
             if result is None:
                 return None
             else:
-                return commit_result(*tuple(result))
+                ret = commit_result(*tuple(result))
+                check_commit_result(ret)
+                return ret
 
     def add_result(self, result: commit_result) -> None:
         '''Insert a new commit_result into the database.
@@ -101,6 +120,7 @@ class ResultsDatabase:
         Raises sqlite3.IntegrityError if duplicate entries for the
         same SHA are added to the database.
         '''
+        check_commit_result(result)
         with closing(self._con.cursor()) as cursor:
             cursor.execute('INSERT INTO results VALUES '
                            '(?,?,?,?,?,?)', result)
@@ -270,19 +290,29 @@ def get_result_from_network(commit: pygit2.Commit,
     # Get the commit_result for commit from gh_repo.
     sha = str(commit.oid)
     gh_prs = list(gh_repo.get_commit(sha).get_pulls())
-    if len(gh_prs) != 1:
+    if len(gh_prs) == 0:
+        gh_pr = None
+        result = commit_result(sha, gh_repo.owner.login, gh_repo.name,
+                               NO_PULL_REQUEST, '', '')
+    elif len(gh_prs) == 1:
+        gh_pr = gh_prs[0]
+        result = commit_result(sha, gh_repo.owner.login, gh_repo.name,
+                               gh_pr.number, gh_pr.title, gh_pr.html_url)
+    else:
         sys.exit(f'{sha} has {len(gh_prs)} prs (expected 1): {gh_prs}')
-    gh_pr = gh_prs[0]
-    result = commit_result(sha, gh_repo.owner.login, gh_repo.name,
-                           gh_pr.number, gh_pr.title, gh_pr.html_url)
 
     # Cache the result in the database.
     db.add_result(result)
 
     # Print sign of life.
-    print(f'\t{sha[:10]} {commit_shortlog(commit)}\n'
-          f'\t           PR #{gh_pr.number:5}: {gh_pr.title}',
-          file=sys.stderr)
+    if gh_pr:
+        print(f'\t{sha[:10]} {commit_shortlog(commit)}\n'
+              f'\t           PR #{gh_pr.number:5}: {gh_pr.title}',
+              file=sys.stderr)
+    else:
+        print(f'\t{sha[:10]} {commit_shortlog(commit)}\n'
+              f'\t           Not merged via pull request',
+              file=sys.stderr)
 
     return result
 
@@ -292,10 +322,27 @@ def guess_pr_area(commits: List[pygit2.Commit]) -> str:
     # enough. We could consider adding pull request label tracking to
     # what we retrieve from GitHub if it turns out not to be.
 
+    # area_counts maps areas to the number of commits with that area,
+    # for the list of commits in 'commits'.
     area_counts = defaultdict(int)
     for commit in commits:
         area_counts[zephyr_commit_area(commit)] += 1
-    return max(area_counts, key=lambda area: area_counts[area])
+
+    # Try not to return 'Testing' as the result of this function if
+    # multiple areas have the maximum count in 'area_counts'.
+    #
+    # This avoids situations like having a PR with one commit with a
+    # new feature, another commit with tests, and assigning the whole
+    # PR to "Testing".
+    max_count = max(area_counts.values())
+    max_count_areas = [area for area, count in area_counts.items()
+                       if count == max_count]
+
+    for area in max_count_areas:
+        if area != 'Testing':
+            return area
+
+    return max_count_areas[0]
 
 def print_pr_info(info):
     print(f'- #{info.number}: {info.title}\n'
@@ -333,20 +380,34 @@ def main():
                                          results[0].pr_url,
                                          commits)
 
+    no_pr_commits = pr_num_to_commits.pop(NO_PULL_REQUEST, [])
+    if no_pr_commits:
+        del pr_num_to_results[NO_PULL_REQUEST]
+        del pr_num_to_info[NO_PULL_REQUEST]
+
     # Print information about each resulting pull request.
-    print(f'\n{len(pr_num_to_info)} pull requests found in the range.\n')
     if args.zephyr_areas:
         area_to_pr_infos = defaultdict(list)
         for pr_num, info in pr_num_to_info.items():
+            assert pr_num != NO_PULL_REQUEST
             area = guess_pr_area(info.commits)
             area_to_pr_infos[area].append(info)
 
-        print('Pull requests grouped by a guess of the zephyr area:')
-        for area, infos in area_to_pr_infos.items():
+        print('Summary\n'
+              '-------\n\n'
+              f'{len(pr_num_to_info)} pull requests found in the range.\n')
+        for area in sorted(area_to_pr_infos):
             if args.zephyr_only_areas and area not in args.zephyr_only_areas:
                 continue
-            print(f'\n{area}')
-            print('-' * len(area))
+            print(f'- {area}: {len(area_to_pr_infos[area])} pull requests')
+
+        for area in sorted(area_to_pr_infos):
+            if args.zephyr_only_areas and area not in args.zephyr_only_areas:
+                continue
+            infos = area_to_pr_infos[area]
+            title = f'{area} ({len(infos)} pull requests)'
+            print(f'\n{title}')
+            print('-' * len(title))
             print()
             for info in infos:
                 print_pr_info(info)
@@ -354,6 +415,10 @@ def main():
         for info in pr_num_to_info.values():
             print_pr_info(info)
 
+    if no_pr_commits:
+        print('\nCommits not merged via pull request:\n')
+        for commit in no_pr_commits:
+            print(f'- {commit.oid} {commit_shortlog(commit)}')
 
 if __name__ == '__main__':
     try:

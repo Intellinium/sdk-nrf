@@ -2,6 +2,26 @@ add_subdirectory(${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/bootutil/zephyr
                  ${CMAKE_CURRENT_BINARY_DIR}/boot/bootutil/zephyr
 )
 
+if (CONFIG_MCUBOOT)
+  if (CONFIG_NRF53_MULTI_IMAGE_UPDATE)
+    set_shared(IMAGE ${IMAGE_NAME} PROPERTY NRF53_MULTI_IMAGE_UPDATE
+      ${CONFIG_NRF53_MULTI_IMAGE_UPDATE})
+  endif()
+
+  dt_nodelabel(ram_flash_ctrl_dev NODELABEL nordic_ram_flash_controller)
+  if (DEFINED ram_flash_ctrl_dev)
+    # Share the information about the ram_flash node with the parent image.
+    # This information is used to create the partition manager region.
+    dt_nodelabel(ram_flash_dev NODELABEL flash_sim0)
+    dt_prop(ram_flash_ctrl_label PATH ${ram_flash_ctrl_dev} PROPERTY label)
+    dt_reg_addr(ram_flash_addr PATH ${ram_flash_dev})
+    dt_reg_size(ram_flash_size PATH ${ram_flash_dev})
+    set_shared(IMAGE ${IMAGE_NAME} PROPERTY RAM_FLASH_ADDR ${ram_flash_addr})
+    set_shared(IMAGE ${IMAGE_NAME} PROPERTY RAM_FLASH_SIZE ${ram_flash_size})
+    set_shared(IMAGE ${IMAGE_NAME} PROPERTY RAM_FLASH_LABEL ${ram_flash_ctrl_label})
+  endif()
+endif()
+
 if(CONFIG_BOOTLOADER_MCUBOOT)
 
   include(${ZEPHYR_BASE}/../nrf/cmake/fw_zip.cmake)
@@ -12,27 +32,48 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     # Required arguments are:
     # SIGNED_BIN_FILE_IN - (required) Hex image to sign
     # SIGNED_HEX_FILE_NAME_PREFIX - (required) Prefix of the output image
+    # SLOT_SIZE - (required) The size of the primary partition
     # START_ADDRESS_OFFSET - (required) Offset
     # SIGNED_HEX_FILE_OUT - (required) Signed hex output image
     # DEPENDS - (optional) One or more dependencies for signing the hex image
 
-    set(oneValueArgs SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT)
+    set(oneValueArgs SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX SLOT_SIZE START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT)
     set(multiValueArgs DEPENDS)
     cmake_parse_arguments(SIGN_ARG "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-    if (NOT DEFINED SIGN_ARG_SIGNED_BIN_FILE_IN
-        OR NOT DEFINED SIGN_ARG_SIGNED_HEX_FILE_OUT
-        OR NOT DEFINED SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX
-        OR NOT DEFINED SIGN_ARG_START_ADDRESS_OFFSET)
-      message(FATAL_ERROR "Missing parameter, required: SIGNED_BIN_FILE_IN SIGNED_HEX_FILE_NAME_PREFIX START_ADDRESS_OFFSET SIGNED_HEX_FILE_OUT")
-    endif()
+    check_arguments_required_all(sign SIGN_ARG ${oneValueArgs})
 
     set(signed_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_signed.hex)
     set(${SIGN_ARG_SIGNED_HEX_FILE_OUT} ${signed_hex} PARENT_SCOPE)
     set(to_sign_bin ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_to_sign.bin)
     set(update_bin ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_update.bin)
-    set(moved_test_update_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_moved_test_update.hex)
     set(test_update_hex ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_test_update.hex)
+
+    # Ensure that it is possible to move the secondary slot to the memory
+    # mapped area for external flash if the secondary slot is located in
+    # external flash. Only devices with 'qspi' should have hex files generated
+    # for the secondary slot, since these are the only ones with a memory mapped
+    # area.
+    dt_nodelabel(qspi_node NODELABEL "qspi")
+    if (NOT CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY OR DEFINED qspi_node)
+      set(moved_test_update_hex
+        ${SIGN_ARG_SIGNED_HEX_FILE_NAME_PREFIX}_moved_test_update.hex
+        )
+
+      set (moved_test_update_command
+        COMMAND
+        # Create version of test update which is located at the secondary slot.
+        # Hence, if a programmer is given this hex file, it will flash it
+        # to the secondary slot, and upon reboot mcuboot will swap in the
+        # contents of the hex file.
+        ${CMAKE_OBJCOPY}
+        --input-target=ihex
+        --output-target=ihex
+        --change-address=${SIGN_ARG_START_ADDRESS_OFFSET}
+        --gap-fill=0xff
+        ${test_update_hex}
+        ${moved_test_update_hex}
+        )
+    endif()
 
     add_custom_command(
       OUTPUT
@@ -47,6 +88,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       # to be applied by mcuboot, the application is required to write the
       # IMAGE_MAGIC into the image trailer.
       ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
       ${SIGN_ARG_SIGNED_BIN_FILE_IN}
       ${signed_hex}
 
@@ -64,6 +106,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       COMMAND
       # Sign the binary version of the input hex file.
       ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
       ${to_sign_bin}
       ${update_bin}
 
@@ -75,22 +118,12 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       # as the input hex file, so in order for it to work as a test update,
       # it needs to be moved.
       ${sign_cmd}
+      --slot-size ${SIGN_ARG_SLOT_SIZE}
       --pad # Adds IMAGE_MAGIC to end of slot.
       ${SIGN_ARG_SIGNED_BIN_FILE_IN}
       ${test_update_hex}
 
-      COMMAND
-      # Create version of test update which is located at the secondary slot.
-      # Hence, if a programmer is given this hex file, it will flash it
-      # to the secondary slot, and upon reboot mcuboot will swap in the
-      # contents of the hex file.
-      ${CMAKE_OBJCOPY}
-      --input-target=ihex
-      --output-target=ihex
-      --change-address ${SIGN_ARG_START_ADDRESS_OFFSET}
-      --gap-fill=0xff
-      ${test_update_hex}
-      ${moved_test_update_hex}
+      ${moved_test_update_command}
 
       # Add Zigbee OTA header to signed application
       COMMAND
@@ -106,6 +139,34 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     add_overlay_config(
       mcuboot
       ${ZEPHYR_NRF_MODULE_DIR}/subsys/bootloader/image/build_s1.conf
+      )
+  endif()
+
+  if (CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
+    # By passing this value we don't require the user to pass any overlay files
+    # to the MCUboot child image for storing the secondary partition in
+    # external flash.
+    add_overlay_config(
+      mcuboot
+      ${ZEPHYR_NRF_MODULE_DIR}/subsys/partition_manager/ext_flash_mcuboot_secondary.conf
+      )
+  endif()
+
+  if (CONFIG_BUILD_WITH_TFM)
+    # Configure MCUBoot to be able to boot TFM
+    add_overlay_config(
+      mcuboot
+      ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/tfm.conf
+      )
+  endif()
+
+  if (CONFIG_NRF53_UPGRADE_NETWORK_CORE AND CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
+    # To allow multi image update of the network core we add a devicetree
+    # overlay which defines a flash controller used for emulating flash
+    # in RAM.
+    add_overlay_dts(
+      mcuboot
+      ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/flash_sim.overlay
       )
   endif()
 
@@ -126,8 +187,8 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
     $<IF:${sign_merged},${merged_hex_file_depends},zephyr_final>)
 
   if (NOT DEFINED CONFIG_BOOT_SIGNATURE_KEY_FILE)
-    include(${CMAKE_BINARY_DIR}/mcuboot/shared_vars.cmake)
-    set(CONFIG_BOOT_SIGNATURE_KEY_FILE ${mcuboot_SIGNATURE_KEY_FILE})
+    get_shared(mcuboot_sign_key IMAGE mcuboot PROPERTY SIGNATURE_KEY_FILE)
+    set(CONFIG_BOOT_SIGNATURE_KEY_FILE ${mcuboot_sign_key})
   endif ()
 
   foreach (filepath ${mcuboot_CONF_FILE})
@@ -159,6 +220,8 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
   endif()
 
   if(CONFIG_SIGN_IMAGES)
+    set(app_core_binary_name app_update.bin)
+
     execute_process(COMMAND
       ${PYTHON_EXECUTABLE}
       ${ZEPHYR_MCUBOOT_MODULE_DIR}/scripts/imgtool.py
@@ -183,7 +246,6 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       --header-size $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PAD_SIZE>
       --align       ${CONFIG_MCUBOOT_FLASH_WRITE_BLOCK_SIZE}
       --version     ${CONFIG_MCUBOOT_IMAGE_VERSION}
-      --slot-size   $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>
       --pad-header
       )
 
@@ -191,7 +253,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       set(zb_add_ota_header_cmd
         ${PYTHON_EXECUTABLE}
         ${NRF_DIR}/scripts/bootloader/zb_add_ota_header.py
-        --application ${PROJECT_BINARY_DIR}/app_update.bin
+        --application ${PROJECT_BINARY_DIR}/${app_core_binary_name}
         --application-version-string ${CONFIG_MCUBOOT_IMAGE_VERSION}
         --zigbee-manufacturer-id ${CONFIG_ZIGBEE_FOTA_MANUFACTURER_ID}
         --zigbee-image-type ${CONFIG_ZIGBEE_FOTA_IMAGE_TYPE}
@@ -204,11 +266,12 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         set(zb_add_ota_header_cmd "")
       endif(CONFIG_ZIGBEE AND CONFIG_ZIGBEE_FOTA)
 
-    set(app_offset $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>)
+    set(app_offset $<TARGET_PROPERTY:partition_manager,app_TO_SECONDARY>)
 
     sign(
       SIGNED_BIN_FILE_IN ${app_to_sign_hex}
       SIGNED_HEX_FILE_NAME_PREFIX ${PROJECT_BINARY_DIR}/app
+      SLOT_SIZE $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>
       START_ADDRESS_OFFSET ${app_offset}
       SIGNED_HEX_FILE_OUT app_signed_hex
       DEPENDS ${app_sign_depends}
@@ -225,33 +288,36 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
       mcuboot_sign_target
       )
 
-    generate_dfu_zip(
-      TARGET mcuboot_sign_target
-      OUTPUT ${PROJECT_BINARY_DIR}/dfu_application.zip
-      BIN_FILES ${PROJECT_BINARY_DIR}/app_update.bin
-      TYPE application
-      SCRIPT_PARAMS
-      "load_address=$<TARGET_PROPERTY:partition_manager,PM_APP_ADDRESS>"
-      "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
-      )
+    get_shared(cpunet_signed_app_hex IMAGE CPUNET PROPERTY PM_SIGNED_APP_HEX)
 
     if (CONFIG_NRF53_UPGRADE_NETWORK_CORE
-        AND CONFIG_HCI_RPMSG_BUILD_STRATEGY_FROM_SOURCE)
+        AND DEFINED cpunet_signed_app_hex)
       # Network core application updates are enabled.
       # We know this since MCUBoot is enabled on the application core, and
       # a network core child image is included in the build.
       # These updates are verified by the application core MCUBoot.
       # Create a signed variant of the network core application.
 
-      # Load the shared vars to get the path to the hex file to sign.
-      include(${CMAKE_BINARY_DIR}/hci_rpmsg/shared_vars.cmake)
+      get_shared(cpunet_images IMAGE CPUNET PROPERTY PM_DOMAIN_IMAGES)
+      foreach(image ${cpunet_images})
+        if(${image} MATCHES "CPUNET:(.*)")
+          set(image_name ${CMAKE_MATCH_1})
+          if(TARGET ${image_name}_subimage)
+            get_shared(${image_name}_byproducts IMAGE ${image_name} PROPERTY BUILD_BYPRODUCTS)
+            list(APPEND sign_depends ${image_name}_subimage ${${image_name}_byproducts})
+          endif()
+        endif()
+      endforeach()
+
+      set(net_core_binary_name net_core_app_update.bin)
 
       sign(
-        SIGNED_BIN_FILE_IN ${CPUNET_PM_SIGNED_APP_HEX}
+        SIGNED_BIN_FILE_IN ${cpunet_signed_app_hex}
         SIGNED_HEX_FILE_NAME_PREFIX ${PROJECT_BINARY_DIR}/net_core_app
+        SLOT_SIZE $<TARGET_PROPERTY:partition_manager,net_app_slot_size>
         START_ADDRESS_OFFSET $<TARGET_PROPERTY:partition_manager,net_app_TO_SECONDARY>
         SIGNED_HEX_FILE_OUT net_core_app_signed_hex
-        DEPENDS hci_rpmsg_subimage ${hci_rpmsg_BUILD_BYPRODUCTS}
+        DEPENDS ${sign_depends}
         )
 
       add_custom_target(
@@ -264,7 +330,44 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         net_core_app_sign_target
         )
 
+      get_shared(net_core_soc IMAGE net_core PROPERTY SOC)
+      get_shared(net_core_version IMAGE net_core PROPERTY VERSION)
+
+      set(generate_bin_files
+        ${PROJECT_BINARY_DIR}/${app_core_binary_name}
+        ${PROJECT_BINARY_DIR}/${net_core_binary_name}
+        )
+      set(generate_script_params
+        "${app_core_binary_name}load_address=$<TARGET_PROPERTY:partition_manager,PM_APP_ADDRESS>"
+        "${app_core_binary_name}image_index=0"
+        "${app_core_binary_name}slot_index_primary=1"
+        "${app_core_binary_name}slot_index_secondary=2"
+        "${app_core_binary_name}version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
+        "${net_core_binary_name}image_index=1"
+        "${net_core_binary_name}slot_index_primary=3"
+        "${net_core_binary_name}slot_index_secondary=4"
+        "${net_core_binary_name}load_address=$<TARGET_PROPERTY:partition_manager,CPUNET_PM_APP_ADDRESS>"
+        "${net_core_binary_name}board=${CONFIG_DOMAIN_CPUNET_BOARD}"
+        "${net_core_binary_name}version=${net_core_version}"
+        "${net_core_binary_name}soc=${net_core_soc}"
+        )
+    else()
+      # No network core update
+      set(generate_bin_files
+        ${PROJECT_BINARY_DIR}/${app_core_binary_name}
+        )
+      set(generate_script_params
+        "load_address=$<TARGET_PROPERTY:partition_manager,PM_APP_ADDRESS>"
+        "version_MCUBOOT=${CONFIG_MCUBOOT_IMAGE_VERSION}"
+        )
     endif()
+
+    generate_dfu_zip(
+      OUTPUT ${PROJECT_BINARY_DIR}/dfu_application.zip
+      BIN_FILES ${generate_bin_files}
+      TYPE application
+      SCRIPT_PARAMS ${generate_script_params}
+      )
 
     if (CONFIG_BUILD_S1_VARIANT AND ("${CONFIG_S1_VARIANT_IMAGE_NAME}" STREQUAL "mcuboot"))
       # Secure Boot (B0) is enabled, and we have to build update candidates
@@ -290,6 +393,7 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         sign(
           SIGNED_BIN_FILE_IN ${${slot}_hex}
           SIGNED_HEX_FILE_NAME_PREFIX ${out_path}
+          SLOT_SIZE $<TARGET_PROPERTY:partition_manager,PM_MCUBOOT_PRIMARY_SIZE>
           START_ADDRESS_OFFSET ${slot_offset}
           SIGNED_HEX_FILE_OUT signed_hex
           DEPENDS ${${slot}_target} ${${slot}_hex}
@@ -329,7 +433,6 @@ if(CONFIG_BOOTLOADER_MCUBOOT)
         )
 
       generate_dfu_zip(
-        TARGET signed_s1_target
         OUTPUT ${PROJECT_BINARY_DIR}/dfu_mcuboot.zip
         BIN_FILES ${s0_bin_path} ${s1_bin_path}
         TYPE mcuboot

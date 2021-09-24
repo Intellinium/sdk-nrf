@@ -13,6 +13,8 @@
  * @{
  */
 #include <net/net_ip.h>
+#include <modem/lte_lc.h>
+
 #include "event_manager.h"
 
 #ifdef __cplusplus
@@ -21,6 +23,10 @@ extern "C" {
 
 /** @brief Modem event types submitted by Modem module. */
 enum modem_module_event_type {
+	/** Event signalling that the modem library and AT command library
+	 *  have been initialized and are ready for use by other modules.
+	 */
+	MODEM_EVT_INITIALIZED,
 	MODEM_EVT_LTE_CONNECTED,
 	MODEM_EVT_LTE_DISCONNECTED,
 	MODEM_EVT_LTE_CONNECTING,
@@ -31,10 +37,31 @@ enum modem_module_event_type {
 	MODEM_EVT_MODEM_DYNAMIC_DATA_READY,
 	MODEM_EVT_MODEM_STATIC_DATA_NOT_READY,
 	MODEM_EVT_MODEM_DYNAMIC_DATA_NOT_READY,
+	MODEM_EVT_NEIGHBOR_CELLS_DATA_READY,
+	MODEM_EVT_NEIGHBOR_CELLS_DATA_NOT_READY,
 	MODEM_EVT_BATTERY_DATA_NOT_READY,
 	MODEM_EVT_BATTERY_DATA_READY,
 	MODEM_EVT_SHUTDOWN_READY,
-	MODEM_EVT_ERROR
+	MODEM_EVT_ERROR,
+	/** The carrier library has initialized the modem library and it is
+	 *  now ready to be used. When the carrier library is enabled, this
+	 *  event must be received before the modem module can proceed to initialize
+	 *  other dependencies and subsequently send MODEM_EVT_INITIALIZED.
+	 */
+	MODEM_EVT_CARRIER_INITIALIZED,
+	/** Due to modem limitations for active TLS connections, the carrier
+	 *  library requires all other TLS connections in the system to
+	 *  be terminated while FOTA update is ongoing.
+	 */
+	MODEM_EVT_CARRIER_FOTA_PENDING,
+	/** FOTA update has been stopped and the application can set up TLS
+	 *  connections again.
+	 */
+	MODEM_EVT_CARRIER_FOTA_STOPPED,
+	/** The carrier library requests that the device reboots to apply
+	 *  downloaded firmware image(s) or for other reasons.
+	 */
+	MODEM_EVT_CARRIER_REBOOT_REQUEST,
 };
 
 /** @brief LTE cell information. */
@@ -77,7 +104,7 @@ struct modem_module_dynamic_modem_data {
 	int64_t timestamp;
 	uint16_t area_code;
 	uint32_t cell_id;
-	uint16_t rsrp;
+	int16_t rsrp;
 	char ip_address[INET6_ADDRSTRLEN];
 	char mccmnc[7];
 
@@ -96,6 +123,12 @@ struct modem_module_battery_data {
 	int64_t timestamp;
 };
 
+struct modem_module_neighbor_cells {
+	struct lte_lc_cells_info cell_data;
+	struct lte_lc_ncell neighbor_cells[17];
+	int64_t timestamp;
+};
+
 /** @brief Modem event. */
 struct modem_module_event {
 	struct event_header header;
@@ -107,6 +140,7 @@ struct modem_module_event {
 		struct modem_module_cell cell;
 		struct modem_module_psm psm;
 		struct modem_module_edrx edrx;
+		struct modem_module_neighbor_cells neighbor_cells;
 		/* Module ID, used when acknowledging shutdown requests. */
 		uint32_t id;
 		int err;

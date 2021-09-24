@@ -7,7 +7,7 @@ Bluetooth LE Controller
    :local:
    :depth: 2
 
-When you develop a Bluetooth Low Energy (LE) application, you must include a Bluetooth LE Controller.
+When you develop a Bluetooth® Low Energy (LE) application, you must include a Bluetooth® LE Controller.
 A Bluetooth LE Controller is the layer of the Bluetooth stack that handles the physical layer packets and all associated timing.
 It implements the Link Layer, which is the low-level, real-time protocol that controls the Bluetooth LE communication.
 
@@ -35,7 +35,7 @@ The SoftDevice Controller is distributed as a set of precompiled, linkable libra
 There are different variants of the libraries that support different feature sets.
 Which variant you should choose depends on the chip that you are using, the features that you need, and the amount of available memory.
 
-Nordic's SoftDevice Controller supports an extensive standard feature set from the Bluetooth 5.2 specification and a number of extensions for high-performance applications like Low Latency Packet mode (LLPM).
+Nordic's SoftDevice Controller supports an extensive standard feature set from the Bluetooth® 5.2 specification and a number of extensions for high-performance applications like Low Latency Packet mode (LLPM).
 See the :ref:`SoftDevice Controller documentation <nrfxlib:softdevice_controller>` for a detailed list of supported features.
 
 
@@ -58,5 +58,5 @@ Usage in samples
 Most :ref:`Bluetooth LE samples <ble_samples>` in the |NCS| can use either Bluetooth LE Controller.
 An exception is the :ref:`ble_llpm` sample, which requires the SoftDevice Controller that supports LLPM.
 
-By default, all samples except for the Bluetooth mesh samples are currently configured to use SoftDevice Controller.
-To use the Zephyr Bluetooth LE Controller instead, set :option:`CONFIG_BT_LL_SW_SPLIT` to ``y`` in the :file:`prj.conf` file (see :ref:`configure_application`) and make sure to build from a clean build directory.
+By default, all samples are currently configured to use SoftDevice Controller.
+To use the Zephyr Bluetooth LE Controller instead, set :kconfig:`CONFIG_BT_LL_SW_SPLIT` to ``y`` in the :file:`prj.conf` file (see :ref:`configure_application`) and make sure to build from a clean build directory.

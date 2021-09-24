@@ -10,6 +10,9 @@
 #include <dfu/mcuboot.h>
 #include <math.h>
 #include <event_manager.h>
+#if defined(CONFIG_AGPS)
+#include <modem/agps.h>
+#endif
 
 #if defined(CONFIG_NRF_CLOUD_AGPS)
 #include <net/nrf_cloud_agps.h>
@@ -31,6 +34,7 @@
 #include "events/util_module_event.h"
 #include "events/modem_module_event.h"
 #include "events/gps_module_event.h"
+#include "events/debug_module_event.h"
 
 #include <logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_CLOUD_MODULE_LOG_LEVEL);
@@ -46,11 +50,13 @@ struct cloud_msg_data {
 		struct cloud_module_event cloud;
 		struct util_module_event util;
 		struct gps_module_event gps;
+		struct debug_module_event debug;
 	} module;
 };
 
 /* Cloud module super states. */
 static enum state_type {
+	STATE_LTE_INIT,
 	STATE_LTE_DISCONNECTED,
 	STATE_LTE_CONNECTED,
 	STATE_SHUTDOWN
@@ -84,11 +90,13 @@ static int connect_retries;
 static struct cloud_data_cfg copy_cfg;
 const k_tid_t cloud_module_thread;
 
+#if defined(CONFIG_NRF_CLOUD_PGPS)
 /* Local copy of the last requested AGPS request from the modem. */
 static struct gps_agps_request agps_request;
+#endif
 
 /* Cloud module message queue. */
-#define CLOUD_QUEUE_ENTRY_COUNT		10
+#define CLOUD_QUEUE_ENTRY_COUNT		20
 #define CLOUD_QUEUE_BYTE_ALIGNMENT	4
 
 K_MSGQ_DEFINE(msgq_cloud, sizeof(struct cloud_msg_data),
@@ -207,6 +215,13 @@ static bool event_handler(const struct event_header *eh)
 		enqueue_msg = true;
 	}
 
+	if (is_debug_module_event(eh)) {
+		struct debug_module_event *evt = cast_debug_module_event(eh);
+
+		msg.module.debug = *evt;
+		enqueue_msg = true;
+	}
+
 	if (enqueue_msg) {
 		int err = module_enqueue_msg(&self, &msg);
 
@@ -223,74 +238,22 @@ static void agps_data_handle(const uint8_t *buf, size_t len)
 {
 	int err;
 
-#if defined(CONFIG_AGPS)
-	err = gps_process_agps_data(buf, len);
+#if defined(CONFIG_AGPS) && defined(CONFIG_AGPS_SRC_NRF_CLOUD) && defined(CONFIG_NRF_CLOUD_AGPS)
+	err = agps_cloud_data_process(buf, len);
 	if (err) {
-		LOG_WRN("Unable to process agps data, error: %d", err);
-#if defined(CONFIG_NRF_CLOUD_PGPS)
-		LOG_WRN("Proceed to process data if PGPS related");
-		err = nrf_cloud_pgps_process(buf, len);
-		if (err) {
-			LOG_ERR("Error processing PGPS packet: %d", err);
-		}
+		LOG_WRN("Unable to process A-GPS data, error: %d", err);
+	} else {
+		LOG_DBG("A-GPS data processed");
 		return;
-#endif
 	}
-
-#if defined(CONFIG_NRF_CLOUD_PGPS)
-	/* Notify PGPS handler when PGPS is ready. */
-	err = nrf_cloud_pgps_notify_prediction();
-	if (err) {
-		LOG_ERR("error requesting notification of prediction availability: %d", err);
-	}
-
-	return;
-
-#endif
 #endif
 
 #if defined(CONFIG_NRF_CLOUD_PGPS)
+	LOG_DBG("Process incoming data if P-GPS related");
+
 	err = nrf_cloud_pgps_process(buf, len);
 	if (err) {
-		LOG_ERR("Error processing PGPS packet: %d", err);
-	}
-#endif
-
-	(void)err;
-}
-
-static void agps_data_request_handle(struct gps_agps_request *incoming_request)
-{
-	int err;
-
-	/* Keep a local copy of the incoming request. Used when injecting PGPS data into the
-	 * modem.
-	 */
-	memcpy(&agps_request, &incoming_request, sizeof(agps_request));
-
-#if defined(CONFIG_AGPS)
-	err = gps_agps_request_send(agps_request, GPS_SOCKET_NOT_PROVIDED);
-	if (err) {
-		LOG_WRN("Failed to request A-GPS data, error: %d", err);
-		LOG_WRN("This is expected to fail if we are not in a connected state");
-	}
-
-#if defined(CONFIG_NRF_CLOUD_AGPS)
-	/* Return if an AGPS request was sent and we are expecting a corresponding AGPS response. */
-	if (nrf_cloud_agps_request_in_progress()) {
-		return;
-	}
-#endif
-#endif
-
-#if defined(CONFIG_NRF_CLOUD_PGPS)
-	/* AGPS data is not expected to be received. Proceed to schedule a callback when
-	 * PGPS data for current time is available.
-	 */
-
-	err = nrf_cloud_pgps_notify_prediction();
-	if (err) {
-		LOG_ERR("error requesting notification of prediction availability: %d", err);
+		LOG_ERR("Unable to process P-GPS data, error: %d", err);
 	}
 #endif
 
@@ -324,7 +287,8 @@ static void cloud_wrap_event_handler(const struct cloud_wrap_event *const evt)
 		 * before it is sent to the Data module. This way we avoid
 		 * sending uninitialized variables to the Data module.
 		 */
-		err = cloud_codec_decode_config(evt->data.buf, &copy_cfg);
+		err = cloud_codec_decode_config(evt->data.buf, evt->data.len,
+						&copy_cfg);
 		if (err == 0) {
 			LOG_DBG("Device configuration encoded");
 			send_config_received();
@@ -346,7 +310,15 @@ static void cloud_wrap_event_handler(const struct cloud_wrap_event *const evt)
 			break;
 		}
 
-		/* If incoming message is AGPS/PGPS related, handle it. */
+		/* If incoming message is A-GPS/P-GPS related, handle it. nRF Cloud publishes A-GPS
+		 * data on a generic c2d topic meaning that the integration layer cannot filter
+		 * based on topic. This means that agps_data_handle() must be called on both
+		 * CLOUD_WRAP_EVT_AGPS_DATA_RECEIVED and CLOUD_WRAP_EVT_DATA_RECEIVED events.
+		 */
+		agps_data_handle(evt->data.buf, evt->data.len);
+		break;
+	case CLOUD_WRAP_EVT_PGPS_DATA_RECEIVED:
+		LOG_DBG("CLOUD_WRAP_EVT_PGPS_DATA_RECEIVED");
 		agps_data_handle(evt->data.buf, evt->data.len);
 		break;
 	case CLOUD_WRAP_EVT_FOTA_DONE: {
@@ -354,6 +326,12 @@ static void cloud_wrap_event_handler(const struct cloud_wrap_event *const evt)
 		SEND_EVENT(cloud, CLOUD_EVT_FOTA_DONE);
 		break;
 	}
+	case CLOUD_WRAP_EVT_AGPS_DATA_RECEIVED:
+		LOG_DBG("CLOUD_WRAP_EVT_AGPS_DATA_RECEIVED");
+
+		/* A-GPS data is received with this event when configuring for AWS IoT. */
+		agps_data_handle(evt->data.buf, evt->data.len);
+		break;
 	case CLOUD_WRAP_EVT_FOTA_START: {
 		LOG_DBG("CLOUD_WRAP_EVT_FOTA_START");
 		break;
@@ -426,6 +404,19 @@ static void data_send(struct data_module_event *evt)
 	send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, true);
 }
 
+static void memfault_data_send(struct debug_module_event *evt)
+{
+	int err;
+
+	err = cloud_wrap_memfault_data_send(evt->data.memfault.buf, evt->data.memfault.len);
+	if (err) {
+		LOG_ERR("cloud_wrap_memfault_data_send, err: %d", err);
+		return;
+	}
+
+	LOG_DBG("Memfault data sent");
+}
+
 static void config_send(struct data_module_event *evt)
 {
 	int err;
@@ -492,6 +483,61 @@ static void ui_data_send(struct data_module_event *evt)
 	send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, true);
 }
 
+static void neighbor_cells_data_send(struct data_module_event *evt)
+{
+	int err;
+
+	err = cloud_wrap_neighbor_cells_send(evt->data.buffer.buf, evt->data.buffer.len);
+	if (err == -ENOTSUP) {
+		LOG_DBG("Sending of neighbor cell data is not supported by the "
+			"configured cloud library");
+		send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, true);
+	} else if (err) {
+		LOG_ERR("cloud_wrap_neighbor_cells_send, err: %d", err);
+		send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, false);
+	} else {
+		LOG_DBG("Neighbor cell data sent, data pointer: %p", evt->data.buffer.buf);
+		send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, true);
+	}
+}
+
+static void agps_data_request_send(struct data_module_event *evt)
+{
+	int err;
+
+	err = cloud_wrap_agps_request_send(evt->data.buffer.buf, evt->data.buffer.len);
+	if (err == -ENOTSUP) {
+		LOG_DBG("Sending of A-GPS request is not supported by the "
+			"configured cloud library");
+		send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, true);
+	} else if (err) {
+		LOG_ERR("cloud_wrap_agps_request_send, err: %d", err);
+		send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, false);
+	} else {
+		LOG_DBG("A-GPS request sent, data pointer: %p", evt->data.buffer.buf);
+		send_data_ack(evt->data.buffer.buf, evt->data.buffer.len, true);
+	}
+}
+
+#if defined(CONFIG_NRF_CLOUD_PGPS)
+static void pgps_request_send(struct cloud_codec_data *data)
+{
+	int err;
+
+	err = cloud_wrap_pgps_request_send(data->buf, data->len);
+	cloud_codec_release_data(data);
+
+	if (err == -ENOTSUP) {
+		LOG_DBG("Sending of P-GPS request is not supported by the "
+			"configured cloud library");
+	} else if (err) {
+		LOG_ERR("cloud_wrap_pgps_request_send, err: %d", err);
+	} else {
+		LOG_DBG("PGPS request sent");
+	}
+}
+#endif
+
 static void connect_cloud(void)
 {
 	int err;
@@ -526,24 +572,103 @@ static void connect_cloud(void)
 	k_work_reschedule(&connect_check_work, K_SECONDS(backoff_sec));
 }
 
+static void disconnect_cloud(void)
+{
+	cloud_wrap_disconnect();
+
+	connect_retries = 0;
+
+	k_work_cancel_delayable(&connect_check_work);
+}
+
 #if defined(CONFIG_NRF_CLOUD_PGPS)
-void pgps_handler(enum nrf_cloud_pgps_event event, struct nrf_cloud_pgps_prediction *prediction)
+/* Converts the A-GPS data request from GNSS API to GPS driver format. */
+static void agps_request_convert(
+	struct gps_agps_request *dest,
+	const struct nrf_modem_gnss_agps_data_frame *src)
+{
+	dest->sv_mask_ephe = src->sv_mask_ephe;
+	dest->sv_mask_alm = src->sv_mask_alm;
+	dest->utc = src->data_flags &
+		NRF_MODEM_GNSS_AGPS_GPS_UTC_REQUEST ? 1 : 0;
+	dest->klobuchar = src->data_flags &
+		NRF_MODEM_GNSS_AGPS_KLOBUCHAR_REQUEST ? 1 : 0;
+	dest->nequick = src->data_flags &
+		NRF_MODEM_GNSS_AGPS_NEQUICK_REQUEST ? 1 : 0;
+	dest->system_time_tow = src->data_flags &
+		NRF_MODEM_GNSS_AGPS_SYS_TIME_AND_SV_TOW_REQUEST ? 1 : 0;
+	dest->position = src->data_flags &
+		NRF_MODEM_GNSS_AGPS_POSITION_REQUEST ? 1 : 0;
+	dest->integrity = src->data_flags &
+		NRF_MODEM_GNSS_AGPS_INTEGRITY_REQUEST ? 1 : 0;
+}
+
+void pgps_handler(struct nrf_cloud_pgps_event *event)
 {
 	int err;
 
-	if (event != PGPS_EVT_AVAILABLE) {
-		return;
+	switch (event->type) {
+	case PGPS_EVT_INIT:
+		LOG_DBG("PGPS_EVT_INIT");
+		break;
+	case PGPS_EVT_UNAVAILABLE:
+		LOG_DBG("PGPS_EVT_UNAVAILABLE");
+		break;
+	case PGPS_EVT_LOADING:
+		LOG_DBG("PGPS_EVT_LOADING");
+		break;
+	case PGPS_EVT_READY:
+		LOG_DBG("PGPS_EVT_READY");
+		break;
+	case PGPS_EVT_AVAILABLE:
+		LOG_DBG("PGPS_EVT_AVAILABLE");
+
+		err = nrf_cloud_pgps_inject(event->prediction, &agps_request, NULL);
+		if (err) {
+			LOG_ERR("Unable to send prediction to modem: %d", err);
+		}
+
+		break;
+	case PGPS_EVT_REQUEST: {
+		LOG_DBG("PGPS_EVT_REQUEST");
+
+		/* Encode and send P-GPS request to cloud. */
+		struct cloud_codec_data output = {0};
+		struct cloud_data_pgps_request request = {
+			.count = event->request->prediction_count,
+			.interval = event->request->prediction_period_min,
+			.day = event->request->gps_day,
+			.time = event->request->gps_time_of_day,
+			.queued = true,
+		};
+
+		err = cloud_codec_encode_pgps_request(&output, &request);
+		switch (err) {
+		case 0:
+			LOG_DBG("P-GPS request encoded successfully");
+
+			/* This function frees the allocated JSON string buffer */
+			pgps_request_send(&output);
+			break;
+		case -ENOTSUP:
+			/* PGPS request encoding is not supported */
+			break;
+		case -ENODATA:
+			LOG_DBG("No P-GPS data to encode, error: %d", err);
+			break;
+		default:
+			LOG_ERR("Error encoding P-GPS request: %d", err);
+			SEND_ERROR(data, DATA_EVT_ERROR, err);
+			return;
+		}
+	}
+		break;
+	default:
+		LOG_WRN("Unknown P-GPS event");
+		break;
 	}
 
-	err = nrf_cloud_pgps_inject(prediction, &agps_request, NULL);
-	if (err) {
-		LOG_ERR("Unable to send prediction to modem: %d", err);
-	}
-
-	err = nrf_cloud_pgps_preemptive_updates();
-	if (err) {
-		LOG_ERR("Error requesting updates: %d", err);
-	}
+	(void)err;
 }
 #endif
 
@@ -582,23 +707,39 @@ static int setup(void)
 	return 0;
 }
 
+/* Message handler for STATE_LTE_INIT. */
+static void on_state_init(struct cloud_msg_data *msg)
+{
+	if (IS_EVENT(msg, modem, MODEM_EVT_INITIALIZED)) {
+		int err;
+
+		state_set(STATE_LTE_DISCONNECTED);
+
+		err = setup();
+		__ASSERT(err == 0, "setp() failed");
+	}
+}
+
 /* Message handler for STATE_LTE_CONNECTED. */
 static void on_state_lte_connected(struct cloud_msg_data *msg)
 {
 	if (IS_EVENT(msg, modem, MODEM_EVT_LTE_DISCONNECTED)) {
-		state_set(STATE_LTE_DISCONNECTED);
 		sub_state_set(SUB_STATE_CLOUD_DISCONNECTED);
+		state_set(STATE_LTE_DISCONNECTED);
 
-		/* Explicitly disconnect cloud when we receive an LTE disconnected event. This is
-		 * to clear up the cloud library state.
+		/* Explicitly disconnect cloud when you receive an LTE disconnected event.
+		 * This is to clear up the cloud library state.
 		 */
-		cloud_wrap_disconnect();
+		disconnect_cloud();
+	}
 
-		connect_retries = 0;
+	if (IS_EVENT(msg, modem, MODEM_EVT_CARRIER_FOTA_PENDING)) {
+		sub_state_set(SUB_STATE_CLOUD_DISCONNECTED);
+		disconnect_cloud();
+	}
 
-		k_work_cancel_delayable(&connect_check_work);
-
-		return;
+	if (IS_EVENT(msg, modem, MODEM_EVT_CARRIER_FOTA_STOPPED)) {
+		connect_cloud();
 	}
 }
 
@@ -624,6 +765,14 @@ static void on_sub_state_cloud_connected(struct cloud_msg_data *msg)
 		return;
 	}
 
+	if (IS_EVENT(msg, data, DATA_EVT_AGPS_REQUEST_DATA_SEND)) {
+		agps_data_request_send(&msg->module.data);
+	}
+
+	if (IS_EVENT(msg, debug, DEBUG_EVT_MEMFAULT_DATA_READY)) {
+		memfault_data_send(&msg->module.debug);
+	}
+
 	if (IS_EVENT(msg, data, DATA_EVT_DATA_SEND)) {
 		data_send(&msg->module.data);
 	}
@@ -642,6 +791,10 @@ static void on_sub_state_cloud_connected(struct cloud_msg_data *msg)
 
 	if (IS_EVENT(msg, data, DATA_EVT_UI_DATA_SEND)) {
 		ui_data_send(&msg->module.data);
+	}
+
+	if (IS_EVENT(msg, data, DATA_EVT_NEIGHBOR_CELLS_DATA_SEND)) {
+		neighbor_cells_data_send(&msg->module.data);
 	}
 
 	/* To properly initialize the nRF Cloud PGPS library we need to be connected to cloud and
@@ -702,12 +855,14 @@ static void on_all_states(struct cloud_msg_data *msg)
 		}
 	}
 
-/* In reality this is not connection agnostic. SUPL depends on LTE connection while nRF CLOUD
- * depends on cloud connection. PGPS does not nessecarily depend on cloud connection.
- */
+#if defined(CONFIG_NRF_CLOUD_PGPS)
 	if (IS_EVENT(msg, gps, GPS_EVT_AGPS_NEEDED)) {
-		agps_data_request_handle(&msg->module.gps.data.agps_request);
+		/* Keep a local copy of the incoming request. Used when injecting
+		 * P-GPS data into the modem.
+		 */
+		agps_request_convert(&agps_request, &msg->module.gps.data.agps_request);
 	}
+#endif
 }
 
 static void module_thread_fn(void)
@@ -723,21 +878,18 @@ static void module_thread_fn(void)
 		SEND_ERROR(cloud, CLOUD_EVT_ERROR, err);
 	}
 
-	state_set(STATE_LTE_DISCONNECTED);
+	state_set(STATE_LTE_INIT);
 	sub_state_set(SUB_STATE_CLOUD_DISCONNECTED);
 
 	k_work_init_delayable(&connect_check_work, connect_check_work_fn);
-
-	err = setup();
-	if (err) {
-		LOG_ERR("setup, error %d", err);
-		SEND_ERROR(cloud, CLOUD_EVT_ERROR, err);
-	}
 
 	while (true) {
 		module_get_next_msg(&self, &msg);
 
 		switch (state) {
+		case STATE_LTE_INIT:
+			on_state_init(&msg);
+			break;
 		case STATE_LTE_CONNECTED:
 			switch (sub_state) {
 			case SUB_STATE_CLOUD_CONNECTED:
@@ -778,4 +930,5 @@ EVENT_SUBSCRIBE(MODULE, app_module_event);
 EVENT_SUBSCRIBE(MODULE, modem_module_event);
 EVENT_SUBSCRIBE(MODULE, cloud_module_event);
 EVENT_SUBSCRIBE(MODULE, gps_module_event);
+EVENT_SUBSCRIBE(MODULE, debug_module_event);
 EVENT_SUBSCRIBE_EARLY(MODULE, util_module_event);

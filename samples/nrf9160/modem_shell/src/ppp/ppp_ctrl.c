@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include <modem/lte_lc.h>
+
 #include <net/ppp.h>
 
 #include <net/net_ip.h>
@@ -25,8 +27,11 @@
 #include <posix/sys/socket.h>
 #include <shell/shell.h>
 
+#include <settings/settings.h>
+
 #include "link_api.h"
 
+#include "ppp_settings.h"
 #include "ppp_ctrl.h"
 
 /* ppp globals: */
@@ -38,6 +43,34 @@ int ppp_modem_data_socket_fd = PPP_MODEM_DATA_RAW_SCKT_FD_NONE;
 
 /* Socket to send and recv data to/from Zephyr PPP link: */
 int ppp_data_socket_fd = PPP_MODEM_DATA_RAW_SCKT_FD_NONE;
+
+/* Work queue for auto starting/stopping ppp according to default PDN
+ * activation status:
+ */
+struct ppp_ctrl_worker_data {
+	struct k_work work;
+	bool default_pdn_active;
+} ppp_ctrl_worker_data;
+
+static const struct device *ppp_uart_dev;
+
+/******************************************************************************/
+
+static void ppp_ctrl_link_default_pdn_status_handler(struct k_work *work_item)
+{
+	struct ppp_ctrl_worker_data *data_ptr =
+		CONTAINER_OF(work_item, struct ppp_ctrl_worker_data, work);
+
+	if (data_ptr->default_pdn_active == true) {
+		shell_info(shell_global,
+			   "Default PDN is active: starting PPP automatically.");
+		ppp_ctrl_start(shell_global);
+	} else {
+		shell_info(shell_global,
+			   "Default PDN is not active: stopping PPP automatically.");
+		ppp_ctrl_stop();
+	}
+}
 
 /******************************************************************************/
 
@@ -105,6 +138,23 @@ static void ppp_ctrl_net_mgmt_events_subscribe(void)
 void ppp_ctrl_init(void)
 {
 	ppp_ctrl_net_mgmt_events_subscribe();
+
+	k_work_init(&ppp_ctrl_worker_data.work,
+		    ppp_ctrl_link_default_pdn_status_handler);
+
+	ppp_uart_dev = device_get_binding(CONFIG_NET_PPP_UART_NAME);
+	if (!ppp_uart_dev) {
+		shell_warn(shell_global, "Cannot get ppp dev binding");
+		ppp_uart_dev = NULL;
+	}
+
+	ppp_settings_init();
+}
+
+void ppp_ctrl_default_pdn_active(bool default_pdn_active)
+{
+	ppp_ctrl_worker_data.default_pdn_active = default_pdn_active;
+	k_work_submit(&ppp_ctrl_worker_data.work);
 }
 
 /******************************************************************************/
@@ -114,7 +164,6 @@ int ppp_ctrl_start(const struct shell *shell)
 	struct ppp_context *ctx;
 	struct net_if *iface;
 	struct pdp_context_info *pdp_context_info;
-
 	int idx = 0; /* Note: PPP iface index assumed to be 0 */
 
 	if (ppp_modem_data_socket_fd != PPP_MODEM_DATA_RAW_SCKT_FD_NONE) {

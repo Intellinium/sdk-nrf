@@ -8,31 +8,22 @@ import sys
 
 # Paths ------------------------------------------------------------------------
 
-NRF_BASE = os.environ.get("NRF_BASE")
-if not NRF_BASE:
-    raise FileNotFoundError("NRF_BASE not defined")
-NRF_BASE = Path(NRF_BASE)
-
-NRFXLIB_BASE = os.environ.get("NRFXLIB_BASE")
-if not NRFXLIB_BASE:
-    raise FileNotFoundError("NRFXLIB_BASE not defined")
-NRFXLIB_BASE = Path(NRFXLIB_BASE)
-
-NRFXLIB_BUILD = os.environ.get("NRFXLIB_BUILD")
-if not NRFXLIB_BUILD:
-    raise FileNotFoundError("NRFXLIB_BUILD not defined")
-NRFXLIB_BUILD = Path(NRFXLIB_BUILD)
+NRF_BASE = Path(__file__).absolute().parents[2]
 
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
+
+ZEPHYR_BASE = utils.get_projdir("zephyr")
+NRFXLIB_BASE = utils.get_projdir("nrfxlib")
 
 # General configuration --------------------------------------------------------
 
 project = "nrfxlib"
 copyright = "2019-2021, Nordic Semiconductor"
 author = "Nordic Semiconductor"
-version = release = "1.6.99"
+version = release = "1.7.99"
 
+sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
 
 extensions = [
@@ -40,8 +31,11 @@ extensions = [
     "breathe",
     "sphinxcontrib.mscgen",
     "inventory_builder",
-    "external_content",
-    "doxyrunner",
+    "zephyr.kconfig-role",
+    "zephyr.warnings_filter",
+    "ncs_cache",
+    "zephyr.external_content",
+    "zephyr.doxyrunner",
 ]
 master_doc = "README"
 
@@ -78,11 +72,16 @@ nrf_mapping = utils.get_intersphinx_mapping("nrf")
 if nrf_mapping:
     intersphinx_mapping["nrf"] = nrf_mapping
 
+# -- Options for zephyr.warnings_filter ----------------------------------------
+
+warnings_filter_config = str(NRF_BASE / "doc" / "nrfxlib" / "known-warnings.txt")
+warnings_filter_silent = False
+
 # -- Options for doxyrunner plugin ---------------------------------------------
 
 doxyrunner_doxygen = os.environ.get("DOXYGEN_EXECUTABLE", "doxygen")
 doxyrunner_doxyfile = NRF_BASE / "doc" / "nrfxlib" / "nrfxlib.doxyfile.in"
-doxyrunner_outdir = NRFXLIB_BUILD / "doxygen"
+doxyrunner_outdir = utils.get_builddir() / "nrfxlib" / "doxygen"
 doxyrunner_fmt = True
 doxyrunner_fmt_vars = {
     "NRFXLIB_BASE": str(NRFXLIB_BASE),
@@ -121,6 +120,13 @@ breathe_separate_member_pages = True
 # Options for external_content -------------------------------------------------
 
 external_content_contents = [(NRFXLIB_BASE, "**/*.rst"), (NRFXLIB_BASE, "**/doc/")]
+
+# Options for ncs_cache --------------------------------------------------------
+
+ncs_cache_docset = "nrfxlib"
+ncs_cache_build_dir = utils.get_builddir()
+ncs_cache_config = NRF_BASE / "doc" / "cache.yml"
+ncs_cache_manifest = NRF_BASE / "west.yml"
 
 
 def setup(app):

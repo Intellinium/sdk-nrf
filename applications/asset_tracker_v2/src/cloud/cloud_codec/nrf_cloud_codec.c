@@ -112,7 +112,39 @@ exit:
 	return err;
 }
 
-int cloud_codec_decode_config(char *input, struct cloud_data_cfg *data)
+int cloud_codec_encode_neighbor_cells(struct cloud_codec_data *output,
+				      struct cloud_data_neighbor_cells *neighbor_cells)
+{
+	__ASSERT_NO_MSG(output != NULL);
+	__ASSERT_NO_MSG(neighbor_cells != NULL);
+
+	neighbor_cells->queued = false;
+	return -ENOTSUP;
+}
+
+int cloud_codec_encode_agps_request(struct cloud_codec_data *output,
+				    struct cloud_data_agps_request *agps_request)
+{
+	__ASSERT_NO_MSG(output != NULL);
+	__ASSERT_NO_MSG(agps_request != NULL);
+
+	agps_request->queued = false;
+	return -ENOTSUP;
+}
+
+int cloud_codec_encode_pgps_request(struct cloud_codec_data *output,
+				    struct cloud_data_pgps_request *pgps_request)
+{
+	__ASSERT_NO_MSG(output != NULL);
+	__ASSERT_NO_MSG(pgps_request != NULL);
+
+	pgps_request->queued = false;
+
+	return -ENOTSUP;
+}
+
+int cloud_codec_decode_config(char *input, size_t input_len,
+			      struct cloud_data_cfg *cfg)
 {
 	int err = 0;
 	cJSON *root_obj = NULL;
@@ -123,7 +155,7 @@ int cloud_codec_decode_config(char *input, struct cloud_data_cfg *data)
 		return -EINVAL;
 	}
 
-	root_obj = cJSON_Parse(input);
+	root_obj = cJSON_ParseWithLength(input, input_len);
 	if (root_obj == NULL) {
 		return -ENOENT;
 	}
@@ -162,7 +194,7 @@ int cloud_codec_decode_config(char *input, struct cloud_data_cfg *data)
 
 get_data:
 
-	json_common_config_get(subgroup_obj, data);
+	json_common_config_get(subgroup_obj, cfg);
 
 exit:
 	cJSON_Delete(root_obj);
@@ -299,8 +331,6 @@ int cloud_codec_encode_data(struct cloud_codec_data *output,
 	 */
 	if (modem_dyn_buf->queued && modem_dyn_buf->rsrp_fresh) {
 		char rsrp[7];
-		/* Subtract RSRP offset value. nRF Cloud expects this. */
-		modem_dyn_buf->rsrp -= 141;
 
 		/* Make a copy of the timestamp to avoid error when converting the relative
 		 * timestamp twice with date_time_uptime_to_unix_time_ms().

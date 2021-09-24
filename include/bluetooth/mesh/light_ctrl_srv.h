@@ -162,6 +162,8 @@ struct bt_mesh_light_ctrl_srv {
 	/* Publication data */
 	uint8_t pub_data[BT_MESH_MODEL_BUF_LEN(
 		BT_MESH_LIGHT_CTRL_OP_LIGHT_ONOFF_STATUS, 3)];
+	/** Resume control timeout (in seconds) */
+	uint16_t resume;
 	/** Setup model publish parameters */
 	struct bt_mesh_model_pub setup_pub;
 	/* Publication buffer */
@@ -208,7 +210,7 @@ int bt_mesh_light_ctrl_srv_on(struct bt_mesh_light_ctrl_srv *srv);
  *  state). Calling this function temporarily disables occupancy sensor
  *  triggering (referred to as "manual mode" in the documentation). The server
  *  will remain in manual mode until the manual mode timer expires, see
- *  @option{CONFIG_BT_MESH_LIGHT_CTRL_SRV_TIME_MANUAL}.
+ *  @kconfig{CONFIG_BT_MESH_LIGHT_CTRL_SRV_TIME_MANUAL}.
  *
  *  @param[in] srv        Light Lightness Control Server instance.
  *

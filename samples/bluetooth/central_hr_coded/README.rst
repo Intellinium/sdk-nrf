@@ -13,7 +13,7 @@ However, this sample specifically looks for heart rate monitors using LE Coded P
 Overview
 ********
 
-The sample demonstrates a Bluetooth LE Central role functionality by scanning for other Bluetooth LE devices that run a Heart Rate Server with LE Coded PHY support which not available in Zephyr Bluetooth LE Controller (See :ref:`ug_ble_controller` for more information).
+The sample demonstrates a Bluetooth® LE Central role functionality by scanning for other Bluetooth LE devices that run a Heart Rate Server with LE Coded PHY support, which is not available in Zephyr Bluetooth LE Controller (See :ref:`ug_ble_controller` for more information).
 It then establishes a connection to the first Peripheral device in range.
 It can be used together with the :ref:`peripheral_hr_coded` sample.
 
@@ -24,14 +24,14 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuappns, nrf52840dongle_nrf52840, nrf52840dk_nrf52840
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dongle_nrf52840, nrf52840dk_nrf52840
 
 .. include:: /includes/hci_rpmsg_overlay.txt
 
 The sample also requires a device running a Heart Rate Server with LE Coded PHY support to connect to.
 For example, another development kit running the :ref:`peripheral_hr_coded` sample.
 
-Building and Running
+Building and running
 ********************
 .. |sample path| replace:: :file:`samples/bluetooth/central_hr_coded`
 

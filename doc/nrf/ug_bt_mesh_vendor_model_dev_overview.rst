@@ -7,7 +7,7 @@ Vendor model development overview
    :local:
    :depth: 2
 
-To implement a new Bluetooth mesh model, apply the steps described in this step-by-step model development process overview.
+To implement a new Bluetooth® mesh model, apply the steps described in this step-by-step model development process overview.
 
 Defining a model identifier
 ***************************
@@ -22,7 +22,7 @@ As defined by the `Bluetooth mesh profile specification`_, the vendor model iden
     #define YOUR_COMPANY_ID 0x1234
     #define YOUR_MODEL_ID   0x5678
 
-The Company ID must be registered with the Bluetooth SIG, and the vendor owning the Company ID may freely allocate the model IDs for its Company ID.
+The Company ID must be registered with the Bluetooth® Special Interest Group (SIG), and the vendor owning the Company ID may freely allocate the model IDs for its Company ID.
 See `Bluetooth SIG company identifiers`_ for a list of Company IDs.
 
 Adding the model to the node composition data
@@ -297,7 +297,7 @@ These callbacks are defined in :c:struct:`bt_mesh_model_cb`.
 :c:member:`bt_mesh_model_cb.settings_set`
    This handler is called when the model data is restored from the persistent storage.
    If you need to store data in the persistent storage, use the :c:func:`bt_mesh_model_data_store` function.
-   To use the persitent storage, it needs to be enabled with :option:`CONFIG_BT_SETTINGS`.
+   To use the persitent storage, it needs to be enabled with :kconfig:`CONFIG_BT_SETTINGS`.
    For more information on persistent storage, see :ref:`zephyr:settings_api`.
 
 :c:member:`bt_mesh_model_cb.start`

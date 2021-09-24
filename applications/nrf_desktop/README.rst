@@ -7,7 +7,7 @@ nRF Desktop
    :local:
    :depth: 2
 
-The nRF Desktop is a reference design of a Human Interface Device (HID) that is connected to a host through Bluetooth LE or USB, or both.
+The nRF Desktop is a reference design of a Human Interface Device (HID) that is connected to a host through Bluetooth® Low Energy or USB, or both.
 Depending on the configuration, this application can work as desktop mouse, gaming mouse, keyboard, or connection dongle.
 
 .. tip::
@@ -37,10 +37,9 @@ The figure does not present all the available modules.
 For example, the figure does not include the modules that are used as hotfixes or only for debug or profiling purposes.
 
 .. figure:: /images/nrf_desktop_arch.svg
-   :scale: 25 %
    :alt: nRF Desktop high-level design (overview)
 
-   Application high-level design overview (click to enlarge)
+   Application high-level design overview
 
 For more information about each of nRF Desktop modules, see the :ref:`nrf_desktop_app_internal_modules` section.
 
@@ -100,10 +99,9 @@ Gaming mouse module set
 The following figure shows the modules that are enabled when the application is working as a gaming mouse.
 
 .. figure:: /images/nrf_desktop_arch_gmouse.svg
-   :scale: 25 %
    :alt: nRF Desktop high-level design (gaming mouse)
 
-   Application configured as a gaming mouse (click to enlarge)
+   Application configured as a gaming mouse
 
 Desktop mouse module set
 ------------------------
@@ -111,10 +109,9 @@ Desktop mouse module set
 The following figure shows the modules that are enabled when the application is working as a desktop mouse.
 
 .. figure:: /images/nrf_desktop_arch_dmouse.svg
-   :scale: 25 %
    :alt: nRF Desktop high-level design (desktop mouse)
 
-   Application configured as a desktop mouse (click to enlarge)
+   Application configured as a desktop mouse
 
 Keyboard module set
 -------------------
@@ -122,10 +119,9 @@ Keyboard module set
 The following figure shows the modules that are enabled when the application is working as a keyboard.
 
 .. figure:: /images/nrf_desktop_arch_kbd.svg
-   :scale: 25 %
    :alt: nRF Desktop high-level design (keyboard)
 
-   Application configured as a keyboard (click to enlarge)
+   Application configured as a keyboard
 
 Dongle module set
 -----------------
@@ -133,10 +129,9 @@ Dongle module set
 The following figure shows the modules that are enabled when the application is working as a dongle.
 
 .. figure:: /images/nrf_desktop_arch_dongle.svg
-   :scale: 25 %
    :alt: nRF Desktop high-level design (dongle)
 
-   Application configured as a dongle (click to enlarge)
+   Application configured as a dongle
 
 Thread usage
 ============
@@ -150,11 +145,11 @@ The following threads are kept running in the application:
     * System workqueue thread
     * Logger thread (on debug :ref:`build types <nrf_desktop_requirements_build_types>`)
     * Shell thread (on :ref:`build types <nrf_desktop_requirements_build_types>` with shell enabled)
-    * Threads related to Bluetooth LE (the exact number depends on the selected Link Layer)
+    * Threads related to Bluetooth® LE (the exact number depends on the selected Link Layer)
 * Application-related threads
     * Motion sensor thread (running only on mouse)
     * Settings loading thread (enabled by default only on keyboard)
-    * QoS data sampling thread (running only if Bluetooth LE QoS feature is enabled)
+    * QoS data sampling thread (running only if Bluetooth® LE QoS feature is enabled)
 
 Most of the application activity takes place in the context of the system work queue thread, either through scheduled work objects or through the event manager callbacks (executed from the system workqueue thread).
 Because of this, the application does not need to handle resource protection.
@@ -174,17 +169,50 @@ The application uses dynamic allocation to:
 
 When configuring HEAP, make sure that the values for the following options match the typical event size and the system needs:
 
-* :option:`CONFIG_HEAP_MEM_POOL_SIZE` - The size must be big enough to handle the worst possible use case for the given device.
+* :kconfig:`CONFIG_HEAP_MEM_POOL_SIZE` - The size must be big enough to handle the worst possible use case for the given device.
 
 .. important::
     The nRF Desktop uses ``k_heap`` as the backend for dynamic allocation.
     This backend is used by default in Zephyr.
     For more information, refer to Zephyr's documentation about :ref:`zephyr:heap_v2`.
 
-HID mouse data forwarding
-=========================
+HID data handling
+=================
 
-The nRF Desktop mouse sends HID input reports to host after the host connects and subscribes for the HID reports.
+The nRF Desktop device and the host can exchange HID data using one of the following HID report types:
+
+* HID input report
+* HID output report
+* HID feature report
+
+The nRF Desktop application uses all of these report types.
+See sections below for details about handling given HID report type.
+
+HID input reports
+-----------------
+
+The nRF Desktop application uses HID input reports to transmit information about user input from the nRF Desktop device to a host.
+The user input can be, for example, button press or mouse motion.
+
+The nRF Desktop supports the following HID input reports:
+
+* HID mouse report
+* HID keyboard report
+* HID consumer control report
+* HID system control report
+
+Every of these reports uses predefined report format and provides the given information.
+For example, the mouse motion is forwarded as HID mouse report.
+
+An nRF Desktop device supports the selected subset of the HID input reports.
+For example, the nRF Desktop keyboard reference desing (nrf52kbd_nrf52832) supports HID keyboard report, HID consumer control report and HID system control report.
+
+As an example, the following section describes handling HID mouse report data.
+
+HID mouse report handling
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The nRF Desktop mouse sends HID input reports to the host after the host connects and subscribes for the HID reports.
 
 The :ref:`nrf_desktop_motion` sensor sampling is synchronized with sending the HID mouse input reports to the host.
 
@@ -200,17 +228,16 @@ a. USB state (or Bluetooth HIDS) sends a HID mouse report to the host and submit
 #. After the sample is fetched, the thread forwards it to the :ref:`nrf_desktop_hid_state` as ``motion_event``.
 #. The |hid_state| updates the HID report data, generates new HID input report, and submits it as ``hid_report_event``.
 #. The HID report data is forwarded to the host either by the :ref:`nrf_desktop_usb_state` or by the :ref:`nrf_desktop_hids`.
-#. USB state has precedence if USB is connected.
+   The USB state has precedence if the USB is connected.
 #. When the HID input report is sent to the host, ``hid_report_sent_event`` is submitted.
    The motion sensor sample is triggered and the sequence repeats.
 
-If the device is connected through Bluetooth, the :ref:`nrf_desktop_hid_state` uses a pipeline that consists of two HID reports.
-The pipeline is created when the first ``motion_event`` is received.
+If the device is connected through Bluetooth, the :ref:`nrf_desktop_hid_state` uses a pipeline that consists of two HID reports, which it creates upon receiving the first ``motion_event``.
 The |hid_state| submits two ``hid_report_event`` events.
-When the first one is sent to the host, the motion sensor sample is triggered.
+Sending the first event to the host triggers the motion sensor sample.
 
 For the Bluetooth connections, submitting ``hid_report_sent_event`` is delayed by one Bluetooth connection interval.
-Because of this delay, the :ref:`nrf_desktop_hids` requires pipeline of two HID reports to make sure that data will be sent on every connection event.
+Because of this delay, the :ref:`nrf_desktop_hids` requires pipeline of two HID reports to make sure that data is sent on every connection event.
 Such solution is necessary to achieve high report rate.
 
 If there is no motion data for the predefined number of samples, the :ref:`nrf_desktop_motion` goes to the idle state.
@@ -221,10 +248,54 @@ The following diagram shows the data exchange between the application modules.
 To keep it simple, the diagram only shows data related to HID input reports that are sent after the host is connected and the HID subscriptions are enabled.
 
 .. figure:: /images/nrf_desktop_motion_sensing.svg
-   :scale: 50 %
    :alt: nRF Desktop mouse HID data sensing and transmission
 
    nRF Desktop mouse HID data sensing and transmission
+
+HID output reports
+------------------
+
+HID output reports are used to transmit data from host to an nRF Desktop device.
+The nRF Desktop supports the HID keyboard LED report.
+The report is used by the host to update the state of the keyboard LEDs, for example to indicate that the Caps Lock key is active.
+
+.. note::
+   Only the nrf52840dk_nrf52840 in ``ZDebug_keyboard`` configuration has hardware LEDs that can be used to disaply state of the Caps Lock and Num Lock.
+
+The following diagrams show the HID output report data exchange between the application modules.
+
+* Scenario 1: Peripheral connected directly to the host
+
+  .. figure:: /images/nrf_desktop_peripheral_host.svg
+     :alt: HID output report: Data handling and transmission between host and peripheral
+
+     HID output report: Data handling and transmission between host and peripheral
+
+  In this scenario, the HID output report is sent from the host to the peripheral either through Bluetooth or the USB connection.
+  Depending on the connection, the HID report is received by the :ref:`nrf_desktop_hids` or :ref:`nrf_desktop_usb_state`, respectively.
+  The module then sends the HID output report as ``hid_report_event`` to the :ref:`nrf_desktop_hid_state`, which keeps track of the HID output report states and updates state of the hardware LEDs by sending ``led_event`` to :ref:`nrf_desktop_leds`.
+
+* Scenario 2: Dongle intermediates between the host and the peripheral
+
+  .. figure:: /images/nrf_desktop_peripheral_host_dongle.svg
+     :alt: HID output report: Data handling and transmission between host and peripheral through dongle
+
+     HID output report: Data handling and transmission between host and peripheral through dongle
+
+  In this scenario, the HID output report is sent from the host to the dongle using the USB connection and is received by the :ref:`nrf_desktop_usb_state`.
+  The destination module then sends the HID output report as ``hid_report_event`` to the :ref:`nrf_desktop_hid_forward`, which sends it to the peripheral using Bluetooth.
+
+HID feature reports
+-------------------
+
+HID feature reports are used to transmit data between the host and an nRF Desktop device (in both directions).
+The nRF Desktop uses only one HID feature report: the user config report.
+The report is used by the :ref:`nrf_desktop_config_channel`.
+
+.. note::
+   The nRF Desktop also uses a dedicated HID output report to forward the :ref:`nrf_desktop_config_channel` data through the nRF Desktop dongle.
+   This report is handled using the configuration channel's infrastructure and it can be enabled using :kconfig:`CONFIG_DESKTOP_CONFIG_CHANNEL_OUT_REPORT`.
+   See the Kconfig option's help for details about the report.
 
 Requirements
 ************
@@ -292,7 +363,7 @@ Check :ref:`nrf_desktop_porting_guide` for details.
 nRF Desktop build types
 =======================
 
-nRF Desktop does not use a single :file:`prj.conf` file.
+The nRF Desktop does not use a single :file:`prj.conf` file.
 Configuration files are provided for different build types for each supported board.
 
 .. include:: /gs_modifying.rst
@@ -303,7 +374,7 @@ Configuration files are provided for different build types for each supported bo
     `Selecting a build type`_ is optional.
     The ``ZDebug`` build type is used by default in nRF Desktop if no build type is explicitly selected.
 
-The following build types are available for various boards in nRF Desktop:
+The following build types are available for various boards in the nRF Desktop:
 
 * ``ZRelease`` -- Release version of the application with no debugging features.
 * ``ZReleaseB0`` -- ``ZRelease`` build type with the support for the B0 bootloader enabled (for :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
@@ -420,7 +491,7 @@ When it is connected through USB, charging of the rechargeable batteries starts.
 Dongle USB
 ~~~~~~~~~~
 
-The nRF Desktop dongle works as a bridge between the devices connected through standard Bluetooth LE or Low Latency Packet Mode and the host connected through USB.
+The nRF Desktop dongle works as a bridge between the devices connected through standard Bluetooth® Low Energy or Low Latency Packet Mode and the host connected through USB.
 It receives data wirelessly from the connected peripherals and forwards the data to the host.
 
 The nRF Desktop dongle is powered directly through USB.
@@ -700,7 +771,7 @@ For example, LEDs are turned off and advertising is stopped.
 
 Moving the mouse or pressing any button wakes up the device and turns on the disabled functionalities.
 
-You can define the amount of time after which the peripherals are suspended or powered off in :option:`CONFIG_DESKTOP_POWER_MANAGER_TIMEOUT`.
+You can define the amount of time after which the peripherals are suspended or powered off in :kconfig:`CONFIG_CAF_POWER_MANAGER_TIMEOUT`.
 By default, this period is set to 120 seconds.
 
 .. important::
@@ -766,7 +837,7 @@ After building the application with or without :ref:`specifying the build type <
    .. note::
         You can manually start the scanning for new peripheral devices by pressing the **SW1** button on the dongle for a short time.
         This might be needed if the dongle does not connect with all the peripherals before timeout.
-        The scanning is interrupted after the amount of time predefined in :option:`CONFIG_DESKTOP_BLE_SCAN_DURATION_S`, because it negatively affects the performance of already connected peripherals.
+        The scanning is interrupted after the amount of time predefined in :kconfig:`CONFIG_DESKTOP_BLE_SCAN_DURATION_S`, because it negatively affects the performance of already connected peripherals.
 
 #. Move the mouse and press any key on the keyboard.
    The input is reflected on the host.
@@ -811,8 +882,10 @@ The nRF Desktop application uses the following files as configuration sources:
 * Kconfig files - These reflect the software configuration.
   See :ref:`kconfig_tips_and_tricks` for information about how to configure them.
 
-You must modify these configuration sources when `Adding a new board`_.
+You must modify these configuration sources when `Adding a new board`_, as described below.
+
 For information about differences between DTS and Kconfig, see :ref:`zephyr:dt_vs_kconfig`.
+For detailed instructions for adding Zephyr support to a custom board, see Zephyr's :ref:`zephyr:board_porting_guide`.
 
 .. _nrf_desktop_board_configuration:
 
@@ -901,7 +974,8 @@ When adding a new board for the first time, focus on a single configuration.
 Moreover, keep the default ``ZDebug`` build type that the application is built with, and do not add any additional build type parameters.
 
 .. note::
-    The following procedure uses the gaming mouse configuration as an example.
+    * The following procedure uses the gaming mouse configuration as an example.
+    * The first three steps of the configuration procedure are identical to the steps described in Zephyr's :ref:`zephyr:board_porting_guide`.
 
 To use the nRF Desktop application with your custom board:
 
@@ -956,7 +1030,7 @@ To use the nRF Desktop application with your custom board:
    a. Ensure that the Bluetooth role is properly configured.
       For mouse, it should be configured as peripheral.
    #. Update the configuration related to peer control.
-      You can also disable the peer control using the :option:`CONFIG_DESKTOP_BLE_PEER_CONTROL` option.
+      You can also disable the peer control using the :kconfig:`CONFIG_DESKTOP_BLE_PEER_CONTROL` option.
       Peer control details are described in the :ref:`nrf_desktop_ble_bond` documentation.
 
    Refer to the :ref:`nrf_desktop_bluetooth_guide` section and Zephyr's :ref:`zephyr:bluetooth` page for more detailed information about the Bluetooth configuration.
@@ -1046,7 +1120,7 @@ The following options are inherited from the ``spi-device`` binding and are comm
 
   .. note::
       To achieve the full speed, data must be propagated through the application and reach Bluetooth LE a few hundred microseconds before the subsequent connection event.
-      If you aim for the lowest latency through the LLPM (a 1-ms interval), the sensor data readout should take no more then 250 us.
+      If you aim for the lowest latency through the LLPM (a 1-ms interval), the sensor data readout should take no more than 250 us.
       The bus and the sensor configuration must ensure that communication speed is fast enough.
 
 The remaining option ``irq-gpios`` is specific to ``pixart,pmw3360`` binding.
@@ -1161,8 +1235,8 @@ Since the nRF Desktop application uses the partition manager when the bootloader
 
 .. important::
     By default, Zephyr does not use the code partition defined in the DTS files.
-    It is only used if :option:`CONFIG_USE_DT_CODE_PARTITION` is enabled.
-    If this option is disabled, the code is loaded at the address defined by :option:`CONFIG_FLASH_LOAD_OFFSET` and can spawn for :option:`CONFIG_FLASH_LOAD_SIZE` (or for the whole flash if the load size is set to zero).
+    It is only used if :kconfig:`CONFIG_USE_DT_CODE_PARTITION` is enabled.
+    If this option is disabled, the code is loaded at the address defined by :kconfig:`CONFIG_FLASH_LOAD_OFFSET` and can spawn for :kconfig:`CONFIG_FLASH_LOAD_SIZE` (or for the whole flash if the load size is set to zero).
 
 Because the nRF Desktop application depends on the DTS layout only for configurations without the bootloader, only the settings partition is relevant in such cases and other partitions are ignored.
 
@@ -1212,13 +1286,13 @@ The nRF Desktop devices come in the following types:
 
 * Peripheral devices (mouse or keyboard)
 
-  * Support only the Bluetooth Peripheral role (:option:`CONFIG_BT_PERIPHERAL`).
+  * Support only the Bluetooth Peripheral role (:kconfig:`CONFIG_BT_PERIPHERAL`).
   * Handle only one Bluetooth LE connection at a time.
   * Use more than one Bluetooth local identity.
 
 * Central devices (dongle)
 
-  * Support only the Bluetooth Central role (:option:`CONFIG_BT_CENTRAL`).
+  * Support only the Bluetooth Central role (:kconfig:`CONFIG_BT_CENTRAL`).
   * Handle multiple Bluetooth LE connections simultaneously.
   * Use only one Bluetooth local identity (the default one).
 
@@ -1240,12 +1314,12 @@ Configuration options
 This section describes the most important Bluetooth Kconfig options common for all nRF Desktop devices.
 For detailed information about every option, see the Kconfig help.
 
-* :option:`CONFIG_BT_MAX_PAIRED`
+* :kconfig:`CONFIG_BT_MAX_PAIRED`
 
   * nRF Desktop central: The maximum number of paired devices is greater than or equal to the maximum number of simultaneously connected peers.
   * nRF Desktop peripheral: The maximum number of paired devices is equal to the number of peers plus one, where the one additional paired device slot is used for erase advertising.
 
-* :option:`CONFIG_BT_ID_MAX`
+* :kconfig:`CONFIG_BT_ID_MAX`
 
   * nRF Desktop central: The device uses only one Bluetooth local identity, that is the default one.
   * nRF Desktop peripheral: The number of Bluetooth local identities must be equal to the number of peers plus two.
@@ -1254,7 +1328,7 @@ For detailed information about every option, see the Kconfig help.
     * The other additional local identity is the default local identity, which is unused, because it cannot be reset after removing the bond.
       Without the identity reset, the previously bonded central could still try to reconnect after being removed from Bluetooth bonds on the peripheral side.
 
-* :option:`CONFIG_BT_MAX_CONN`
+* :kconfig:`CONFIG_BT_MAX_CONN`
 
   * nRF Desktop central: Set the option to the maximum number of simultaneously connected devices.
   * nRF Desktop peripheral: The default value (one) is used.
@@ -1270,22 +1344,22 @@ Link Layer configuration options
 
 The nRF Desktop devices use one of the following Link Layers:
 
-* :option:`CONFIG_BT_LL_SW_SPLIT`
+* :kconfig:`CONFIG_BT_LL_SW_SPLIT`
     This Link Layer does not support the Low Latency Packet Mode (LLPM) and has a lower memory usage, so it can be used by memory-limited devices.
 
-* :option:`CONFIG_BT_LL_SOFTDEVICE`
+* :kconfig:`CONFIG_BT_LL_SOFTDEVICE`
     This Link Layer does support the Low Latency Packet Mode (LLPM).
-    If you opt for this Link Layer and enable the :option:`CONFIG_BT_CTLR_LLPM`, the :option:`CONFIG_CAF_BLE_USE_LLPM` is also enabled by default and can be configured further:
+    If you opt for this Link Layer and enable the :kconfig:`CONFIG_BT_CTLR_LLPM`, the :kconfig:`CONFIG_CAF_BLE_USE_LLPM` is also enabled by default and can be configured further:
 
-    * When :option:`CONFIG_CAF_BLE_USE_LLPM` is enabled, set the value for :option:`CONFIG_SDC_MAX_CONN_EVENT_LEN_DEFAULT` to ``3000``.
+    * When :kconfig:`CONFIG_CAF_BLE_USE_LLPM` is enabled, set the value for :kconfig:`CONFIG_SDC_MAX_CONN_EVENT_LEN_DEFAULT` to ``3000``.
 
       This is required by the nRF Desktop central and helps avoid scheduling conflicts with Bluetooth Link Layer.
       Such conflicts could lead to a drop in HID input report rate or a disconnection.
       Setting the value to ``3000`` also enables the nRF Desktop central to exchange data with up to 2 standard Bluetooth LE peripherals during every connection interval (every 7.5 ms).
 
-    * When :option:`CONFIG_CAF_BLE_USE_LLPM` is disabled, the device will use only standard Bluetooth LE connection parameters with the lowest available connection interval of 7.5 ms.
+    * When :kconfig:`CONFIG_CAF_BLE_USE_LLPM` is disabled, the device will use only standard Bluetooth LE connection parameters with the lowest available connection interval of 7.5 ms.
 
-      If the LLPM is disabled and more than 2 simultaneous Bluetooth connections are supported (:option:`CONFIG_BT_MAX_CONN`), you can set the value for :option:`CONFIG_SDC_MAX_CONN_EVENT_LEN_DEFAULT` to ``2500``.
+      If the LLPM is disabled and more than 2 simultaneous Bluetooth connections are supported (:kconfig:`CONFIG_BT_MAX_CONN`), you can set the value for :kconfig:`CONFIG_SDC_MAX_CONN_EVENT_LEN_DEFAULT` to ``2500``.
       With this value, the nRF Desktop central is able to exchange the data with up to 3 Bluetooth LE peripherals during every 7.5-ms connection interval.
       Using the value of ``3000`` for more than 2 simultaneous Bluetooth LE connections will result in a lower HID input report rate.
 
@@ -1309,7 +1383,7 @@ Optionally, you can also enable the following module:
   The module can be used only with the SoftDevice Link Layer.
 
 .. note::
-   The nRF Destkop devices enable :option:`CONFIG_BT_SETTINGS`.
+   The nRF Destkop devices enable :kconfig:`CONFIG_BT_SETTINGS`.
    When this option is enabled, the application is responsible for calling the :c:func:`settings_load` function - this is handled by the :ref:`nrf_desktop_settings_loader`.
 
 .. _nrf_desktop_bluetooth_guide_peripheral:
@@ -1323,7 +1397,7 @@ The HID over GATT profile specification requires Bluetooth Peripherals to define
 
 * HID Service - Handled in the :ref:`nrf_desktop_hids`.
 * Battery Service - Handled in the :ref:`nrf_desktop_bas`.
-* Device Information Service - Implemented in Zephyr and enabled with :option:`CONFIG_BT_DIS`.
+* Device Information Service - Implemented in Zephyr and enabled with :kconfig:`CONFIG_BT_DIS`.
   It can be configured using Kconfig options with the ``CONFIG_BT_DIS`` prefix.
 
 The nRF Desktop peripherals must also define a dedicated GATT Service, which is used to provide the following information:
@@ -1402,25 +1476,25 @@ The nRF Desktop application can use one of the following bootloaders:
 Configuring the B0 bootloader
 -----------------------------
 
-To enable the B0 bootloader, select the :option:`CONFIG_SECURE_BOOT` Kconfig option.
+To enable the B0 bootloader, select the :kconfig:`CONFIG_SECURE_BOOT` Kconfig option.
 
 The B0 bootloader requires the following options enabled:
 
-* :option:`CONFIG_SB_SIGNING_KEY_FILE` - Required for providing the signature used for image signing and verification.
-* :option:`CONFIG_FW_INFO` - Required for the application versioning information.
-* :option:`CONFIG_FW_INFO_FIRMWARE_VERSION` - Enable this option to set the version of the application after you enabled :option:`CONFIG_FW_INFO`.
-* :option:`CONFIG_BUILD_S1_VARIANT` - Required for the build system to be able to construct the application binaries for both application's slots in flash memory.
+* :kconfig:`CONFIG_SB_SIGNING_KEY_FILE` - Required for providing the signature used for image signing and verification.
+* :kconfig:`CONFIG_FW_INFO` - Required for the application versioning information.
+* :kconfig:`CONFIG_FW_INFO_FIRMWARE_VERSION` - Enable this option to set the version of the application after you enabled :kconfig:`CONFIG_FW_INFO`.
+* :kconfig:`CONFIG_BUILD_S1_VARIANT` - Required for the build system to be able to construct the application binaries for both application's slots in flash memory.
 
 Configuring the MCUboot bootloader
 ----------------------------------
 
-To enable the MCUboot bootloader, select the :option:`CONFIG_BOOTLOADER_MCUBOOT` Kconfig option.
+To enable the MCUboot bootloader, select the :kconfig:`CONFIG_BOOTLOADER_MCUBOOT` Kconfig option.
 
 Configure the MCUboot bootloader with the following options:
 
 * ``CONFIG_BOOT_SIGNATURE_KEY_FILE`` - This option defines the path to the private key that is used to sign the application and that is used by the bootloader to verify the application signature.
   The key must be defined only in the MCUboot bootloader configuration file.
-* :option:`CONFIG_IMG_MANAGER` and :option:`CONFIG_MCUBOOT_IMG_MANAGER` - These options allow the application to manage the DFU image.
+* :kconfig:`CONFIG_IMG_MANAGER` and :kconfig:`CONFIG_MCUBOOT_IMG_MANAGER` - These options allow the application to manage the DFU image.
   Enable both of them only for configurations that support :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`.
   For these configurations, the :ref:`nrf_desktop_dfu` uses the provided API to request firmware upgrade and confirm the running image.
 
@@ -1451,7 +1525,7 @@ The update image is generated in the build directory when building the firmware 
 
   .. note::
       By default, the build process for the B0 bootloader will construct an image for the first slot (slot 0 or S0).
-      To ensure that application is built for both slots, select the :option:`CONFIG_BUILD_S1_VARIANT` Kconfig option.
+      To ensure that application is built for both slots, select the :kconfig:`CONFIG_BUILD_S1_VARIANT` Kconfig option.
 
       When this option is selected, the :file:`zephyr/dfu_application.zip` contains both images.
       The update tool checks if the currently running image runs from either slot 0 or slot 1.

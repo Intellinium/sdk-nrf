@@ -1,14 +1,15 @@
 .. _gs_modifying:
 
-Modifying a sample application
-##############################
+Modifying an application
+########################
 
 .. contents::
    :local:
    :depth: 2
 
-After programming and testing a sample application, you probably want to make some modifications to the application, for example, add your own files with additional functionality, change compilation options, or update the default configuration.
+|application_sample_definition|
 
+After programming and testing an application, you probably want to make some modifications to the application, for example, add your own files with additional functionality, change compilation options, or update the default configuration.
 
 Adding files and changing compiler settings
 *******************************************
@@ -40,6 +41,10 @@ See the `CMake documentation`_ and :ref:`zephyr:cmake-details` in the Zephyr doc
 Maintaining CMakeLists.txt in SES
 =================================
 
+You must tag the :file:`CMakeLists.txt` files properly before adding them to a project in SES.
+Projects in the :file:`sdk-nrf` repository already have these tags, but projects from Zephyr and other repositories do not.
+Follow the steps in :ref:`ses_tags_in_CMakeLists` to manually add tags when using :file:`CMakeLists.txt` files that are not located in the :file:`sdk-nrf` repository.
+
 To add a file in SES, right-click :guilabel:`Project 'app/libapp.a'` in the Project Explorer.
 Select either :guilabel:`Add new file to CMakeLists.txt` to create a file and add it or :guilabel:`Add existing file to CMakeLists.txt` to add a file that already exists.
 
@@ -62,6 +67,8 @@ In the window that is displayed, you can define compilation options for the proj
    These compilation options apply to the application project only.
    To manage Zephyr and other subsystems, go to :guilabel:`Project` > :guilabel:`Configure nRF Connect SDK Project`.
 
+.. _ses_tags_in_CMakeLists:
+
 SES tags in :file:`CMakeLists.txt`
 ----------------------------------
 
@@ -75,7 +82,7 @@ The following CMake commands can be managed by SES, if they target the ``app`` l
 * ``target_include_directories``
 * ``target_compile_options``
 
-The :file:`CMakeLists.txt` files for the sample applications in the |NCS| are tagged as required.
+The :file:`CMakeLists.txt` files for the sample applications in the :file:`sdk-nrf` repository already have the required tags.
 Therefore, if you always use SES to maintain them, you do not need to worry about tagging.
 Typically, the :file:`CMakeLists.txt` files include at least the :file:`main.c` file as source::
 
@@ -96,6 +103,14 @@ Similarly, the default configuration for a board is specified in its :file:`*_de
 The configuration for your application, which might override some default options of the libraries or the board, is specified in a :file:`prj.conf` file in the application directory.
 
 For detailed information about configuration options, see :ref:`zephyr:application-kconfig` in the Zephyr documentation.
+
+.. _configuring_vsc:
+
+Configuring in the VS Code extension
+====================================
+
+The `nRF Connect for Visual Studio Code`_ extension lets you modify your build configuration for custom boards, add additional CMake build arguments, select Kconfig fragments, and more.
+For detailed instructions on how to configure your application, see `Building an application`_ in the extension's README file.
 
 Changing the configuration permanently
 ======================================

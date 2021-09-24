@@ -9,7 +9,6 @@
 #include <zephyr.h>
 #include <device.h>
 #include <shell/shell.h>
-#include <shell/shell_uart.h>
 #include <modem/lte_lc.h>
 
 #if defined(CONFIG_LWM2M_CARRIER)
@@ -41,10 +40,11 @@
 #if defined(CONFIG_MOSH_PPP)
 #include "ppp/ppp_shell.h"
 #endif
+#include "uart/uart_shell.h"
 
 extern const struct shell *shell_global;
 extern struct k_sem nrf_modem_lib_initialized;
-
+extern struct k_poll_signal mosh_signal;
 /**
  * @brief Overriding modem library error handler.
  */
@@ -162,7 +162,7 @@ int lwm2m_carrier_event_handler(const lwm2m_carrier_event_t *event)
 #if defined(CONFIG_MOSH_IPERF3)
 static int cmd_iperf3(const struct shell *shell, size_t argc, char **argv)
 {
-	(void)iperf_main(argc, argv);
+	(void)iperf_main(argc, argv, NULL, 0, &mosh_signal);
 	return 0;
 }
 #endif
@@ -170,7 +170,7 @@ static int cmd_iperf3(const struct shell *shell, size_t argc, char **argv)
 #if defined(CONFIG_MOSH_CURL)
 static int cmd_curl(const struct shell *shell, size_t argc, char **argv)
 {
-	(void)curl_tool_main(argc, argv);
+	(void)curl_tool_main(argc, argv, &mosh_signal);
 	shell_print(shell, "\nDONE");
 	return 0;
 }
@@ -208,77 +208,3 @@ SHELL_CMD_REGISTER(ppp, NULL,
 	"Commands for controlling PPP.",
 	ppp_shell_cmd);
 #endif
-
-static void disable_uarts(void)
-{
-	const struct device *uart_dev;
-
-	uart_dev = device_get_binding(DT_LABEL(DT_NODELABEL(uart0)));
-	if (uart_dev) {
-		pm_device_state_set(uart_dev, PM_DEVICE_STATE_LOW_POWER, NULL, NULL);
-	}
-
-	uart_dev = device_get_binding(DT_LABEL(DT_NODELABEL(uart1)));
-	if (uart_dev) {
-		pm_device_state_set(uart_dev, PM_DEVICE_STATE_LOW_POWER, NULL, NULL);
-	}
-}
-
-static void enable_uarts(void)
-{
-	const struct device *uart_dev;
-
-	uart_dev = device_get_binding(DT_LABEL(DT_NODELABEL(uart0)));
-	if (uart_dev) {
-		pm_device_state_set(uart_dev, PM_DEVICE_STATE_ACTIVE, NULL, NULL);
-	}
-
-	uart_dev = device_get_binding(DT_LABEL(DT_NODELABEL(uart1)));
-	if (uart_dev) {
-		pm_device_state_set(uart_dev, PM_DEVICE_STATE_ACTIVE, NULL, NULL);
-	}
-}
-
-static int cmd_uart_disable(const struct shell *shell, size_t argc, char **argv)
-{
-	int sleep_time;
-
-	sleep_time = atoi(argv[1]);
-	if (sleep_time < 0) {
-		shell_error(shell, "disable: invalid sleep time");
-		return -EINVAL;
-	}
-
-	if (sleep_time > 0) {
-		shell_print(shell, "disable: disabling UARTs for %d seconds", sleep_time);
-	} else {
-		shell_print(shell, "disable: disabling UARTs indefinitely");
-	}
-
-	k_sleep(K_MSEC(500));
-	disable_uarts();
-
-	if (sleep_time > 0) {
-		k_sleep(K_SECONDS(sleep_time));
-
-		enable_uarts();
-
-		shell_print(shell, "disable: UARTs enabled");
-	}
-
-	return 0;
-}
-
-SHELL_STATIC_SUBCMD_SET_CREATE(sub_uart,
-	SHELL_CMD_ARG(
-		disable,
-		NULL,
-		"<time in seconds>\nDisable UARTs for a given number of seconds. 0 means that "
-		"UARTs remain disabled indefinitely.",
-		cmd_uart_disable,
-		2,
-		0),
-	SHELL_SUBCMD_SET_END
-);
-
-SHELL_CMD_REGISTER(uart, &sub_uart, "Commands for disabling UARTs for power measurement.", NULL);

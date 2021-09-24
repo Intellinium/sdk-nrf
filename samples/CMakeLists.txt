@@ -76,12 +76,16 @@ if (CONFIG_BUILD_WITH_TFM AND CONFIG_UART_1_NRF_UARTE)
     Non-secure applications built with TF-M cannot use UART1, because this
     instance is used by the TF-M secure application. Disable the uart1 node
     in devicetree. See the following file:
-    nrf/samples/tfm/tfm_hello_world/boards/nrf9160dk_nrf9160ns.overlay
+    nrf/samples/tfm/tfm_hello_world/boards/nrf9160dk_nrf9160_ns.overlay
     for an example how to do it.")
 endif()
 
 if (CONFIG_SECURE_BOOT)
   if (CONFIG_SOC_NRF5340_CPUNET)
+    # Share some information which is used when generating the zip file
+    # with the update binaries.
+    set_shared(IMAGE net_core PROPERTY SOC ${CONFIG_SOC})
+    set_shared(IMAGE net_core PROPERTY VERSION ${CONFIG_FW_INFO_FIRMWARE_VERSION})
     add_child_image(
       NAME b0n
       SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/nrf5340/netboot

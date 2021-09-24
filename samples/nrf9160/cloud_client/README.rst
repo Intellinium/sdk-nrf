@@ -20,7 +20,7 @@ The current version of the sample supports the following libraries as cloud back
 *  :ref:`lib_aws_iot`
 *  :ref:`lib_azure_iot_hub`
 
-To swap between the supported libraries, change the option :option:`CONFIG_CLOUD_BACKEND` to match the configuration string of a compatible cloud backend.
+To swap between the supported libraries, change the option :kconfig:`CONFIG_CLOUD_BACKEND` to match the configuration string of a compatible cloud backend.
 The identification strings for the different cloud backends are listed in the following table:
 
 .. list-table::
@@ -29,7 +29,7 @@ The identification strings for the different cloud backends are listed in the fo
 
    * - Cloud Backend
      - Configuration String
-   * - nRF Connect for Cloud
+   * - nRF Cloud
      - "NRF_CLOUD"
    * - AWS IoT
      - "AWS_IOT"
@@ -52,14 +52,15 @@ For configuring the different cloud backends, refer to the documentation on :ref
 Each cloud backend has specific setup steps that must be executed before it can be used.
 
 .. note::
-   The nRF9160 DK and Thingy:91 come preprogrammed with the certificates required for a connection to `nRF Connect for Cloud`_.
-   No extra steps are required to use the Cloud client sample with nRF Connect for Cloud.
+   The nRF9160 DK and Thingy:91 come preprogrammed with the certificates required for a connection to `nRF Cloud`_.
+   No extra steps are required to use the Cloud client sample with nRF Cloud.
 
 
 Configurations
 **************
 
-The configurations used in the sample are listed below. They can be added to ``cloud_client/prj.conf``.
+The configurations used in the sample are listed below.
+They can be added to :file:`cloud_client/prj.conf`.
 
 .. options-from-kconfig::
    :prefix: "This option "
@@ -68,15 +69,15 @@ The configurations used in the sample are listed below. They can be added to ``c
    :only-visible:
 
 .. note::
-   To output data in the terminal window located in the `nRF Connect for Cloud`_ web interface, the data format must be in JSON format.
+   To output data in the terminal window located in the `nRF Cloud`_ web interface, the data format must be in JSON format.
 
 .. note::
-   The sample sets the option :option:`CONFIG_MQTT_KEEPALIVE` to the maximum allowed value that is specified by the configured cloud backend.
+   The sample sets the option :kconfig:`CONFIG_MQTT_KEEPALIVE` to the maximum allowed value that is specified by the configured cloud backend.
    This is to limit the IP traffic between the device and the message broker of the cloud provider for supporting a low power sample.
    However, note that in certain LTE networks, the NAT timeout can be considerably lower than the maximum allowed MQTT keepalive.
-   So as a recommendation, and to prevent the likelihood of getting disconnected unexpectedly, the option :option:`CONFIG_MQTT_KEEPALIVE` must be set to the lowest of the aforementioned timeout limits (Maximum allowed MQTT keepalive and NAT timeout).
+   So as a recommendation, and to prevent the likelihood of getting disconnected unexpectedly, the option :kconfig:`CONFIG_MQTT_KEEPALIVE` must be set to the lowest of the aforementioned timeout limits (Maximum allowed MQTT keepalive and NAT timeout).
 
-Functionality and Supported Technologies
+Functionality and supported technologies
 ****************************************
 
 The communication protocol supported by the sample is dependent on the cloud backend that is used.
@@ -131,10 +132,10 @@ Building and running
 Testing
 =======
 
-Before testing, ensure that your device is already set up with your nRF Connect for Cloud account.
+Before testing, ensure that your device is already set up with your nRF Cloud account.
 After programming the sample to your device, test it by performing the following steps:
 
-1. Open a web browser and navigate to the correct device in `nRF Connect for Cloud`_.
+1. Open a web browser and navigate to the correct device in `nRF Cloud`_.
 #. Connect the USB cable and power on or reset your device.
 #. Open a terminal emulator and observe that the sample has started.
    Wait until the "I: CLOUD_EVT_READY" status appears in the terminal.
@@ -155,7 +156,7 @@ After programming the sample to your device, test it by performing the following
       I: CLOUD_EVT_PAIR_DONE
       I: CLOUD_EVT_READY
 
-    The device is now connected to nRF Connect for Cloud.
+    The device is now connected to nRF Cloud.
 
 #. Press button 1 on the device and observe that the following output is displayed in the terminal:
 
@@ -164,7 +165,7 @@ After programming the sample to your device, test it by performing the following
       I: Publishing message: {"state":{"reported":{"message":"Hello Internet of Things!"}}}
       +CSCON: 1
 
-#. Observe that the following status appears in the terminal pane for the connected device in nRF Connect for Cloud:
+#. Observe that the following status appears in the terminal pane for the connected device in nRF Cloud:
 
    .. code-block:: console
 

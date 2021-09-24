@@ -195,7 +195,7 @@ const char *profiler_get_event_descr(size_t profiler_event_id)
 	return descr[profiler_event_id];
 }
 
-uint16_t profiler_register_event_type(const char *name, const char **args,
+uint16_t profiler_register_event_type(const char *name, const char * const *args,
 				   const enum profiler_arg *arg_types,
 				   uint8_t arg_cnt)
 {
@@ -246,10 +246,10 @@ void profiler_log_start(struct log_event_buf *buf)
 	/* Adding one to pointer to make space for event type ID */
 	__ASSERT_NO_MSG(sizeof(uint8_t) <= CONFIG_PROFILER_CUSTOM_EVENT_BUF_LEN);
 	buf->payload = buf->payload_start + sizeof(uint8_t);
-	profiler_log_encode_u32(buf, k_cycle_get_32());
+	profiler_log_encode_uint32(buf, k_cycle_get_32());
 }
 
-void profiler_log_encode_u32(struct log_event_buf *buf, uint32_t data)
+void profiler_log_encode_uint32(struct log_event_buf *buf, uint32_t data)
 {
 	__ASSERT_NO_MSG(buf->payload - buf->payload_start + sizeof(data)
 			 <= CONFIG_PROFILER_CUSTOM_EVENT_BUF_LEN);
@@ -257,10 +257,60 @@ void profiler_log_encode_u32(struct log_event_buf *buf, uint32_t data)
 	buf->payload += sizeof(data);
 }
 
+void profiler_log_encode_int32(struct log_event_buf *buf, int32_t data)
+{
+	profiler_log_encode_uint32(buf, (uint32_t)data);
+}
+
+void profiler_log_encode_uint16(struct log_event_buf *buf, uint16_t data)
+{
+	__ASSERT_NO_MSG(buf->payload - buf->payload_start + sizeof(data)
+			 <= CONFIG_PROFILER_CUSTOM_EVENT_BUF_LEN);
+	sys_put_le16(data, buf->payload);
+	buf->payload += sizeof(data);
+}
+
+void profiler_log_encode_int16(struct log_event_buf *buf, int16_t data)
+{
+	profiler_log_encode_uint16(buf, (uint16_t)data);
+}
+
+void profiler_log_encode_uint8(struct log_event_buf *buf, uint8_t data)
+{
+	__ASSERT_NO_MSG(buf->payload - buf->payload_start + sizeof(data)
+			 <= CONFIG_PROFILER_CUSTOM_EVENT_BUF_LEN);
+	*(buf->payload) = data;
+	buf->payload += sizeof(data);
+}
+
+void profiler_log_encode_int8(struct log_event_buf *buf, int8_t data)
+{
+	profiler_log_encode_uint8(buf, (uint8_t)data);
+}
+
+void profiler_log_encode_string(struct log_event_buf *buf, const char *string)
+{
+	size_t string_len = strlen(string);
+
+	if (string_len > UINT8_MAX) {
+		string_len = UINT8_MAX;
+	}
+	/* First byte that is send denotes string length.
+	 * Null character is not being sent.
+	 */
+	__ASSERT_NO_MSG(buf->payload - buf->payload_start + sizeof(uint8_t) + string_len
+			 <= CONFIG_PROFILER_CUSTOM_EVENT_BUF_LEN);
+	*(buf->payload) = (uint8_t) string_len;
+	buf->payload++;
+
+	memcpy(buf->payload, string, string_len);
+	buf->payload += string_len;
+}
+
 void profiler_log_add_mem_address(struct log_event_buf *buf,
 				  const void *mem_address)
 {
-	profiler_log_encode_u32(buf, (uint32_t)mem_address);
+	profiler_log_encode_uint32(buf, (uint32_t)mem_address);
 }
 
 void profiler_log_send(struct log_event_buf *buf, uint16_t event_type_id)

@@ -60,7 +60,11 @@
 
 #include "timer.h"
 #include "queue.h"
+#if defined(CONFIG_CJSON_LIB)
+#include <cJSON.h>
+#else
 #include "cjson.h"
+#endif
 #include "iperf_time.h"
 
 #if defined(HAVE_SSL)
@@ -259,7 +263,10 @@ struct iperf_test
     char     *bind_address;                     /* first -B option */
 
 #if defined(CONFIG_NRF_IPERF3_INTEGRATION)
-    struct sockaddr remote_addr; /* added */
+    struct k_poll_signal *kill_signal;
+    struct sockaddr remote_addr;
+    char *resp_std_out_buff;
+    int resp_std_out_buff_len;
 #endif
 
     TAILQ_HEAD(xbind_addrhead, xbind_entry) xbind_addrs; /* all -X opts */

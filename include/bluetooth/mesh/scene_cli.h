@@ -35,20 +35,6 @@ struct bt_mesh_scene_cli;
 						 _cli),                        \
 			 &_bt_mesh_scene_cli_cb)
 
-/** Scene state */
-struct bt_mesh_scene_state {
-	/** Status of the previous operation. */
-	enum bt_mesh_scene_status status;
-	/** Current scene, or @ref BT_MESH_SCENE_NONE if no scene is active. */
-	uint16_t current;
-	/** Target scene, or @ref BT_MESH_SCENE_NONE if no transition is in
-	 *  progress.
-	 */
-	uint16_t target;
-	/** Remaining time of the scene transition in milliseconds. */
-	uint32_t remaining_time;
-};
-
 /** Scene register parameters */
 struct bt_mesh_scene_register {
 	/** Status of the previous operation. */
@@ -112,8 +98,8 @@ struct bt_mesh_scene_cli {
  *  @retval -EALREADY A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *  not configured.
- *  @retval -EAGAIN The device has not been provisioned.
- *  @retval -ETIMEDOUT The request timed out without a response.
+ *  @retval -EAGAIN The device has not been provisioned or the request
+ *  timed out without a response.
  */
 int bt_mesh_scene_cli_get(struct bt_mesh_scene_cli *cli,
 			  struct bt_mesh_msg_ctx *ctx,
@@ -137,8 +123,8 @@ int bt_mesh_scene_cli_get(struct bt_mesh_scene_cli *cli,
  *  @retval -EALREADY A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *  not configured.
- *  @retval -EAGAIN The device has not been provisioned.
- *  @retval -ETIMEDOUT The request timed out without a response.
+ *  @retval -EAGAIN The device has not been provisioned or the request
+ *  timed out without a response.
  */
 int bt_mesh_scene_cli_register_get(struct bt_mesh_scene_cli *cli,
 				   struct bt_mesh_msg_ctx *ctx,
@@ -164,8 +150,8 @@ int bt_mesh_scene_cli_register_get(struct bt_mesh_scene_cli *cli,
  *  @retval -EALREADY A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *  not configured.
- *  @retval -EAGAIN The device has not been provisioned.
- *  @retval -ETIMEDOUT The request timed out without a response.
+ *  @retval -EAGAIN The device has not been provisioned or the request
+ *  timed out without a response.
  */
 int bt_mesh_scene_cli_store(struct bt_mesh_scene_cli *cli,
 			    struct bt_mesh_msg_ctx *ctx, uint16_t scene,
@@ -207,8 +193,8 @@ int bt_mesh_scene_cli_store_unack(struct bt_mesh_scene_cli *cli,
  *  @retval -EALREADY A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *  not configured.
- *  @retval -EAGAIN The device has not been provisioned.
- *  @retval -ETIMEDOUT The request timed out without a response.
+ *  @retval -EAGAIN The device has not been provisioned or the request
+ *  timed out without a response.
  */
 int bt_mesh_scene_cli_delete(struct bt_mesh_scene_cli *cli,
 			     struct bt_mesh_msg_ctx *ctx, uint16_t scene,
@@ -251,8 +237,8 @@ int bt_mesh_scene_cli_delete_unack(struct bt_mesh_scene_cli *cli,
  *  @retval -EALREADY A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *  not configured.
- *  @retval -EAGAIN The device has not been provisioned.
- *  @retval -ETIMEDOUT The request timed out without a response.
+ *  @retval -EAGAIN The device has not been provisioned or the request
+ *  timed out without a response.
  */
 int bt_mesh_scene_cli_recall(struct bt_mesh_scene_cli *cli,
 			     struct bt_mesh_msg_ctx *ctx, uint16_t scene,

@@ -15,7 +15,7 @@ Introduction
 ************
 
 The nRF52 Series of System-on-Chip (SoC) devices embed a powerful yet low-power Arm Cortex-M4 processor with our industry leading 2.4 GHz RF transceivers.
-All of the nRF52 Series SoCs have support for Bluetooth 5 features, in addition to multiprotocol capabilities.
+All of the nRF52 Series SoCs have support for Bluetooth® 5 features, in addition to multiprotocol capabilities.
 
 See `nRF52 Series`_ for the technical documentation on the nRF52 Series chips and associated kits.
 
@@ -59,12 +59,21 @@ Devices in the nRF52 Series are supported by these boards in the Zephyr open sou
      - PCA10040
      - ``nrf52dk_nrf52810``
      - `Product Specification <nRF52810 Product Specification_>`_
+   * - :ref:`zephyr:nrf52dk_nrf52805`
+     - PCA10040
+     - ``nrf52dk_nrf52805``
+     - `Product Specification <nRF52805 Product Specification_>`_
    * - :ref:`zephyr:nrf52840dongle_nrf52840`
      - PCA10059
      - ``nrf52840dongle_nrf52840``
      - | `Product Specification <nRF52840 Product Specification_>`_
        | `User Guide <nRF52840 Dongle User Guide_>`_
+   * - :ref:`zephyr:nrf21540dk_nrf52840`
+     - PCA10112
+     - ``nrf21540dk_nrf52840``
+     - `Product Specification <nRF21540 Product Specification_>`_
 
+See :ref:`ug_radio_fem_nrf21540_ek` to learn how to use this RF front-end module (FEM) with the nRF52 Series devices.
 
 nRF Desktop
 ===========
@@ -209,7 +218,7 @@ To perform a FOTA upgrade, complete the following steps:
       * You must enable the mcumgr module, which handles the transport protocol over Bluetooth Low Energy.
         To enable this module in your application, complete the following steps:
 
-        a. Enable :option:`CONFIG_MCUMGR_CMD_OS_MGMT`, :option:`CONFIG_MCUMGR_CMD_IMG_MGMT`, and :option:`CONFIG_MCUMGR_SMP_BT`.
+        a. Enable :kconfig:`CONFIG_MCUMGR_CMD_OS_MGMT`, :kconfig:`CONFIG_MCUMGR_CMD_IMG_MGMT`, and :kconfig:`CONFIG_MCUMGR_SMP_BT`.
         #. Call ``os_mgmt_register_group()`` and ``img_mgmt_register_group()`` in your application.
         #. Call ``smp_bt_register()`` in your application to initialize the mcumgr Bluetooth Low Energy transport.
 

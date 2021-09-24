@@ -54,8 +54,8 @@ static void xyl_get(struct bt_mesh_light_xyl_srv *srv,
 	struct bt_mesh_lightness_status lightness = { 0 };
 	struct bt_mesh_light_xy_status xy = { 0 };
 
-	srv->lightness_srv.handlers->light_get(&srv->lightness_srv, ctx,
-					       &lightness);
+	srv->lightness_srv->handlers->light_get(srv->lightness_srv, ctx,
+						&lightness);
 	srv->handlers->xy_get(srv, ctx, &xy);
 
 	status->params.xy = xy.current;
@@ -87,12 +87,12 @@ static void xyl_rsp(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *rx_ctx,
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
 }
 
-static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+static int xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		    struct net_buf_simple *buf, bool ack)
 {
 	if (buf->len != BT_MESH_LIGHT_XYL_MSG_MINLEN_SET &&
 	    buf->len != BT_MESH_LIGHT_XYL_MSG_MAXLEN_SET) {
-		return;
+		return -EMSGSIZE;
 	}
 
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
@@ -108,17 +108,8 @@ static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	set.params.y = net_buf_simple_pull_le16(buf);
 	uint8_t tid = net_buf_simple_pull_u8(buf);
 
-	if (set.params.x > srv->range.max.x) {
-		set.params.x = srv->range.max.x;
-	} else if (set.params.x < srv->range.min.x) {
-		set.params.x = srv->range.min.x;
-	}
-
-	if (set.params.y > srv->range.max.y) {
-		set.params.y = srv->range.max.y;
-	} else if (set.params.y < srv->range.min.y) {
-		set.params.y = srv->range.min.y;
-	}
+	set.params.x = CLAMP(set.params.x, srv->range.min.x, srv->range.max.x);
+	set.params.y = CLAMP(set.params.y, srv->range.min.y, srv->range.max.y);
 
 	if (tid_check_and_update(&srv->prev_transaction, tid, ctx) != 0) {
 		/* If this is the same transaction, we don't need to send it
@@ -128,15 +119,15 @@ static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 			xyl_get(srv, NULL, &xyl_status);
 			xyl_rsp(model, ctx, &xyl_status,
 				BT_MESH_LIGHT_XYL_OP_STATUS);
-			return;
+			return 0;
 		}
 	}
 
 	set.transition = model_transition_get(srv->model, &transition, buf);
 	light.transition = set.transition;
 
-	lightness_srv_disable_control(&srv->lightness_srv);
-	lightness_srv_change_lvl(&srv->lightness_srv, ctx, &light, &light_rsp, true);
+	lightness_srv_disable_control(srv->lightness_srv);
+	lightness_srv_change_lvl(srv->lightness_srv, ctx, &light, &light_rsp, true);
 	srv->handlers->xy_set(srv, ctx, &set, &status);
 	srv->xy_last.x = set.params.x;
 	srv->xy_last.y = set.params.y;
@@ -154,51 +145,47 @@ static void xyl_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	if (ack) {
 		xyl_rsp(model, ctx, &xyl_status, BT_MESH_LIGHT_XYL_OP_STATUS);
 	}
+
+	return 0;
 }
 
-static void xyl_get_handle(struct bt_mesh_model *model,
+static int handle_xyl_get(struct bt_mesh_model *model,
 			   struct bt_mesh_msg_ctx *ctx,
 			   struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_XYL_MSG_LEN_GET) {
-		return;
-	}
-
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
 	struct bt_mesh_light_xyl_status status = { 0 };
 
 	xyl_get(srv, ctx, &status);
 	xyl_rsp(model, ctx, &status, BT_MESH_LIGHT_XYL_OP_STATUS);
+
+	return 0;
 }
 
-static void xyl_set_handle(struct bt_mesh_model *model,
+static int handle_xyl_set(struct bt_mesh_model *model,
 			   struct bt_mesh_msg_ctx *ctx,
 			   struct net_buf_simple *buf)
 {
-	xyl_set(model, ctx, buf, true);
+	return xyl_set(model, ctx, buf, true);
 }
 
-static void xyl_set_unack_handle(struct bt_mesh_model *model,
+static int handle_xyl_set_unack(struct bt_mesh_model *model,
 				 struct bt_mesh_msg_ctx *ctx,
 				 struct net_buf_simple *buf)
 {
-	xyl_set(model, ctx, buf, false);
+	return xyl_set(model, ctx, buf, false);
 }
 
-static void target_get_handle(struct bt_mesh_model *model,
+static int handle_target_get(struct bt_mesh_model *model,
 			      struct bt_mesh_msg_ctx *ctx,
 			      struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_XYL_MSG_LEN_GET) {
-		return;
-	}
-
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
 	struct bt_mesh_light_xy_status status = { 0 };
 	struct bt_mesh_lightness_status light = { 0 };
 
-	srv->lightness_srv.handlers->light_get(&srv->lightness_srv, ctx,
-					       &light);
+	srv->lightness_srv->handlers->light_get(srv->lightness_srv, ctx,
+						&light);
 	srv->handlers->xy_get(srv, ctx, &status);
 
 	struct bt_mesh_light_xyl_status xyl_status = {
@@ -208,13 +195,15 @@ static void target_get_handle(struct bt_mesh_model *model,
 	};
 
 	xyl_rsp(model, ctx, &xyl_status, BT_MESH_LIGHT_XYL_OP_TARGET_STATUS);
+
+	return 0;
 }
 
 static void default_encode_status(struct bt_mesh_light_xyl_srv *srv,
 				  struct net_buf_simple *buf)
 {
 	bt_mesh_model_msg_init(buf, BT_MESH_LIGHT_XYL_OP_DEFAULT_STATUS);
-	net_buf_simple_add_le16(buf, srv->lightness_srv.default_light);
+	net_buf_simple_add_le16(buf, srv->lightness_srv->default_light);
 	net_buf_simple_add_le16(buf, srv->xy_default.x);
 	net_buf_simple_add_le16(buf, srv->xy_default.y);
 }
@@ -230,21 +219,17 @@ static void default_rsp(struct bt_mesh_model *model,
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
 }
 
-static void default_set(struct bt_mesh_model *model,
+static int default_set(struct bt_mesh_model *model,
 			struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf,
 			bool ack)
 {
-	if (buf->len != BT_MESH_LIGHT_XYL_MSG_LEN_DEFAULT) {
-		return;
-	}
-
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
 	struct bt_mesh_light_xy old_default = srv->xy_default;
 	uint16_t light = repr_to_light(net_buf_simple_pull_le16(buf), ACTUAL);
 
 	srv->xy_default.x = net_buf_simple_pull_le16(buf);
 	srv->xy_default.y = net_buf_simple_pull_le16(buf);
-	lightness_srv_default_set(&srv->lightness_srv, ctx, light);
+	lightness_srv_default_set(srv->lightness_srv, ctx, light);
 	store_state(srv);
 
 	if (srv->handlers->default_update) {
@@ -257,31 +242,31 @@ static void default_set(struct bt_mesh_model *model,
 	if (ack) {
 		default_rsp(model, ctx);
 	}
+
+	return 0;
 }
 
-static void default_get_handle(struct bt_mesh_model *model,
+static int handle_default_get(struct bt_mesh_model *model,
 			       struct bt_mesh_msg_ctx *ctx,
 			       struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_XYL_MSG_LEN_GET) {
-		return;
-	}
-
 	default_rsp(model, ctx);
+
+	return 0;
 }
 
-static void default_set_handle(struct bt_mesh_model *model,
+static int handle_default_set(struct bt_mesh_model *model,
 			       struct bt_mesh_msg_ctx *ctx,
 			       struct net_buf_simple *buf)
 {
-	default_set(model, ctx, buf, true);
+	return default_set(model, ctx, buf, true);
 }
 
-static void default_set_unack_handle(struct bt_mesh_model *model,
+static int handle_default_set_unack(struct bt_mesh_model *model,
 				     struct bt_mesh_msg_ctx *ctx,
 				     struct net_buf_simple *buf)
 {
-	default_set(model, ctx, buf, false);
+	return default_set(model, ctx, buf, false);
 }
 
 static void range_encode_status(struct net_buf_simple *buf,
@@ -308,13 +293,9 @@ static void range_rsp(struct bt_mesh_model *model,
 	(void)bt_mesh_model_send(model, rx_ctx, &msg, NULL, NULL);
 }
 
-static void range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+static int range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 		      struct net_buf_simple *buf, bool ack)
 {
-	if (buf->len != BT_MESH_LIGHT_XYL_MSG_LEN_RANGE_SET) {
-		return;
-	}
-
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
 	struct bt_mesh_light_xy_range new_range;
 	struct bt_mesh_light_xy_range old_range;
@@ -327,8 +308,7 @@ static void range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 
 	if ((new_range.min.x > new_range.max.x) ||
 	    (new_range.min.y > new_range.max.y)) {
-		status_code = BT_MESH_MODEL_STATUS_INVALID;
-		return;
+		return -EINVAL;
 	}
 
 	status_code = BT_MESH_MODEL_SUCCESS;
@@ -345,63 +325,63 @@ static void range_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	if (ack) {
 		range_rsp(model, ctx, status_code);
 	}
+
+	return 0;
 }
 
-static void range_get_handle(struct bt_mesh_model *model,
+static int handle_range_get(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	if (buf->len != BT_MESH_LIGHT_XYL_MSG_LEN_GET) {
-		return;
-	}
-
 	range_rsp(model, ctx, BT_MESH_MODEL_SUCCESS);
+
+	return 0;
 }
 
-static void range_set_handle(struct bt_mesh_model *model,
+static int handle_range_set(struct bt_mesh_model *model,
 			     struct bt_mesh_msg_ctx *ctx,
 			     struct net_buf_simple *buf)
 {
-	range_set(model, ctx, buf, true);
+	return range_set(model, ctx, buf, true);
 }
 
-static void range_set_unack_handle(struct bt_mesh_model *model,
+static int handle_range_set_unack(struct bt_mesh_model *model,
 				   struct bt_mesh_msg_ctx *ctx,
 				   struct net_buf_simple *buf)
 {
-	range_set(model, ctx, buf, false);
+	return range_set(model, ctx, buf, false);
 }
 
 const struct bt_mesh_model_op _bt_mesh_light_xyl_srv_op[] = {
 	{
 		BT_MESH_LIGHT_XYL_OP_GET,
-		BT_MESH_LIGHT_XYL_MSG_LEN_GET,
-		xyl_get_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_GET),
+		handle_xyl_get,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_SET,
-		BT_MESH_LIGHT_XYL_MSG_MINLEN_SET,
-		xyl_set_handle,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_XYL_MSG_MINLEN_SET),
+		handle_xyl_set,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_SET_UNACK,
-		BT_MESH_LIGHT_XYL_MSG_MINLEN_SET,
-		xyl_set_unack_handle,
+		BT_MESH_LEN_MIN(BT_MESH_LIGHT_XYL_MSG_MINLEN_SET),
+		handle_xyl_set_unack,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_TARGET_GET,
-		BT_MESH_LIGHT_XYL_MSG_LEN_GET,
-		target_get_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_GET),
+		handle_target_get,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_DEFAULT_GET,
-		BT_MESH_LIGHT_XYL_MSG_LEN_GET,
-		default_get_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_GET),
+		handle_default_get,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_RANGE_GET,
-		BT_MESH_LIGHT_XYL_MSG_LEN_GET,
-		range_get_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_GET),
+		handle_range_get,
 	},
 	BT_MESH_MODEL_OP_END,
 };
@@ -409,23 +389,23 @@ const struct bt_mesh_model_op _bt_mesh_light_xyl_srv_op[] = {
 const struct bt_mesh_model_op _bt_mesh_light_xyl_setup_srv_op[] = {
 	{
 		BT_MESH_LIGHT_XYL_OP_DEFAULT_SET,
-		BT_MESH_LIGHT_XYL_MSG_LEN_DEFAULT,
-		default_set_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_DEFAULT),
+		handle_default_set,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_DEFAULT_SET_UNACK,
-		BT_MESH_LIGHT_XYL_MSG_LEN_DEFAULT,
-		default_set_unack_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_DEFAULT),
+		handle_default_set_unack,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_RANGE_SET,
-		BT_MESH_LIGHT_XYL_MSG_LEN_RANGE_SET,
-		range_set_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_RANGE_SET),
+		handle_range_set,
 	},
 	{
 		BT_MESH_LIGHT_XYL_OP_RANGE_SET_UNACK,
-		BT_MESH_LIGHT_XYL_MSG_LEN_RANGE_SET,
-		range_set_unack_handle,
+		BT_MESH_LEN_EXACT(BT_MESH_LIGHT_XYL_MSG_LEN_RANGE_SET),
+		handle_range_set_unack,
 	},
 	BT_MESH_MODEL_OP_END,
 };
@@ -442,7 +422,7 @@ static ssize_t scene_store(struct bt_mesh_model *model, uint8_t data[])
 	struct bt_mesh_lightness_status light = { 0 };
 	struct scene_data *scene = (struct scene_data *)&data[0];
 
-	srv->lightness_srv.handlers->light_get(&srv->lightness_srv, NULL, &light);
+	srv->lightness_srv->handlers->light_get(srv->lightness_srv, NULL, &light);
 	srv->handlers->xy_get(srv, NULL, &xy_rsp);
 
 	if (xy_rsp.remaining_time) {
@@ -480,7 +460,7 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 	srv->xy_last.y = xy_set.params.y;
 	store_state(srv);
 
-	if (atomic_test_bit(&srv->lightness_srv.flags,
+	if (atomic_test_bit(&srv->lightness_srv->flags,
 			    LIGHTNESS_SRV_FLAG_EXTENDED_BY_LIGHT_CTRL)) {
 		return;
 	}
@@ -491,7 +471,7 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 		.transition = transition,
 	};
 
-	lightness_srv_change_lvl(&srv->lightness_srv, NULL, &light, &light_status, false);
+	lightness_srv_change_lvl(srv->lightness_srv, NULL, &light, &light_status, false);
 }
 
 static void scene_recall_complete(struct bt_mesh_model *model)
@@ -502,7 +482,7 @@ static void scene_recall_complete(struct bt_mesh_model *model)
 	struct bt_mesh_light_xy_status xy_status = { 0 };
 
 	srv->handlers->xy_get(srv, NULL, &xy_status);
-	srv->lightness_srv.handlers->light_get(&srv->lightness_srv, NULL, &light_status);
+	srv->lightness_srv->handlers->light_get(srv->lightness_srv, NULL, &light_status);
 
 	xyl_status.params.xy = xy_status.current;
 	xyl_status.params.lightness = light_status.current;
@@ -511,8 +491,15 @@ static void scene_recall_complete(struct bt_mesh_model *model)
 	(void)bt_mesh_light_xyl_srv_pub(srv, NULL, &xyl_status);
 }
 
+/*  MeshMDL1.0.1, section 5.1.3.1.1:
+ *  If a model is extending another model, the extending model shall determine
+ *  the Stored with Scene behavior of that model.
+ *
+ *  Use Setup Model to handle Scene Store/Recall as it is not extended
+ *  by other models.
+ */
 BT_MESH_SCENE_ENTRY_SIG(light_xyl) = {
-	.id.sig = BT_MESH_MODEL_ID_LIGHT_XYL_SRV,
+	.id.sig = BT_MESH_MODEL_ID_LIGHT_XYL_SETUP_SRV,
 	.maxlen = sizeof(struct scene_data),
 	.store = scene_store,
 	.recall = scene_recall,
@@ -533,6 +520,7 @@ static int update_handler(struct bt_mesh_model *model)
 static int bt_mesh_light_xyl_srv_init(struct bt_mesh_model *model)
 {
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
+	struct bt_mesh_model *lightness_srv;
 
 	srv->model = model;
 	srv->pub.msg = &srv->pub_buf;
@@ -544,22 +532,15 @@ static int bt_mesh_light_xyl_srv_init(struct bt_mesh_model *model)
 	k_work_init_delayable(&srv->store_timer, store_timeout);
 #endif
 
-	/* Model extensions:
-	 * To simplify the model extension tree, we're flipping the
-	 * relationship between the Light xyL server and the Light xyL
-	 * setup server. In the specification, the Light xyL setup
-	 * server extends the time server, which is the opposite of
-	 * what we're doing here. This makes no difference for the mesh
-	 * stack, but it makes it a lot easier to extend this model, as
-	 * we won't have to support multiple extenders.
-	 */
-	bt_mesh_model_extend(model, srv->lightness_srv.lightness_model);
-	bt_mesh_model_extend(
-		model, bt_mesh_model_find(
-			       bt_mesh_model_elem(model),
-			       BT_MESH_MODEL_ID_LIGHT_XYL_SETUP_SRV));
+	lightness_srv =
+		bt_mesh_model_find(bt_mesh_model_elem(model), BT_MESH_MODEL_ID_LIGHT_LIGHTNESS_SRV);
 
-	return 0;
+	if (!lightness_srv) {
+		BT_ERR("Failed to find Lightness Server on element");
+		return -EINVAL;
+	}
+
+	return bt_mesh_model_extend(model, lightness_srv);
 }
 
 static int bt_mesh_light_xyl_srv_settings_set(struct bt_mesh_model *model,
@@ -586,14 +567,14 @@ static int bt_mesh_light_xyl_srv_start(struct bt_mesh_model *model)
 	struct bt_mesh_light_xyl_srv *srv = model->user_data;
 	struct bt_mesh_light_xy_status status;
 	struct bt_mesh_model_transition transition = {
-		.time = srv->lightness_srv.ponoff.dtt.transition_time,
+		.time = srv->lightness_srv->ponoff.dtt.transition_time,
 		.delay = 0,
 	};
 	struct bt_mesh_light_xy_set set = {
 		.transition = &transition,
 	};
 
-	switch (srv->lightness_srv.ponoff.on_power_up) {
+	switch (srv->lightness_srv->ponoff.on_power_up) {
 	case BT_MESH_ON_POWER_UP_ON:
 		/* Intentional fallthrough */
 	case BT_MESH_ON_POWER_UP_OFF:
@@ -635,6 +616,32 @@ const struct bt_mesh_model_cb _bt_mesh_light_xyl_srv_cb = {
 	.start = bt_mesh_light_xyl_srv_start,
 	.settings_set = bt_mesh_light_xyl_srv_settings_set,
 	.reset = bt_mesh_light_xyl_srv_reset,
+};
+
+static int bt_mesh_light_xyl_setup_srv_init(struct bt_mesh_model *model)
+{
+	struct bt_mesh_light_xyl_srv *srv = model->user_data;
+	struct bt_mesh_model *lightness_setup_srv;
+	int err;
+
+	err = bt_mesh_model_extend(model, srv->model);
+	if (err) {
+		return err;
+	}
+
+	lightness_setup_srv = bt_mesh_model_find(bt_mesh_model_elem(model),
+						 BT_MESH_MODEL_ID_LIGHT_LIGHTNESS_SETUP_SRV);
+
+	if (!lightness_setup_srv) {
+		BT_ERR("Failed to find Lightness Setup Server on element");
+		return -EINVAL;
+	}
+
+	return bt_mesh_model_extend(model, lightness_setup_srv);
+}
+
+const struct bt_mesh_model_cb _bt_mesh_light_xyl_setup_srv_cb = {
+	.init = bt_mesh_light_xyl_setup_srv_init,
 };
 
 int bt_mesh_light_xyl_srv_pub(struct bt_mesh_light_xyl_srv *srv,

@@ -29,7 +29,8 @@ config DATA_SEND_ALL_DEVICE_CONFIGURATIONS
 
 config DATA_THREAD_STACK_SIZE
 	int "Data module thread stack size"
-	default 2560
+	default 5120 if NRF_CLOUD
+	default 3072
 
 config DATA_GPS_BUFFER_COUNT
 	int "Number of GPS data ringbuffer entries"
@@ -134,6 +135,22 @@ config DATA_GPS_TIMEOUT_SECONDS
 	default 60
 	help
 	  Timeout for acquiring a GPS fix during sampling of data.
+
+config DATA_SAMPLE_GNSS_DEFAULT
+	bool "Include GNSS in sample requests"
+	default y
+	help
+	  If this configuration is enabled the application will by default include GNSS data in
+	  sample requests sent to other modules. This configuration can be overwritten by changing
+	  the application's real-time configuration using the cloud-side state.
+
+config DATA_SAMPLE_NEIGHBOR_CELLS_DEFAULT
+	bool "Include neighbor cells in sample requests"
+	default y
+	help
+	  If this configuration is enabled the application will by default include neighbor cell
+	  data in sample requests sent to other modules. This configuration can be overwritten by
+	  changing the application's real-time configuration using the cloud-side state.
 
 endif # DATA_MODULE
 

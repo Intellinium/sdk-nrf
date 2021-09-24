@@ -31,6 +31,8 @@ Also see the :ref:`zephyr:boards` section in the Zephyr documentation.
 | nRF52 DK          | PCA10040   | :ref:`nrf52dk_nrf52832 <zephyr:nrf52dk_nrf52832>`               | ``nrf52dk_nrf52832``                  |
 | (nRF52832)        |            +-----------------------------------------------------------------+---------------------------------------+
 |                   |            | :ref:`nrf52dk_nrf52810 <zephyr:nrf52dk_nrf52810>`               | ``nrf52dk_nrf52810``                  |
+|                   |            +-----------------------------------------------------------------+---------------------------------------+
+|                   |            | :ref:`nrf52dk_nrf52805 <zephyr:nrf52dk_nrf52805>`               | ``nrf52dk_nrf52805``                  |
 +-------------------+------------+-----------------------------------------------------------------+---------------------------------------+
 | nRF52833 DK       | PCA10100   | :ref:`nrf52833dk_nrf52833 <zephyr:nrf52833dk_nrf52833>`         | ``nrf52833dk_nrf52833``               |
 |                   |            +-----------------------------------------------------------------+---------------------------------------+
@@ -50,11 +52,11 @@ Also see the :ref:`zephyr:boards` section in the Zephyr documentation.
 |                   |            |                                                                 |                                       |
 |                   |            |                                                                 | ``nrf5340dk_nrf5340_cpuapp``          |
 |                   |            |                                                                 |                                       |
-|                   |            |                                                                 | ``nrf5340dk_nrf5340_cpuappns``        |
+|                   |            |                                                                 | ``nrf5340dk_nrf5340_cpuapp_ns``       |
 +-------------------+------------+-----------------------------------------------------------------+---------------------------------------+
 | nRF9160 DK        | PCA10090   | :ref:`nrf9160dk_nrf9160 <zephyr:nrf9160dk_nrf9160>`             | ``nrf9160dk_nrf9160``                 |
 |                   |            |                                                                 |                                       |
-|                   |            |                                                                 | ``nrf9160dk_nrf9160ns``               |
+|                   |            |                                                                 | ``nrf9160dk_nrf9160_ns``              |
 |                   |            +-----------------------------------------------------------------+---------------------------------------+
 |                   |            | :ref:`nrf9160dk_nrf52840 <zephyr:nrf9160dk_nrf52840>`           | ``nrf9160dk_nrf52840``                |
 +-------------------+------------+-----------------------------------------------------------------+---------------------------------------+
@@ -88,11 +90,12 @@ The following boards are defined in the :file:`nrf/boards/arm/` folder.
 +-------------------+------------+----------------------------------------------------------+---------------------------------------+
 | Thingy:91         | PCA20035   | :ref:`thingy91_nrf9160 <ug_thingy91>`                    | ``thingy91_nrf9160``                  |
 |                   |            |                                                          |                                       |
-|                   |            |                                                          | ``thingy91_nrf9160ns``                |
+|                   |            |                                                          | ``thingy91_nrf9160_ns``               |
 |                   |            +----------------------------------------------------------+---------------------------------------+
 |                   |            | :ref:`thingy91_nrf52840 <ug_thingy91>`                   | ``thingy91_nrf52840``                 |
 +-------------------+------------+----------------------------------------------------------+---------------------------------------+
 
+The :ref:`nRF21540 EK shield <ug_radio_fem_nrf21540_ek>` is defined in the :file:`nrf/boards/shields` folder.
 
 Custom boards
 *************
@@ -102,3 +105,6 @@ To define your own board, you can use the following Zephyr guides as reference, 
 
 * :ref:`custom_board_definition` is a guide to adding your own custom board to the Zephyr build system.
 * :ref:`board_porting_guide` is a complete guide to porting Zephyr to your own board.
+
+One of the |NCS| applications that lets you add custom boards is :ref:`nrf_desktop`.
+See :ref:`nrf_desktop_porting_guide` in the application documentation for details.

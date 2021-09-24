@@ -160,6 +160,7 @@ foreach (slot ${slots})
   add_custom_command(
     OUTPUT
     ${signed_hex}
+    ${signed_bin}
     COMMAND
     ${PYTHON_EXECUTABLE}
     ${NRF_BOOTLOADER_SCRIPTS}/validation_data.py
@@ -174,6 +175,7 @@ foreach (slot ${slots})
     ${SIGN_KEY_FILE_DEPENDS}
     ${signature_file}
     ${slot}_signature_file_target
+    ${SIGNATURE_PUBLIC_KEY_FILE}
     WORKING_DIRECTORY
     ${PROJECT_BINARY_DIR}
     COMMENT
@@ -226,7 +228,6 @@ if (CONFIG_BUILD_S1_VARIANT AND NOT CONFIG_BOOTLOADER_MCUBOOT)
   set(s1_bin_path ${PROJECT_BINARY_DIR}/${s1_name})
 
   generate_dfu_zip(
-    TARGET s1_image_signed_kernel_hex_target
     OUTPUT ${PROJECT_BINARY_DIR}/dfu_application.zip
     BIN_FILES ${s0_bin_path} ${s1_bin_path}
     TYPE application

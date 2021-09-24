@@ -15,9 +15,11 @@
 #define image_1 mcuboot_secondary
 #define image_0_nonsecure mcuboot_primary
 #define image_1_nonsecure mcuboot_secondary
+#define image_2 mcuboot_primary_1
+#define image_3 mcuboot_secondary_1
 #define image_scratch mcuboot_scratch
 
-#if (CONFIG_SETTINGS_FCB || CONFIG_SETTINGS_NVS)
+#if (CONFIG_SETTINGS_FCB || CONFIG_SETTINGS_NVS || defined(PM_SETTINGS_STORAGE_ID))
 #define storage settings_storage
 #elif CONFIG_FILE_SYSTEM_LITTLEFS
 #define storage littlefs_storage

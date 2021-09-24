@@ -32,11 +32,11 @@ function(preprocess_pm_yml in_file out_file)
   if (DEFINED IMAGE_NAME)
     # Share location of original source file so that the parent image can add it
     # to the CMAKE_CONFIGURE_DEPENDS list.
-    share("list(APPEND ${IMAGE_NAME}PM_YML_DEP_FILES ${in_file})")
+    set_shared(IMAGE ${IMAGE_NAME} APPEND PROPERTY PM_YML_DEP_FILES ${in_file})
 
     # Share location of preprocessed pm.yml file so that the parent image can
     # use it as source for partition manager configuration.
-    share("list(APPEND ${IMAGE_NAME}PM_YML_FILES ${out_file})")
+    set_shared(IMAGE ${IMAGE_NAME} APPEND PROPERTY PM_YML_FILES ${out_file})
   endif()
 
   # Re-configure (Re-execute all CMakeLists.txt code) when original
@@ -49,6 +49,10 @@ endfunction()
 # Add all pm.yml files for subsystems
 # Store the preprocessed output in the binary dir of the subsystems
 # to avoid overwriting pm.yml files.
+if (CONFIG_BOARD_HAS_NRF5_BOOTLOADER)
+  ncs_add_partition_manager_config(pm.yml.nrf5_mbr)
+endif()
+
 if (CONFIG_SETTINGS_FCB OR CONFIG_SETTINGS_NVS)
   ncs_add_partition_manager_config(pm.yml.settings)
 endif()

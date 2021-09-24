@@ -7,10 +7,12 @@ import os  # -- Intellinium addition
 
 # Paths ------------------------------------------------------------------------
 
-NRF_BASE = Path(__file__).absolute().parent / ".." / ".."
+NRF_BASE = Path(__file__).absolute().parents[2]
 
 sys.path.insert(0, str(NRF_BASE / "doc" / "_utils"))
 import utils
+
+ZEPHYR_BASE = utils.get_projdir("zephyr")
 
 # General configuration --------------------------------------------------------
 
@@ -19,6 +21,11 @@ copyright = "2019-2021, Nordic Semiconductor"
 author = "Nordic Semiconductor"
 # NOTE: use blank space as version to preserve space
 version = "&nbsp;"
+
+sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
+sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
+
+extensions = ["zephyr.kconfig-role", "ncs_cache"]
 
 # Options for HTML output ------------------------------------------------------
 
@@ -35,6 +42,13 @@ html_show_sourcelink = True
 html_show_sphinx = False
 
 html_theme_options = {"docsets": utils.get_docsets("kconfig")}
+
+# Options for ncs_cache --------------------------------------------------------
+
+ncs_cache_docset = "kconfig"
+ncs_cache_build_dir = utils.get_builddir()
+ncs_cache_config = NRF_BASE / "doc" / "cache.yml"
+ncs_cache_manifest = NRF_BASE / "west.yml"
 
 
 def setup(app):

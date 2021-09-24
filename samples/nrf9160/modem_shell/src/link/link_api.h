@@ -44,10 +44,9 @@ struct pdp_context_info_array {
 	size_t size;
 };
 
-#if defined(CONFIG_MODEM_INFO)
 void link_api_modem_info_get_for_shell(const struct shell *shell,
 					bool connected);
-#endif
+
 #if defined(CONFIG_AT_CMD)
 void link_api_coneval_read_for_shell(const struct shell *shell);
 
@@ -62,6 +61,16 @@ int link_api_pdp_contexts_read(struct pdp_context_info_array *pdp_info);
  *         Client is responsible for deallocating the memory of the returned pdp_context_info.
  */
 struct pdp_context_info *link_api_get_pdp_context_info_by_pdn_cid(int pdn_cid);
+
+/**
+ * Get RAI status.
+ *
+ * @param[out] rai_status True if RAI enabled, false if disabled.
+ *                        Will be false also when error occurs.
+ *
+ * @return 0 if operation was successful, otherwise an error code.
+ */
+int link_api_rai_status(bool *rai_status);
 #endif
 
 #endif /* MOSH_LINK_API_H */
