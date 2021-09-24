@@ -232,6 +232,12 @@ if(NOT DEFINED ENV{NRFX_BASE})
 endif()
 
 # -- Intellinium addition
+if(NOT DEFINED ENV{ITL_CAR_POD_BASE})
+  get_filename_component(ITL_CAR_POD_BASE ${DOCSET_EXT_DIR}/itl_car_pod/ REALPATH)
+  set(ENV{ITL_CAR_POD_BASE} ${ITL_CAR_POD_BASE})
+endif()
+
+# -- Intellinium addition
 if(NOT DEFINED ENV{ITL_LIB_BASE})
   get_filename_component(ITL_LIB_BASE ${CMAKE_CURRENT_LIST_DIR}/../../modules/itl-lib/ REALPATH)
   set(ENV{ITL_LIB_BASE} ${ITL_LIB_BASE})
@@ -254,6 +260,7 @@ message(STATUS "NRF_BASE: $ENV{NRF_BASE}")
 message(STATUS "MCUBOOT_BASE: $ENV{MCUBOOT_BASE}")
 message(STATUS "NRFXLIB_BASE: $ENV{NRFXLIB_BASE}")
 message(STATUS "NRFX_BASE: $ENV{NRFX_BASE}")
+message(STATUS "ITL_CAR_POD_BASE: $ENV{ITL_CAR_POD_BASE}") # -- Intellinium addition
 message(STATUS "ITL_LIB_BASE: $ENV{ITL_LIB_BASE}") # -- Intellinium addition
 message(STATUS "ITL_MAT_POD_BASE: $ENV{ITL_MAT_POD_BASE}") # -- Intellinium addition
 message(STATUS "ITL_TFL_BASE: $ENV{ITL_TFL_BASE}") # -- Intellinium addition
@@ -262,6 +269,7 @@ set(ZEPHYR_BINARY_DIR ${CMAKE_BINARY_DIR}/zephyr)
 set(NRF_BINARY_DIR ${CMAKE_BINARY_DIR}/nrf)
 set(NRFXLIB_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfxlib)
 set(NRFX_BINARY_DIR ${CMAKE_BINARY_DIR}/nrfx)
+set(ITL_CAR_POD_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_car_pod) # -- Intellinium addition
 set(ITL_LIB_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_lib) # -- Intellinium addition
 set(ITL_MAT_POD_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_mat_pod) # -- Intellinium addition
 set(ITL_TFL_BINARY_DIR ${CMAKE_BINARY_DIR}/itl_tfl) # -- Intellinium addition
@@ -387,6 +395,24 @@ add_docset(nrfxlib "${nrfxlib_env}")
 
 #-------------------------------------------------------------------------------
 # -- Intellinium addition
+# docset: itl_car_pod
+
+set(itl_car_pod_env
+  ZEPHYR_BASE=${ZEPHYR_BASE}
+  NRF_BASE=${NRF_BASE}
+  ITL_LIB_BASE=${ITL_LIB_BASE}
+  ITL_CAR_POD_BASE=${ITL_CAR_POD_BASE}
+  ITL_CAR_POD_BUILD=${ITL_CAR_POD_BINARY_DIR}
+)
+
+add_external_docset(itl_car_pod
+  "${itl_car_pod_env}"
+  ssh://git@git.jetbrains.space/intellinium/mobility-pod/embedded-car-pod.git
+  develop
+)
+
+#-------------------------------------------------------------------------------
+# -- Intellinium addition
 # docset: itl_lib
 
 set(itl_lib_env
@@ -413,7 +439,8 @@ set(itl_mat_pod_env
 add_external_docset(itl_mat_pod
   "${itl_mat_pod_env}"
   ssh://git@git.jetbrains.space/intellinium/mobility-pod/embedded-mat-pod.git
-  develop)
+  develop
+)
 
 #-------------------------------------------------------------------------------
 # -- Intellinium addition
@@ -430,7 +457,8 @@ set(itl_tfl_env
 add_external_docset(itl_tfl
   "${itl_tfl_env}"
   ssh://git@git.jetbrains.space/intellinium/pod-machine-learning/ml-tflite-zephyr-application.git
-  develop)
+  develop
+)
 
 #-------------------------------------------------------------------------------
 # docset: kconfig
@@ -517,6 +545,7 @@ add_dependencies(nrf-html-all zephyr-html-all nrfxlib-inventory-all mcuboot-html
 add_dependencies(nrfxlib-html-all nrf-html-all)
 
 # -- Intellinium additions
+add_dependencies(itl_car_pod-html-all itl_lib-html-all)
 add_dependencies(itl_lib-html-all nrf-html-all)
 add_dependencies(itl_mat_pod-html-all itl_lib-html-all)
 add_dependencies(itl_tfl-html-all itl_lib-html-all)
@@ -530,6 +559,7 @@ add_dependencies(build-all
     zephyr-html-all
     mcuboot-html-all
     kconfig-html-all
+    itl_car_pod-html-all # -- Intellinium addition
     itl_lib-html-all # -- Intellinium addition
     itl_mat_pod-html-all # -- Intellinium addition
     itl_tfl-html-all # -- Intellinium addition
@@ -540,6 +570,7 @@ add_dependencies(linkcheck
     nrf-linkcheck
     nrfxlib-linkcheck
     mcuboot-linkcheck
+    itl_car_pod-linkcheck # -- Intellinium addition
     itl_lib-linkcheck # -- Intellinium addition
     itl_mat_pod-linkcheck # -- Intellinium addition
     itl_tfl-linkcheck # -- Intellinium addition

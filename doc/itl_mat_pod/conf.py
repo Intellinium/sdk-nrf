@@ -1,4 +1,4 @@
-# itl_lib documentation build configuration file
+# Mat Pod documentation build configuration file
 
 from pathlib import Path
 import os
