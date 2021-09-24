@@ -36,6 +36,11 @@ extensions.extend(["external_content", "doxyrunner"])
 
 # Options for HTML output ------------------------------------------------------
 
+# -- Intellinium addition
+# This replaces variables defined and imported from `conf`
+html_theme = "sphinx_itl_theme"
+html_theme_path = [str(NRF_BASE / "doc" / "_themes")]
+
 html_static_path.append(str(NRF_BASE / "doc" / "_static"))
 html_theme_options = {"docsets": utils.get_docsets("nrfx")}
 

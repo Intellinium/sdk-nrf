@@ -61,7 +61,7 @@ manifest:
     - name: zephyr
       repo-path: sdk-zephyr
       remote: intellinium-github
-      revision: 476bbef742e6493cf780a9de056120c41498ceb4
+      revision: d34d322038b936409ec698f34316a4bfaa4790dd
 
       import:
         # In addition to the zephyr repository itself, NCS also
@@ -117,12 +117,12 @@ manifest:
     # changes.
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: 9afbc97d02a33d587fdc258895822a1d00f6d065
+      revision: 5a6bf2fa11503ea0a3ef2b42a8afeed43053b6b9
       path: bootloader/mcuboot
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: 98dc97fe88e22604c165a17ca81e7fbd5d69f82b
+      revision: 1f3ad531bf48d4241b6c60f5c521364a0785bfa7
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tfm
@@ -194,11 +194,11 @@ manifest:
       remote: memfault
     - name: hal_intellinium
       remote: intellinium-github
-      revision: 4075d9581d0e970b0315027ab40e0cf3a6c9a433
+      revision: 24639339833af8b59279bb724fbbf3162020ab88
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: gauge_multi_inst
+      revision: 5c908f822ad5d8dd95113f57ae335db1af09b54d
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
@@ -208,10 +208,6 @@ manifest:
       remote: intellinium-github
       revision: 7ca9059aa507dc7b57bad150c8fc101d935968f1
       path: modules/itl-ml/ppg_ct
-    - name: ml-tflite-toolbox
-      remote: intellinium-space-ml
-      revision: add_multiple_model_support
-      path: modules/itl-ml/ml-tflite-toolbox
     - name: itl-hazard-mgr
       remote: intellinium-space-embedded
       revision: dev-stable

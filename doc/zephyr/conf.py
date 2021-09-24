@@ -32,8 +32,12 @@ extensions.extend(["sphinx.ext.intersphinx", "external_content"])
 
 # Options for HTML output ------------------------------------------------------
 
-html_theme = "sphinx_ncs_theme"
-html_theme_path = []
+# -- Intellinium modification
+# html_theme = "sphinx_ncs_theme"
+# html_theme_path = []
+html_theme = "sphinx_itl_theme"
+html_theme_path = [str(NRF_BASE / "doc" / "_themes")]
+
 html_favicon = None
 html_static_path.append(str(NRF_BASE / "doc" / "_static"))
 html_last_updated_fmt = "%b %d, %Y"

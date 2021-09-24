@@ -11,6 +11,10 @@ ALL_DOCSETS = {
     "zephyr": ("Zephyr Project", "index"),
     "mcuboot": ("MCUboot", "wrapper"),
     "kconfig": ("Kconfig Reference", "index"),
+    "itl_lib": ("Intellinium libraries", "index"),  # -- Intellinium addition
+    "itl_car_pod": ("Intellinium Car Pod", "index"),  # -- Intellinium addition
+    "itl_mat_pod": ("Intellinium Mat Pod", "index"),  # -- Intellinium addition
+    "itl_tfl": ("Intellinium TFLite app", "index"),  # -- Intellinium addition
 }
 """All supported docsets (name: title, home page)."""
 

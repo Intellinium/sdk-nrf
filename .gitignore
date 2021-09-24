@@ -26,6 +26,7 @@ sanity-out*
 twister-out*
 
 doc/_build
+doc/_external
 doc/nrf/_doxygen/
 doc/nrf/_samples/
 doc/*_warnings.txt

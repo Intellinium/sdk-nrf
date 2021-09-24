@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import sys
+import os  # -- Intellinium addition
 
 
 # Paths ------------------------------------------------------------------------
@@ -21,7 +22,12 @@ version = "&nbsp;"
 
 # Options for HTML output ------------------------------------------------------
 
-html_theme = "sphinx_ncs_theme"
+# -- Intellinium modification
+# html_theme = "sphinx_ncs_theme"
+html_theme = "sphinx_itl_theme"
+# -- Intellinium addition
+html_theme_path = [str(NRF_BASE / "doc" / "_themes")]
+
 html_static_path = [str(NRF_BASE / "doc" / "_static")]
 html_title = project
 html_last_updated_fmt = "%b %d, %Y"
