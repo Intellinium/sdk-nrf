@@ -191,7 +191,7 @@ manifest:
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: 91a652c830a49533071a0014eace0e530a7f95ca
+      revision: dbc380900b73763190b0efe0f6d188719793ed7b
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
