@@ -47,6 +47,7 @@ file(MAKE_DIRECTORY ${KCONFIG_BINARY_DIR})
 
 include(${ZEPHYR_BASE}/cmake/extensions.cmake)
 include(${ZEPHYR_BASE}/cmake/zephyr_module.cmake)
+
 # -- Intellinium addition
 include(${CMAKE_CURRENT_LIST_DIR}/../cmake/GitUtils.cmake)
 
