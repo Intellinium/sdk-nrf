@@ -61,6 +61,8 @@ manifest:
     - name: zephyr
       repo-path: sdk-zephyr
       revision: 035b805f0cee750d74955f1cd833c7ccf89544da
+      #revision: bf50bb052836b673f1e8a4c36cebac55ea53251b
+      #revision: c9c7681df3621f9bb5db276cd1edca560366e23b
       remote: intellinium-github
       import:
         # In addition to the zephyr repository itself, NCS also
@@ -187,7 +189,7 @@ manifest:
       remote: memfault
     - name: hal_intellinium
       remote: intellinium-github
-      revision: 7e31d42460467ab1097a58dd291a2d84b93236ea
+      revision: 4dc280d75844366e4656535293da619916171a11
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
