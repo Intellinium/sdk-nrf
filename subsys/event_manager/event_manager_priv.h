@@ -207,9 +207,9 @@ extern "C" {
 		.trace_data			= (IS_ENABLED					\
 							(CONFIG_EVENT_MANAGER_PROFILER_TRACER) ?\
 							    (trace_data_pointer) : (NULL)),	\
-		COND_CODE_1(IS_ENABLED(CONFIG_EVENT_MANAGER_STORAGE),			\
+		COND_CODE_1(IS_ENABLED(CONFIG_EVENT_MANAGER_STORAGE),				\
 			(.event_size = sizeof(struct ename)),					\
-			())
+			())									\
 	}
 
 

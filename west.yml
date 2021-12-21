@@ -60,9 +60,10 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: 035b805f0cee750d74955f1cd833c7ccf89544da
+      #revision: 035b805f0cee750d74955f1cd833c7ccf89544da
       #revision: bf50bb052836b673f1e8a4c36cebac55ea53251b
       #revision: c9c7681df3621f9bb5db276cd1edca560366e23b
+      revision: 38b25b114439e56fcd072ee3566daa4e8ab99791
       remote: intellinium-github
       import:
         # In addition to the zephyr repository itself, NCS also
@@ -186,11 +187,11 @@ manifest:
       remote: memfault
     - name: hal_intellinium
       remote: intellinium-github
-      revision: 4dc280d75844366e4656535293da619916171a11
+      revision: 6375f99c429193c7829d2f1a83fb7f2a40887a3a
       path: modules/hal/intellinium
     - name: embedded-itl-lib
       remote: intellinium-github
-      revision: 91a652c830a49533071a0014eace0e530a7f95ca
+      revision: 56ba6459739e046807149e18b7f744caca0a4583
       path: modules/itl-lib
     - name: ml-ppg-algorithm
       remote: intellinium-github
