@@ -285,12 +285,21 @@ void *ser_decode_callback_call(CborValue *value);
 
 /** @brief Put decoder into an invalid state and set error code that caused it.
  *         All further decoding on this decoder will be ignored.
- *         Invalid state can be checked with the is_decoder_invalid() function.
+ *         Invalid state can be checked with the ser_decode_valid() function.
  *
  * @param[in] value Value parsed from the CBOR stream.
  * @param[in] err Cbor error code to set.
  */
 void ser_decoder_invalid(CborValue *value, CborError err);
+
+/** @brief Returns if decoder is in valid state.
+ *
+ * @param[in] value Value parsed from the CBOR stream.
+ *
+ * @retval True if decoder is in valid state which means that no error occurred
+ *         so far. Otherwise, false will be returned.
+ */
+bool ser_decode_valid(CborValue *value);
 
 /** @brief Signalize that decoding is done. Use this function when you finish decoding of the
  *         received serialized packet.
@@ -315,6 +324,13 @@ void ser_rsp_decode_bool(CborValue *value, void *handler_data);
  * @param[in] handler_data Pointer to place where value will be decoded.
  */
 void ser_rsp_decode_u8(CborValue *value, void *handler_data);
+
+/** @brief Decode a command response as an unsigned 16-bit integer value.
+ *
+ * @param[in] value Value parsed from the CBOR stream.
+ * @param[in] handler_data Pointer to place where value will be decoded.
+ */
+void ser_rsp_decode_u16(CborValue *value, void *handler_data);
 
 /** @brief Decode a command response as an integer value.
  *

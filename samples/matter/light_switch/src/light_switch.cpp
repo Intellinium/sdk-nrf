@@ -8,10 +8,14 @@
 
 #include "app_task.h"
 
-#include <controller/data_model/gen/CHIPClusters.h>
+#include <controller/CHIPDeviceControllerFactory.h>
+#include <controller/CommissioneeDeviceProxy.h>
+#include <crypto/CHIPCryptoPAL.h>
+#include <lib/support/ErrorStr.h>
+#include <lib/support/ScopedBuffer.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <platform/KeyValueStoreManager.h>
-#include <support/ErrorStr.h>
+#include <zap-generated/CHIPClusters.h>
 
 #include <logging/log.h>
 #include <net/net_ip.h>
@@ -67,25 +71,77 @@ CHIP_ERROR LightSwitch::Init()
 		return err;
 	}
 
-	chip::Controller::CommissionerInitParams commissionerParams = {};
-	commissionerParams.storageDelegate = &mStorageDelegate;
-	commissionerParams.operationalCredentialsDelegate = &mOpCredDelegate;
-
-	err = mCommissioner.Init(chip::kTestControllerNodeId, commissionerParams);
+	chip::Crypto::P256Keypair ephemeralKey;
+	err = ephemeralKey.Initialize();
 
 	if (err != CHIP_NO_ERROR) {
-		LOG_ERR("DeviceCommissioner::Init() failed: %s", chip::ErrorStr(err));
+		LOG_ERR("P256Keypair::Initialize() failed: %s", chip::ErrorStr(err));
 		return err;
 	}
 
-	err = mCommissioner.ServiceEvents();
+	chip::Platform::ScopedMemoryBuffer<uint8_t> rcac;
+	chip::Platform::ScopedMemoryBuffer<uint8_t> icac;
+	chip::Platform::ScopedMemoryBuffer<uint8_t> noc;
+
+	if (!rcac.Alloc(chip::Controller::kMaxCHIPDERCertLength) ||
+	    !icac.Alloc(chip::Controller::kMaxCHIPDERCertLength) ||
+	    !noc.Alloc(chip::Controller::kMaxCHIPDERCertLength)) {
+		LOG_ERR("Failed to allocated memory for certificate chain");
+		return CHIP_ERROR_NO_MEMORY;
+	}
+
+	chip::MutableByteSpan rcacSpan(rcac.Get(), chip::Controller::kMaxCHIPDERCertLength);
+	chip::MutableByteSpan icacSpan(icac.Get(), chip::Controller::kMaxCHIPDERCertLength);
+	chip::MutableByteSpan nocSpan(noc.Get(), chip::Controller::kMaxCHIPDERCertLength);
+
+	err = mOpCredDelegate.GenerateNOCChainAfterValidation(chip::kTestControllerNodeId, 0, ephemeralKey.Pubkey(),
+							      rcacSpan, icacSpan, nocSpan);
+
+	if (err != CHIP_NO_ERROR) {
+		LOG_ERR("Failed to issue certificate chain: %s", chip::ErrorStr(err));
+		return err;
+	}
+
+	chip::Controller::SetupParams commissionerSetupParams = {};
+	commissionerSetupParams.storageDelegate = &mStorageDelegate;
+	commissionerSetupParams.operationalCredentialsDelegate = &mOpCredDelegate;
+	commissionerSetupParams.ephemeralKeypair = &ephemeralKey;
+	commissionerSetupParams.controllerRCAC = chip::ByteSpan(rcac.Get(), chip::Controller::kMaxCHIPDERCertLength);
+	commissionerSetupParams.controllerICAC = chip::ByteSpan(icac.Get(), chip::Controller::kMaxCHIPDERCertLength);
+	commissionerSetupParams.controllerNOC = chip::ByteSpan(noc.Get(), chip::Controller::kMaxCHIPDERCertLength);
+
+	err = mFabricStorage.Initialize(&mStorageDelegate);
+	if (err != CHIP_NO_ERROR) {
+		LOG_ERR("mFabricStorage.Initialize() failed: %s", chip::ErrorStr(err));
+		return err;
+	}
+
+	chip::Controller::FactoryInitParams factoryParams;
+	factoryParams.fabricStorage = &mFabricStorage;
+	factoryParams.listenPort = CHIP_PORT + 2;
+
+	err = chip::Controller::DeviceControllerFactory::GetInstance().Init(factoryParams);
+	if (err != CHIP_NO_ERROR) {
+		LOG_ERR("DeviceControllerFactory::Init() failed: %s", chip::ErrorStr(err));
+		return err;
+	}
+
+	err = chip::Controller::DeviceControllerFactory::GetInstance().SetupCommissioner(commissionerSetupParams,
+											 mCommissioner);
+	if (err != CHIP_NO_ERROR) {
+		LOG_ERR("DeviceControllerFactory::SetupCommissioner() failed: %s", chip::ErrorStr(err));
+		return err;
+	}
+
+	err = chip::Controller::DeviceControllerFactory::GetInstance().ServiceEvents();
 
 	if (err != CHIP_NO_ERROR) {
 		LOG_ERR("DeviceCommissioner::ServiceEvents() failed: %s", chip::ErrorStr(err));
 		return err;
 	}
 
-	auto params = chip::Transport::UdpListenParameters(&chip::DeviceLayer::InetLayer).SetListenPort(kDiscoveryPort);
+	auto params =
+		chip::Transport::UdpListenParameters(&chip::DeviceLayer::InetLayer()).SetListenPort(kDiscoveryPort);
 	err = mDiscoveryServiceEndpoint.Init(params);
 
 	if (err != CHIP_NO_ERROR) {
@@ -120,10 +176,8 @@ CHIP_ERROR LightSwitch::Pair(const chip::Inet::IPAddress &lightBulbAddress)
 	CHIP_ERROR err = CHIP_NO_ERROR;
 
 	{
-		chip::Controller::SerializedDevice serializedDevice;
 		err = mCommissioner.PairTestDeviceWithoutSecurity(
-			chip::kTestDeviceNodeId, chip::Transport::PeerAddress::UDP(lightBulbAddress, CHIP_PORT),
-			serializedDevice);
+			chip::kTestDeviceNodeId, chip::Transport::PeerAddress::UDP(lightBulbAddress, CHIP_PORT));
 	}
 
 	if (err != CHIP_NO_ERROR)
@@ -136,8 +190,8 @@ CHIP_ERROR LightSwitch::ToggleLight()
 {
 	LOG_INF("Toggling the light");
 
-	chip::Controller::Device *device;
-	CHIP_ERROR err = mCommissioner.GetDevice(chip::kTestDeviceNodeId, &device);
+	chip::CommissioneeDeviceProxy *device;
+	CHIP_ERROR err = mCommissioner.GetDeviceBeingCommissioned(chip::kTestDeviceNodeId, &device);
 
 	if (err != CHIP_NO_ERROR) {
 		LOG_ERR("No light bulb device is paired");
@@ -154,8 +208,8 @@ CHIP_ERROR LightSwitch::SetLightLevel(uint8_t level)
 {
 	LOG_INF("Setting brightness level to %u", level);
 
-	chip::Controller::Device *device;
-	CHIP_ERROR err = mCommissioner.GetDevice(chip::kTestDeviceNodeId, &device);
+	chip::CommissioneeDeviceProxy *device;
+	CHIP_ERROR err = mCommissioner.GetDeviceBeingCommissioned(chip::kTestDeviceNodeId, &device);
 
 	if (err != CHIP_NO_ERROR) {
 		LOG_ERR("No light bulb device is paired");

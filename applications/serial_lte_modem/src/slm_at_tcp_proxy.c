@@ -39,6 +39,7 @@ enum slm_tcp_role {
 
 static struct k_thread tcp_thread;
 static K_THREAD_STACK_DEFINE(tcp_thread_stack, THREAD_STACK_SIZE);
+static bool server_stop_pending;
 
 static struct tcp_proxy {
 	int sock;		/* Socket descriptor. */
@@ -50,7 +51,7 @@ static struct tcp_proxy {
 
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
-extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
+extern char rsp_buf[SLM_AT_CMD_RESPONSE_MAX_LEN];
 
 /** forward declaration of thread function **/
 static void tcpcli_thread_func(void *p1, void *p2, void *p3);
@@ -82,7 +83,11 @@ static int do_tcp_server_start(uint16_t port)
 	if (proxy.sec_tag == INVALID_SEC_TAG) {
 		ret = socket(proxy.family, SOCK_STREAM, IPPROTO_TCP);
 	} else {
+#if defined(CONFIG_SLM_NATIVE_TLS)
+		ret = socket(proxy.family, SOCK_STREAM | SOCK_NATIVE_TLS, IPPROTO_TLS_1_2);
+#else
 		ret = socket(proxy.family, SOCK_STREAM, IPPROTO_TLS_1_2);
+#endif
 	}
 	if (ret < 0) {
 		LOG_ERR("socket() failed: %d", -errno);
@@ -228,25 +233,25 @@ static int do_tcp_server_stop(void)
 		proxy.sec_tag = INVALID_SEC_TAG;
 	}
 #endif
+	server_stop_pending = true;
 	if (proxy.sock_peer != INVALID_SOCKET) {
 		(void)close(proxy.sock_peer);
 		proxy.sock_peer = INVALID_SOCKET;
-	}
-	ret = close(proxy.sock);
-	if (ret < 0) {
-		LOG_WRN("close() failed: %d", -errno);
-		ret = -errno;
+		sprintf(rsp_buf, "\r\n#XTCPSVR: 0,\"disconnected\"\r\n");
+		rsp_send(rsp_buf, strlen(rsp_buf));
 	} else {
+		ret = close(proxy.sock);
+		if (ret < 0) {
+			LOG_WRN("close() failed: %d", -errno);
+			return ret;
+		}
 		proxy.sock = INVALID_SOCKET;
 	}
-	if (ret == 0 &&
-	    k_thread_join(&tcp_thread, K_SECONDS(CONFIG_SLM_TCP_POLL_TIME * 2)) != 0) {
+	if (k_thread_join(&tcp_thread, K_SECONDS(CONFIG_SLM_TCP_POLL_TIME + 1)) != 0) {
 		LOG_WRN("Wait for thread terminate failed");
 	}
-	sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"stopped\"\r\n", ret);
-	rsp_send(rsp_buf, strlen(rsp_buf));
 
-	return ret;
+	return 0;
 }
 
 static int do_tcp_client_connect(const char *url, uint16_t port)
@@ -286,32 +291,23 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 	}
 
 	/* Connect to remote host */
-	struct addrinfo *res;
-	struct addrinfo hints = {
-		.ai_family = proxy.family,
-		.ai_socktype = SOCK_STREAM
+	struct sockaddr sa = {
+		.sa_family = AF_UNSPEC
 	};
 
-	ret = getaddrinfo(url, NULL, &hints, &res);
+	ret = util_resolve_host(0, url, port, proxy.family, &sa);
 	if (ret) {
-		LOG_ERR("getaddrinfo() failed: %d", ret);
+		LOG_ERR("getaddrinfo() error: %s", log_strdup(gai_strerror(ret)));
 		goto exit_cli;
 	}
-	if (proxy.family == AF_INET) {
-		struct sockaddr_in *host = (struct sockaddr_in *)res->ai_addr;
-
-		host->sin_port = htons(port);
-		ret = connect(proxy.sock, (struct sockaddr *)host, sizeof(struct sockaddr_in));
+	if (sa.sa_family == AF_INET) {
+		ret = connect(proxy.sock, &sa, sizeof(struct sockaddr_in));
 	} else {
-		struct sockaddr_in6 *host = (struct sockaddr_in6 *)res->ai_addr;
-
-		host->sin6_port = htons(port);
-		ret = connect(proxy.sock, (struct sockaddr *)host, sizeof(struct sockaddr_in6));
+		ret = connect(proxy.sock, &sa, sizeof(struct sockaddr_in6));
 	}
 	if (ret) {
 		LOG_ERR("connect() failed: %d", -errno);
 		ret = -errno;
-		freeaddrinfo(res);
 		goto exit_cli;
 	}
 
@@ -324,7 +320,6 @@ static int do_tcp_client_connect(const char *url, uint16_t port)
 	sprintf(rsp_buf, "\r\n#XTCPCLI: %d,\"connected\"\r\n", proxy.sock);
 	rsp_send(rsp_buf, strlen(rsp_buf));
 
-	freeaddrinfo(res);
 	return 0;
 
 exit_cli:
@@ -460,14 +455,18 @@ static void tcpsvr_thread_func(void *p1, void *p2, void *p3)
 	fds[1].events = POLLIN;
 	while (true) {
 		ret = poll(fds, 2, MSEC_PER_SEC * CONFIG_SLM_TCP_POLL_TIME);
-		if (ret < 0) {
+		if (server_stop_pending) {  /* server wait to stop */
+			ret = 0;
+			break;
+		}
+		if (ret < 0) { /* IO error */
 			LOG_WRN("poll() error: %d", -errno);
 			ret = -EIO;
 			break;
-		} /* IO error */
-		if (ret == 0) {
+		}
+		if (ret == 0) { /* timeout */
 			continue;
-		} /* timeout */
+		}
 		LOG_DBG("fds[0] events 0x%08x", fds[0].revents);
 		LOG_DBG("fds[1] events 0x%08x", fds[1].revents);
 		/* Listening socket events must be handled first*/
@@ -586,10 +585,10 @@ client_events:
 	if (proxy.sock != INVALID_SOCKET) {
 		(void)close(proxy.sock);
 		proxy.sock = INVALID_SOCKET;
-		sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"stopped\"\r\n", ret);
-		rsp_send(rsp_buf, strlen(rsp_buf));
 	}
-
+	sprintf(rsp_buf, "\r\n#XTCPSVR: %d,\"stopped\"\r\n", ret);
+	rsp_send(rsp_buf, strlen(rsp_buf));
+	server_stop_pending = false;
 	LOG_INF("TCP server thread terminated");
 }
 

@@ -14,7 +14,7 @@ Nordic Thingy:91 is a battery-operated prototyping platform for cellular IoT sys
 
 Thingy:91 integrates the following components:
 
-* nRF9160 SiP - supporting LTE-M, NB-IoT, and Global Positioning System (GPS)
+* nRF9160 SiP - supporting LTE-M, NB-IoT, and Global Navigation Satellite System (GNSS)
 * nRF52840 SoC - supporting Bluetooth® Low Energy and Near Field Communication (NFC)
 
 You can find more information on the product in the `Thingy:91 product page`_ and in the `Nordic Thingy:91 User Guide`_.
@@ -49,7 +49,7 @@ Firmware
 
 The firmware of Thingy:91 has been developed using the |NCS|.
 It is open source, and can be modified according to specific needs.
-The :ref:`asset_tracker` application firmware, which is preprogrammed in the Thingy:91, enables the device to use the environment sensors and provides an option of tracking the device using GPS.
+The :ref:`asset_tracker` application firmware, which is preprogrammed in the Thingy:91, enables the device to use the environment sensors and provides an option of tracking the device using GNSS.
 
 The data, along with information about the device, is transmitted to Nordic Semiconductor's cloud solution, `nRF Cloud`_, where it can be visualized.
 See :ref:`asset_tracker` for more information on the asset tracker application.
@@ -59,11 +59,11 @@ Operating modes
 
 Thingy:91 contains RGB indicator LEDs, which indicate the operating state of the device as described in :ref:`operating states of Thingy:91<thingy91_operating_states>`.
 
-GPS
-===
+GNSS
+====
 
-Thingy:91 has GPS, which, if activated, allows the device to be located globally using GPS signals.
-To activate GPS, long-press the SW3 button.
+Thingy:91 has a GNSS receiver, which, if activated, allows the device to be located globally using GNSS signals.
+To activate GNSS, long-press the SW3 button.
 See :ref:`Button SW3 on Thingy:91<asset_tracker_user_interface>` for information.
 
 LTE Band Lock
@@ -124,7 +124,7 @@ You can program either the nRF9160 SiP or the nRF52840 SoC component on the Thin
 
 Alternatively, you can use an external debug probe such as nRF9160 DK or any J-Link device supporting ARM Cortex-M33 to program applications on a Thingy:91.
 
-See `Programming applications on Nordic Thingy:91`_ for the detailed procedures to program a Thingy:91 using nRF Connect Programmer.
+See `Programming application and modem firmware on Thingy:91`_ for the detailed procedures to program a Thingy:91 using nRF Connect Programmer.
 
 Updating the modem firmware
 ===========================
@@ -134,7 +134,7 @@ You can update the modem firmware of Thingy:91 using any of the following method
 * Using USB (MCUboot)
 * Using an external debug probe such as nRF9160 DK or any J-Link device supporting ARM Cortex-M33
 
-See `Programming the Thingy:91 modem`_ for the detailed steps to update the modem firmware.
+See `Programming application and modem firmware on Thingy:91`_ for the detailed steps to update the modem firmware.
 
 
 .. _building_pgming:
@@ -166,7 +166,7 @@ You must use the build target ``thingy91_nrf9160`` or ``thingy91_nrf9160_ns`` wh
 
 .. note::
 
-   LTE/GPS features can only be used with non-secure target.
+   LTE/GNSS features can only be used with non-secure target.
 
 The table below shows the different types of build files that are generated and the different scenarios in which they are used:
 

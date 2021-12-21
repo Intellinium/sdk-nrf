@@ -9,15 +9,15 @@ GNSS AT commands
 
 The following commands list contains GNSS-related AT commands.
 
-Run GPS
-=======
+Run GNSS
+========
 
-The ``#XGPS`` command controls the GPS.
+The ``#XGPS`` command controls the GNSS.
 
 Set command
 -----------
 
-The set command allows you to start and stop the GPS.
+The set command allows you to start and stop the GNSS.
 
 Syntax
 ~~~~~~
@@ -28,11 +28,11 @@ Syntax
 
 The ``<op>`` parameter accepts the following integer values:
 
-* ``0`` - Stop GPS
-* ``1`` - Start GPS
+* ``0`` - Stop GNSS
+* ``1`` - Start GNSS
 
 The ``<interval>`` parameter represents the GNSS fix interval in seconds.
-It must be set when starting the GPS.
+It must be set when starting the GNSS.
 It accepts the following integer values:
 
 * ``0`` - Single-fix navigation mode.
@@ -137,15 +137,19 @@ Syntax
 
 The ``<op>`` parameter accepts the following integer values:
 
-* ``0`` - Disconnect from the nRF Cloud service
-* ``1`` - Connect to the nRF Cloud service
+* ``0`` - Disconnect from the nRF Cloud service.
+* ``1`` - Connect to the nRF Cloud service.
+* ``2`` - Send a message in the JSON format to the nRF Cloud service.
 
-The ``<signify>`` parameter accepts the following integer values:
+When ``<op>`` is ``2``, SLM enters ``slm_data_mode``.
 
-* ``0`` - It does not signify the location info to nRF Cloud
-* ``1`` - It does signify the location info to nRF Cloud
+The ``<signify>`` parameter is used only when the ``<op>`` value is ``1``
+It accepts the following integer values:
 
-When not specified, it does not signify the location info to nRF Cloud.
+* ``0`` - It does not signify the location info to nRF Cloud.
+* ``1`` - It does signify the location info to nRF Cloud.
+
+When the ``<signify>`` parameter is not specified, it does not signify the location info to nRF Cloud.
 
 Unsolicited notification
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -157,6 +161,12 @@ Unsolicited notification
 * The ``<ready>`` value indicates whether the nRF Cloud connection is ready or not.
 * The ``<signify>`` value indicates whether the location info will be signified to nRF Cloud or not.
 
+::
+
+   #XNRFCLOUD: <message>
+
+* The ``<message>`` value indicates the nRF Cloud data received when A-GPS, P-GPS, and Cell_Pos are not active.
+
 Example
 ~~~~~~~
 
@@ -166,6 +176,13 @@ Example
 
   OK
   #XNRFCLOUD: 1,0
+
+  AT#XNRFCLOUD=2
+  {"msg":"Hello, nRF Cloud"}
+  OK
+
+  #XNRFCLOUD: {"msg":"Hello"}
+
   AT#XNRFCLOUD=0
 
   AT#XNRFCLOUD: 0,0
@@ -198,10 +215,12 @@ Response syntax
 
 ::
 
-   #XNRFCLOUD: <ready>,<signify>
+   #XNRFCLOUD: <ready>,<signify>,<sec_tag>,<device_id>
 
 * The ``<ready>`` value indicates whether the nRF Cloud connection is ready or not.
 * The ``<signify>`` value indicates whether the location info will be signified to nRF Cloud or not.
+* The ``<sec_tag>`` value indicates the ``sec_tag`` used for accessing nRF Cloud.
+* The ``<device_id>`` value indicates the device ID used for accessing nRF Cloud.
 
 Example
 ~~~~~~~
@@ -210,7 +229,15 @@ Example
 
   AT#XNRFCLOUD?
 
-  #XNRFCLOUD: 1,0
+  #XNRFCLOUD: 1,0,16842753,"nrf-352656106443792"
+
+  OK
+
+::
+
+  AT#XNRFCLOUD?
+
+  #XNRFCLOUD: 1,0,8888,"50503041-3633-4261-803d-1e2b8f70111a"
 
   OK
 
@@ -232,22 +259,22 @@ Example
 
 ::
 
-  AT#XNRFSIGNIFY=?
+  AT#XXNRFCLOUD=?
 
-  #XNRFCLOUD: (1,0),<signify>
+  #XNRFCLOUD: (0,1,2),<signify>
 
   OK
 
-Run GPS with nRF Cloud A-GPS
-============================
+Run GNSS with nRF Cloud A-GPS
+=============================
 
-The ``#XAGPS`` command runs the GPS together with the nRF Cloud A-GPS service.
+The ``#XAGPS`` command runs the GNSS together with the nRF Cloud A-GPS service.
 This requires access to nRF Cloud through the LTE network for receiving A-GPS data.
 
 Set command
 -----------
 
-The set command allows you to start and stop the GPS together with the nRF Cloud A-GPS service.
+The set command allows you to start and stop the GNSS together with the nRF Cloud A-GPS service.
 
 Syntax
 ~~~~~~
@@ -258,11 +285,11 @@ Syntax
 
 The ``<op>`` parameter accepts the following integer values:
 
-* ``0`` - Stop GPS with A-GPS
-* ``1`` - Start GPS with A-GPS
+* ``0`` - Stop GNSS with A-GPS
+* ``1`` - Start GNSS with A-GPS
 
 The ``<interval>`` parameter represents the GNSS fix interval in seconds.
-It must be set when starting the GPS.
+It must be set when starting the GNSS.
 It accepts the following integer values:
 
 * ``0`` - Single-fix navigation mode.
@@ -357,16 +384,16 @@ Example
   OK
 
 
-Run GPS with nRF Cloud P-GPS
-============================
+Run GNSS with nRF Cloud P-GPS
+=============================
 
-The ``#XPGPS`` command runs the GPS together with the nRF Cloud P-GPS service.
+The ``#XPGPS`` command runs the GNSS together with the nRF Cloud P-GPS service.
 This requires access to nRF Cloud through the LTE network for receiving P-GPS data.
 
 Set command
 -----------
 
-The set command allows you to start and stop the GPS together with the nRF Cloud P-GPS service.
+The set command allows you to start and stop the GNSS together with the nRF Cloud P-GPS service.
 
 Syntax
 ~~~~~~
@@ -377,11 +404,11 @@ Syntax
 
 The ``<op>`` parameter accepts the following integer values:
 
-* ``0`` - Stop GPS with P-GPS
-* ``1`` - Start GPS with P-GPS
+* ``0`` - Stop GNSS with P-GPS
+* ``1`` - Start GNSS with P-GPS
 
 The ``<interval>`` parameter represents the GNSS fix interval in seconds.
-It must be set when starting the GPS.
+It must be set when starting the GNSS.
 It accepts the following integer values:
 
 * Ranging from ``10`` to ``1800`` - Periodic navigation mode.
@@ -492,9 +519,10 @@ Syntax
 
 The ``<op>`` parameter accepts the following integer values:
 
-* ``0`` - Stop cellular positioning
-* ``1`` - Start cellular positioning in single-cell mode
-* ``2`` - Start cellular positioning in multi-cell mode
+* ``0`` - Stop cellular positioning.
+* ``1`` - Start cellular positioning in single-cell mode.
+* ``2`` - Start cellular positioning in multi-cell mode.
+  To use ``2``, you must issue the ``AT%NCELLMEAS`` command first.
 
 Unsolicited notification
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -532,11 +560,18 @@ Example
   OK
 
   #XCELLPOS: 0,35.455833,139.626111,1094
+
+  AT%NCELLMEAS
+
+  OK
+
+  %NCELLMEAS: 0,"0199F10A","44020","107E",65535,3750,5,49,27,107504,3750,251,33,4,0,475,107,26,14,25,475,58,26,17,25,475,277,24,9,25,475,51,18,1,25
+
   AT#XCELLPOS=2
 
   OK
 
-  #XCELLPOS: 0,35.455833,139.626111,25000
+  #XCELLPOS: 1,35.534999,139.722362,1801
   AT#XCELLPOS=0
 
   OK

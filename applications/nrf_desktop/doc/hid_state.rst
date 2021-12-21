@@ -12,7 +12,7 @@ It is responsible for the following operations:
 
 * Aggregating data from user input sources.
 * Tracking state of the HID report subscriptions.
-* Forming the HID reports.
+* Forming the HID reports in either report or boot protocol.
 * Transmitting the HID reports to the right subscriber.
 * Sending :c:struct:`led_event` based on the HID keyboard LED output reports.
 
@@ -32,6 +32,11 @@ Configuration
 The |hid_state| is enabled by selecting :kconfig:`CONFIG_DESKTOP_HID_STATE_ENABLE`.
 This module is optional and turned off by default.
 
+To send boot reports, enable the respective Kconfig option:
+
+* :kconfig:`CONFIG_DESKTOP_HID_BOOT_INTERFACE_KEYBOARD` - This option enables sending keyboard boot reports.
+* :kconfig:`CONFIG_DESKTOP_HID_BOOT_INTERFACE_MOUSE` - This option enables sending mouse boot reports.
+
 HID keymap
 ==========
 
@@ -39,7 +44,7 @@ You must define mapping between button IDs and usage IDs in generated HID report
 For that purpose you must create a configuration file with ``hid_keymap`` array.
 Every element of the array contains mapping from a single hardware key ID to HID report ID and usage ID.
 
-For example, the file contents should look like follows:
+For example, the file contents should look like the following:
 
 .. code-block:: c
 
@@ -165,7 +170,7 @@ The ``button_event`` is the source of this type of data.
 
 To indicate a change to this input data, overwrite the value that is already stored.
 
-Since keys on the board can be associated to a usage ID, and thus be part of different HID reports, the first step is to identify to which report the key belongs and what usage it represents.
+Since keys on the board can be associated to a usage ID, and thus be part of different HID reports, the first step is to identify which report the key belongs to and what usage it represents.
 This is done by obtaining the key mapping from the :c:struct:`hid_keymap` structure.
 This structure is part of the application configuration files for the specific board and is defined in :file:`hid_keymap_def.h`.
 

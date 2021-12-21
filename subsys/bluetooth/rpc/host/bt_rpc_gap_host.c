@@ -13,6 +13,7 @@
 #include "bt_rpc_common.h"
 #include "serialize.h"
 #include "cbkproxy.h"
+#include <settings/settings.h>
 
 static void report_decoding_error(uint8_t cmd_evt_id, void *data)
 {
@@ -405,6 +406,8 @@ CBKPROXY_HANDLER(bt_le_scan_cb_t_encoder, bt_le_scan_cb_t_callback,
 		 (const bt_addr_le_t *addr, int8_t rssi, uint8_t adv_type,
 		  struct net_buf_simple *buf), (addr, rssi, adv_type, buf));
 
+#if defined(CONFIG_BT_BROADCASTER)
+
 void bt_le_adv_param_dec(struct ser_scratchpad *scratchpad, struct bt_le_adv_param *data)
 {
 	CborValue *value = scratchpad->value;
@@ -526,6 +529,8 @@ static void bt_le_adv_stop_rpc_handler(CborValue *value, void *handler_data)
 
 NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_adv_stop, BT_LE_ADV_STOP_RPC_CMD,
 			 bt_le_adv_stop_rpc_handler, NULL);
+
+#endif /* defined(CONFIG_BT_BROADCASTER) */
 
 size_t bt_le_oob_buf_size(const struct bt_le_oob *data)
 {
@@ -1114,8 +1119,8 @@ NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_scan_cb_register_on_remote,
 			 bt_le_scan_cb_register_on_remote_rpc_handler, NULL);
 #endif /* defined(CONFIG_BT_OBSERVER) */
 
-#if defined(CONFIG_BT_WHITELIST)
-static void bt_le_whitelist_add_rpc_handler(CborValue *value, void *handler_data)
+#if defined(CONFIG_BT_FILTER_ACCEPT_LIST)
+static void bt_le_filter_accept_list_add_rpc_handler(CborValue *value, void *handler_data)
 {
 	bt_addr_le_t addr_data;
 	const bt_addr_le_t *addr;
@@ -1127,7 +1132,7 @@ static void bt_le_whitelist_add_rpc_handler(CborValue *value, void *handler_data
 		goto decoding_error;
 	}
 
-	result = bt_le_whitelist_add(addr);
+	result = bt_le_filter_accept_list_add(addr);
 
 	ser_rsp_send_int(result);
 
@@ -1136,10 +1141,10 @@ decoding_error:
 	report_decoding_error(BT_LE_WHITELIST_ADD_RPC_CMD, handler_data);
 }
 
-NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_whitelist_add, BT_LE_WHITELIST_ADD_RPC_CMD,
-			 bt_le_whitelist_add_rpc_handler, NULL);
+NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_filter_accept_list_add, BT_LE_WHITELIST_ADD_RPC_CMD,
+			 bt_le_filter_accept_list_add_rpc_handler, NULL);
 
-static void bt_le_whitelist_rem_rpc_handler(CborValue *value, void *handler_data)
+static void bt_le_filter_accept_list_remove_rpc_handler(CborValue *value, void *handler_data)
 {
 	bt_addr_le_t addr_data;
 	const bt_addr_le_t *addr;
@@ -1151,7 +1156,7 @@ static void bt_le_whitelist_rem_rpc_handler(CborValue *value, void *handler_data
 		goto decoding_error;
 	}
 
-	result = bt_le_whitelist_rem(addr);
+	result = bt_le_filter_accept_list_remove(addr);
 
 	ser_rsp_send_int(result);
 
@@ -1160,23 +1165,23 @@ decoding_error:
 	report_decoding_error(BT_LE_WHITELIST_REM_RPC_CMD, handler_data);
 }
 
-NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_whitelist_rem, BT_LE_WHITELIST_REM_RPC_CMD,
-			 bt_le_whitelist_rem_rpc_handler, NULL);
+NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_filter_accept_list_remove, BT_LE_WHITELIST_REM_RPC_CMD,
+			 bt_le_filter_accept_list_remove_rpc_handler, NULL);
 
-static void bt_le_whitelist_clear_rpc_handler(CborValue *value, void *handler_data)
+static void bt_le_filter_accept_list_clear_rpc_handler(CborValue *value, void *handler_data)
 {
 	int result;
 
 	nrf_rpc_cbor_decoding_done(value);
 
-	result = bt_le_whitelist_clear();
+	result = bt_le_filter_accept_list_clear();
 
 	ser_rsp_send_int(result);
 }
 
-NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_whitelist_clear, BT_LE_WHITELIST_CLEAR_RPC_CMD,
-			 bt_le_whitelist_clear_rpc_handler, NULL);
-#endif /* defined(CONFIG_BT_WHITELIST) */
+NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_filter_accept_list_clear, BT_LE_WHITELIST_CLEAR_RPC_CMD,
+			 bt_le_filter_accept_list_clear_rpc_handler, NULL);
+#endif /* defined(CONFIG_BT_FILTER_ACCEPT_LIST) */
 
 static void bt_le_set_chan_map_rpc_handler(CborValue *value, void *handler_data)
 {
@@ -1966,3 +1971,18 @@ NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_per_adv_sync_cb_register_on_remote,
 			 BT_LE_PER_ADV_SYNC_CB_REGISTER_ON_REMOTE_RPC_CMD,
 			 bt_le_per_adv_sync_cb_register_on_remote_rpc_handler, NULL);
 #endif /* defined(CONFIG_BT_PER_ADV_SYNC) */
+
+#if defined(CONFIG_SETTINGS)
+static void bt_rpc_settings_load_rpc_handler(CborValue *value,
+					     void *handler_data)
+{
+	nrf_rpc_cbor_decoding_done(value);
+
+	settings_load();
+	ser_rsp_send_void();
+}
+
+NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_rpc_settings_load,
+			 BT_SETTINGS_LOAD_RPC_CMD,
+			 bt_rpc_settings_load_rpc_handler, NULL);
+#endif /* defined(CONFIG_SETTINGS) */

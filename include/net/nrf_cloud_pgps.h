@@ -12,7 +12,7 @@
  */
 
 #include <zephyr.h>
-#include <drivers/gps.h>
+#include <nrf_modem_gnss.h>
 #include "nrf_cloud_agps_schema_v1.h"
 
 #ifdef __cplusplus
@@ -225,7 +225,9 @@ int nrf_cloud_pgps_find_prediction(struct nrf_cloud_pgps_prediction **prediction
  * if the GPS time of day is larger than 86339; or if the prediction_period_min
  * field is not within the range 120 to 480.
  *
- * @return 0 if successful, otherwise a (negative) error code.
+ * @retval 0       Request sent successfully.
+ * @retval -EACCES Cloud connection is not established; wait for @ref NRF_CLOUD_EVT_READY.
+ * @return A negative value indicates an error.
  */
 int nrf_cloud_pgps_request(const struct gps_pgps_request *request);
 
@@ -235,6 +237,16 @@ int nrf_cloud_pgps_request(const struct gps_pgps_request *request);
  */
 int nrf_cloud_pgps_request_all(void);
 #endif /* CONFIG_NRF_CLOUD_MQTT */
+
+#if defined(CONFIG_NRF_CLOUD_PGPS_TRANSPORT_NONE)
+/**@brief If previous request for P-GPS data failed, re-enable future retries.
+ * This is should be called by the application after it attempts to
+ * handle PGPS_EVT_REQUEST, but is unable to complete it successfully. For
+ * example, it should be called if the cloud connection being used to transmit
+ * the request is temporarily unavailable.
+ */
+void nrf_cloud_pgps_request_reset(void);
+#endif
 
 /**@brief Processes binary P-GPS data received from nRF Cloud over MQTT or REST.
  *
@@ -250,14 +262,11 @@ int nrf_cloud_pgps_process(const char *buf, size_t buf_len);
  *
  * @param p Pointer to a prediction.
  * @param request Which assistance elements the modem needs. May be NULL.
- * @param socket Pointer to GNSS socket to which P-GPS data will be injected.
- * If NULL, the nRF9160 GPS driver is used to inject the data.
  *
  * @return 0 if successful, otherwise a (negative) error code.
  */
 int nrf_cloud_pgps_inject(struct nrf_cloud_pgps_prediction *p,
-			  const struct gps_agps_request *request,
-			  const int *socket);
+			  const struct nrf_modem_gnss_agps_data_frame *request);
 
 /**@brief Find out if P-GPS update is in progress
  *

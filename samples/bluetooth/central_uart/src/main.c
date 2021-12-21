@@ -60,8 +60,11 @@ static K_FIFO_DEFINE(fifo_uart_rx_data);
 static struct bt_conn *default_conn;
 static struct bt_nus_client nus_client;
 
-static void ble_data_sent(uint8_t err, const uint8_t *const data, uint16_t len)
+static void ble_data_sent(struct bt_nus_client *nus, uint8_t err,
+					const uint8_t *const data, uint16_t len)
 {
+	ARG_UNUSED(nus);
+
 	struct uart_data_t *buf;
 
 	/* Retrieve buffer context. */
@@ -75,8 +78,11 @@ static void ble_data_sent(uint8_t err, const uint8_t *const data, uint16_t len)
 	}
 }
 
-static uint8_t ble_data_received(const uint8_t *const data, uint16_t len)
+static uint8_t ble_data_received(struct bt_nus_client *nus,
+						const uint8_t *data, uint16_t len)
 {
+	ARG_UNUSED(nus);
+
 	int err;
 
 	for (uint16_t pos = 0; pos != len;) {
@@ -515,18 +521,6 @@ static void auth_cancel(struct bt_conn *conn)
 }
 
 
-static void pairing_confirm(struct bt_conn *conn)
-{
-	char addr[BT_ADDR_LE_STR_LEN];
-
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-	bt_conn_auth_pairing_confirm(conn);
-
-	LOG_INF("Pairing confirmed: %s", log_strdup(addr));
-}
-
-
 static void pairing_complete(struct bt_conn *conn, bool bonded)
 {
 	char addr[BT_ADDR_LE_STR_LEN];
@@ -550,7 +544,6 @@ static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason)
 
 static struct bt_conn_auth_cb conn_auth_callbacks = {
 	.cancel = auth_cancel,
-	.pairing_confirm = pairing_confirm,
 	.pairing_complete = pairing_complete,
 	.pairing_failed = pairing_failed
 };

@@ -22,19 +22,35 @@ macro(add_region)
 endmacro()
 
 # Load static configuration if found.
+# Try user defined file first, then file found in configuration directory,
+# finally file from board directory.
+
 set(user_def_pm_static ${PM_STATIC_YML_FILE})
-set(nodomain_pm_static ${APPLICATION_SOURCE_DIR}/pm_static.yml)
-set(domain_pm_static ${APPLICATION_SOURCE_DIR}/pm_static_${DOMAIN}.yml)
+
+ncs_file(CONF_FILES ${APPLICATION_CONFIG_DIR}
+         PM conf_dir_pm_static
+         DOMAIN ${DOMAIN}
+         BUILD ${CONF_FILE_BUILD_TYPE}
+)
+
+ncs_file(CONF_FILES ${BOARD_DIR}
+         PM board_dir_pm_static
+         DOMAIN ${DOMAIN}
+         BUILD ${CONF_FILE_BUILD_TYPE}
+)
 
 if(EXISTS "${user_def_pm_static}" AND NOT IS_DIRECTORY "${user_def_pm_static}")
   set(static_configuration_file ${user_def_pm_static})
-elseif (EXISTS ${domain_pm_static})
-  set(static_configuration_file ${domain_pm_static})
-elseif (EXISTS ${nodomain_pm_static})
-  set(static_configuration_file ${nodomain_pm_static})
+elseif (EXISTS ${conf_dir_pm_static})
+  set(static_configuration_file ${conf_dir_pm_static})
+elseif (EXISTS ${board_dir_pm_static})
+  set(static_configuration_file ${board_dir_pm_static})
 endif()
 
 if (EXISTS ${static_configuration_file})
+  message(STATUS "Found partition manager static configuration: "
+                 "${static_configuration_file}"
+  )
   set(static_configuration --static-config ${static_configuration_file})
 endif()
 
@@ -189,22 +205,6 @@ if (DEFINED ext_flash_dev)
     BASE ${CONFIG_PM_EXTERNAL_FLASH_BASE}
     PLACEMENT start_to_end
     DEVICE ${dev_name}
-    )
-elseif(CONFIG_PM_EXTERNAL_FLASH)
-  if (NOT CONFIG_PM_EXTERNAL_FLASH_SUPPORT_LEGACY)
-    message(WARNING "\
-External flash for partition manager is configured through Kconfig. This \
-should now be done through devicetree instead. See 'Using external flash \
-memory partitions' chapter in the documentation for instructions on how to \
-fix this, or enable `CONFIG_PM_EXTERNAL_FLASH_SUPPORT_LEGACY` in Kconfig.")
-  endif()
-
-  add_region(
-    NAME external_flash
-    SIZE ${CONFIG_PM_EXTERNAL_FLASH_SIZE}
-    BASE ${CONFIG_PM_EXTERNAL_FLASH_BASE}
-    PLACEMENT start_to_end
-    DEVICE ${CONFIG_PM_EXTERNAL_FLASH_DEV_NAME}
     )
 endif()
 
@@ -480,7 +480,7 @@ else()
   endforeach()
 
   if (CONFIG_BOOTLOADER_MCUBOOT)
-    if (CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
+    if (CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY AND CONFIG_HAS_HW_NRF_QSPI)
       # First we see if an ext flash dev has been chosen, if not, then we look
       # up the 'qspi' node and assume that this has the required address.
       if (DEFINED ext_flash_dev)
@@ -610,6 +610,15 @@ to the external flash")
     ${global_hex_depends}
     )
 
+  add_custom_target(
+    partition_manager_report
+    COMMAND
+    ${PYTHON_EXECUTABLE}
+    ${ZEPHYR_NRF_MODULE_DIR}/scripts/partition_manager_report.py
+    --input ${pm_out_partition_file}
+    COMMAND_EXPAND_LISTS
+    )
+
   if (PM_DOMAINS)
     # For convenience, generate global hex file containing all domains' hex
     # files.
@@ -635,25 +644,6 @@ to the external flash")
   set(ZEPHYR_RUNNER_CONFIG_KERNEL_HEX "${final_merged}"
     CACHE STRING "Path to merged image in Intel Hex format" FORCE)
 
-endif()
-
-# Ensure that the size of the second slot matches the primary slot when
-# external flash is used. This check must be here since the size of
-# the primary slot is not known during the configure stage of the mcuboot
-# child image.
-if (CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
-  if (NOT ${PM_MCUBOOT_SECONDARY_SIZE} EQUAL ${PM_MCUBOOT_PRIMARY_SIZE})
-    if (DEFINED static_configuration)
-      set(last_part "If the size of 'mcuboot_secondary' is set in your static \
-configuration you need to update the value there. Otherwise, this is done by \
-setting CONFIG_PM_PARTITION_SIZE_MCUBOOT_SECONDARY")
-    else()
-      set(last_part "This is done by setting CONFIG_PM_PARTITION_SIZE_MCUBOOT_SECONDARY")
-    endif()
-    message(WARNING "\
-The size of the 'mcuboot_secondary' partition is incorrect (${PM_MCUBOOT_SECONDARY_SIZE}).
-Its size must be ${PM_MCUBOOT_PRIMARY_SIZE} to match the  primary partition. ${last_part}")
-  endif()
 endif()
 
 # We need to tell the flash runner use the merged hex file instead of

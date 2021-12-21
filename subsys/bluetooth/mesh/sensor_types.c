@@ -25,7 +25,7 @@
 	const struct bt_mesh_sensor_format bt_mesh_sensor_format_##_name
 
 #define SENSOR_TYPE(name)                                                      \
-	const Z_STRUCT_SECTION_ITERABLE(bt_mesh_sensor_type,                   \
+	const STRUCT_SECTION_ITERABLE(bt_mesh_sensor_type,                     \
 					bt_mesh_sensor_##name)
 
 #ifdef CONFIG_BT_MESH_SENSOR_LABELS
@@ -496,7 +496,7 @@ FORMAT(percentage_16) = SCALAR_FORMAT_MAX(2,
 					  SCALAR(1e-2, 0),
 					  10000);
 FORMAT(percentage_delta_trigger) = SCALAR_FORMAT(2,
-					  (UNSIGNED),
+					  (UNSIGNED | HAS_UNDEFINED),
 					  percent,
 					  SCALAR(1e-2, 0));
 
@@ -1200,11 +1200,16 @@ SENSOR_TYPE(rel_dev_runtime_in_a_generic_level_range) = {
 		 CHANNEL("Max", gen_lvl)),
 };
 
+SENSOR_TYPE(total_dev_runtime) = {
+	.id = BT_MESH_PROP_ID_TOT_DEV_RUNTIME,
+	CHANNELS(CHANNEL("Total device runtime", time_decihour_8)),
+};
+
 /******************************************************************************/
 
 const struct bt_mesh_sensor_type *bt_mesh_sensor_type_get(uint16_t id)
 {
-	Z_STRUCT_SECTION_FOREACH(bt_mesh_sensor_type, type) {
+	STRUCT_SECTION_FOREACH(bt_mesh_sensor_type, type) {
 		if (type->id == id) {
 			return type;
 		}

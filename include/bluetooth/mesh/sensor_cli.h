@@ -289,8 +289,8 @@ struct bt_mesh_sensor_cli_handlers {
  *                         response.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_desc_all_get(struct bt_mesh_sensor_cli *cli,
 				    struct bt_mesh_msg_ctx *ctx,
@@ -316,8 +316,8 @@ int bt_mesh_sensor_cli_desc_all_get(struct bt_mesh_sensor_cli *cli,
  *  @retval -EALREADY      A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_desc_get(struct bt_mesh_sensor_cli *cli,
 				struct bt_mesh_msg_ctx *ctx,
@@ -343,8 +343,8 @@ int bt_mesh_sensor_cli_desc_get(struct bt_mesh_sensor_cli *cli,
  *  @retval -EALREADY      A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_cadence_get(struct bt_mesh_sensor_cli *cli,
 				   struct bt_mesh_msg_ctx *ctx,
@@ -373,8 +373,8 @@ int bt_mesh_sensor_cli_cadence_get(struct bt_mesh_sensor_cli *cli,
  *  @retval -EALREADY      A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_cadence_set(
 	struct bt_mesh_sensor_cli *cli, struct bt_mesh_msg_ctx *ctx,
@@ -434,8 +434,8 @@ int bt_mesh_sensor_cli_cadence_set_unack(
  *  @retval -EALREADY      A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_settings_get(struct bt_mesh_sensor_cli *cli,
 				    struct bt_mesh_msg_ctx *ctx,
@@ -462,8 +462,8 @@ int bt_mesh_sensor_cli_settings_get(struct bt_mesh_sensor_cli *cli,
  *  @retval -EALREADY      A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_setting_get(struct bt_mesh_sensor_cli *cli,
 				   struct bt_mesh_msg_ctx *ctx,
@@ -494,8 +494,8 @@ int bt_mesh_sensor_cli_setting_get(struct bt_mesh_sensor_cli *cli,
  *  @retval -EALREADY      A blocking request is already in progress.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_setting_set(
 	struct bt_mesh_sensor_cli *cli, struct bt_mesh_msg_ctx *ctx,
@@ -527,14 +527,15 @@ int bt_mesh_sensor_cli_setting_set_unack(
 
 /** @brief Read sensor data from all sensors on a server.
  *
- *  This call is blocking if the @c rsp buffer is non-NULL. Otherwise, this
+ *  This call is blocking if the @c sensors buffer is non-NULL. Otherwise, this
  *  function will return, and the response will be passed to the
  *  bt_mesh_sensor_cli_handlers::data callback.
  *
  *  @param[in]  cli       Sensor client instance.
  *  @param[in]  ctx       Message context parameters, or NULL to use the
  *                        configured publish parameters.
- *  @param[in]  sensors   List of sensor data values.
+ *  @param[out] sensors   Array of the sensors data to fill with the response, or NULL
+ *                        to keep from blocking.
  *  @param[in,out] count  The number of elements in the @c sensors array.
  *                        Will be changed to reflect the resulting number
  *                        of elements in a list.
@@ -543,8 +544,8 @@ int bt_mesh_sensor_cli_setting_set_unack(
  *  @retval -ENODEV        The sensor server doesn't have the given sensor.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_all_get(struct bt_mesh_sensor_cli *cli,
 			       struct bt_mesh_msg_ctx *ctx,
@@ -569,8 +570,8 @@ int bt_mesh_sensor_cli_all_get(struct bt_mesh_sensor_cli *cli,
  *  @retval -ENODEV        The sensor server doesn't have the given sensor.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_get(
 	struct bt_mesh_sensor_cli *cli, struct bt_mesh_msg_ctx *ctx,
@@ -600,8 +601,8 @@ int bt_mesh_sensor_cli_get(
  *  @retval -ENOENT        The sensor doesn't have the given column.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_series_entry_get(
 	struct bt_mesh_sensor_cli *cli, struct bt_mesh_msg_ctx *ctx,
@@ -648,8 +649,8 @@ int bt_mesh_sensor_cli_series_entry_get(
  *  @retval -ENOTSUP       The sensor doesn't support series data.
  *  @retval -EADDRNOTAVAIL A message context was not provided and publishing is
  *                         not configured.
- *  @retval -EAGAIN        The device has not been provisioned or the request
- *                         timed out without a response.
+ *  @retval -EAGAIN        The device has not been provisioned.
+ *  @retval -ETIMEDOUT     The request timed out without a response.
  */
 int bt_mesh_sensor_cli_series_entries_get(
 	struct bt_mesh_sensor_cli *cli, struct bt_mesh_msg_ctx *ctx,

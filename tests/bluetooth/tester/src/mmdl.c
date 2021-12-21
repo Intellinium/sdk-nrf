@@ -1888,7 +1888,7 @@ static void sensor_setting_set(uint8_t *data, uint16_t len)
 	struct mesh_sensor_setting_set *cmd = (void *)data;
 	const struct bt_mesh_sensor_type *sensor;
 	const struct bt_mesh_sensor_type *setting;
-	struct sensor_value value;
+	struct sensor_value value[CONFIG_BT_MESH_SENSOR_CHANNELS_MAX];
 	struct bt_mesh_sensor_setting_status rsp;
 	struct model_data *model_bound;
 	struct bt_mesh_msg_ctx ctx = {
@@ -1931,14 +1931,15 @@ static void sensor_setting_set(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	memcpy(&value, cmd->data, cmd->len);
+	memset(value, 0, sizeof(value));
+	memcpy(value, cmd->data, cmd->len);
 
 	if (cmd->ack) {
 		err = bt_mesh_sensor_cli_setting_set(&sensor_cli, &ctx, sensor,
-						     setting, &value, &rsp);
+						     setting, value, &rsp);
 	} else {
 		err = bt_mesh_sensor_cli_setting_set_unack(
-			&sensor_cli, &ctx, sensor, setting, &value);
+			&sensor_cli, &ctx, sensor, setting, value);
 	}
 
 	if (err) {
@@ -2616,8 +2617,8 @@ static void light_lightness_linear_get(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	current = light_to_repr(status.current, LINEAR);
-	target = light_to_repr(status.target, LINEAR);
+	current = to_linear(status.current);
+	target = to_linear(status.target);
 
 	net_buf_simple_init(buf, 0);
 	net_buf_simple_add_le16(buf, current);
@@ -2676,8 +2677,8 @@ static void light_lightness_linear_set(uint8_t *data, uint16_t len)
 		err = lightness_cli_light_set(&lightness_cli, &ctx, LINEAR,
 					      &set, &status);
 
-		current = light_to_repr(status.current, LINEAR);
-		target = light_to_repr(status.target, LINEAR);
+		current = to_linear(status.current);
+		target = to_linear(status.target);
 
 		net_buf_simple_init(buf, 0);
 		net_buf_simple_add_le16(buf, current);

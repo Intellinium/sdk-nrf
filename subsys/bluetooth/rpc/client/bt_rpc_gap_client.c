@@ -9,8 +9,12 @@
 
 #include <bluetooth/bluetooth.h>
 
+#include <settings/settings.h>
+
 #include <nrf_rpc_cbor.h>
 
+#include "bt_rpc_gatt_client.h"
+#include "bt_rpc_conn_client.h"
 #include "bt_rpc_common.h"
 #include "serialize.h"
 #include "cbkproxy.h"
@@ -97,7 +101,6 @@ decoding_error:
 NRF_RPC_CBOR_EVT_DECODER(bt_rpc_grp, bt_ready_cb_t_callback, BT_READY_CB_T_CALLBACK_RPC_EVT,
 			 bt_ready_cb_t_callback_rpc_handler, NULL);
 
-
 int bt_enable(bt_ready_cb_t cb)
 {
 	struct nrf_rpc_cbor_ctx ctx;
@@ -112,6 +115,31 @@ int bt_enable(bt_ready_cb_t cb)
 
 	nrf_rpc_cbor_cmd_no_err(&bt_rpc_grp, BT_ENABLE_RPC_CMD,
 				&ctx, ser_rsp_decode_i32, &result);
+
+	if (result) {
+		return result;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_CONN)) {
+		bt_rpc_conn_init();
+		result = bt_rpc_gatt_init();
+	}
+
+	if (result) {
+		return result;
+	}
+
+	if (IS_ENABLED(CONFIG_SETTINGS)) {
+		int network_load = 1;
+
+		result = settings_subsys_init();
+		if (result) {
+			return result;
+		}
+
+		result = settings_save_one("bt_rpc/network",
+					   &network_load, sizeof(network_load));
+	}
 
 	return result;
 }
@@ -568,11 +596,6 @@ void bt_le_ext_adv_sent_info_dec(CborValue *value, struct bt_le_ext_adv_sent_inf
 	data->num_sent = ser_decode_uint(value);
 }
 
-void bt_le_ext_adv_connected_info_dec(CborValue *value, struct bt_le_ext_adv_connected_info *data)
-{
-	data->conn = bt_rpc_decode_bt_conn(value);
-}
-
 void bt_le_ext_adv_scanned_info_dec(struct ser_scratchpad *scratchpad,
 				    struct bt_le_ext_adv_scanned_info *data)
 {
@@ -582,6 +605,7 @@ void bt_le_ext_adv_scanned_info_dec(struct ser_scratchpad *scratchpad,
 
 	data->addr = ser_decode_buffer_into_scratchpad(scratchpad);
 }
+
 
 static void bt_le_ext_adv_cb_sent_callback_rpc_handler(CborValue *value, void *handler_data)
 {
@@ -610,6 +634,12 @@ NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_ext_adv_cb_sent_callback,
 			 BT_LE_EXT_ADV_CB_SENT_CALLBACK_RPC_CMD,
 			 bt_le_ext_adv_cb_sent_callback_rpc_handler, NULL);
 
+#if defined(CONFIG_BT_CONN)
+void bt_le_ext_adv_connected_info_dec(CborValue *value, struct bt_le_ext_adv_connected_info *data)
+{
+	data->conn = bt_rpc_decode_bt_conn(value);
+}
+
 static void bt_le_ext_adv_cb_connected_callback_rpc_handler(CborValue *value, void *handler_data)
 {
 	struct bt_le_ext_adv *adv;
@@ -636,6 +666,7 @@ decoding_error:
 NRF_RPC_CBOR_CMD_DECODER(bt_rpc_grp, bt_le_ext_adv_cb_connected_callback,
 			 BT_LE_EXT_ADV_CB_CONNECTED_CALLBACK_RPC_CMD,
 			 bt_le_ext_adv_cb_connected_callback_rpc_handler, NULL);
+#endif /* defined(CONFIG_BT_CONN) */
 
 static void bt_le_ext_adv_cb_scanned_callback_rpc_handler(CborValue *value, void *handler_data)
 {
@@ -1308,7 +1339,11 @@ void bt_le_per_adv_sync_synced_info_dec(struct ser_scratchpad *scratchpad,
 	data->phy = ser_decode_uint(value);
 	data->recv_enabled = ser_decode_bool(value);
 	data->service_data = ser_decode_uint(value);
+#if defined(CONFIG_BT_CONN)
 	data->conn = bt_rpc_decode_bt_conn(value);
+#else
+	data->conn = 0;
+#endif /* defined(CONFIG_BT_CONN) */
 }
 
 static void per_adv_sync_cb_synced(struct bt_le_per_adv_sync *sync,
@@ -1638,8 +1673,8 @@ void bt_le_scan_cb_register(struct bt_le_scan_cb *cb)
 }
 #endif /* defined(CONFIG_BT_OBSERVER) */
 
-#if defined(CONFIG_BT_WHITELIST)
-int bt_le_whitelist_add(const bt_addr_le_t *addr)
+#if defined(CONFIG_BT_FILTER_ACCEPT_LIST)
+int bt_le_filter_accept_list_add(const bt_addr_le_t *addr)
 {
 	struct nrf_rpc_cbor_ctx ctx;
 	int result;
@@ -1658,7 +1693,7 @@ int bt_le_whitelist_add(const bt_addr_le_t *addr)
 }
 
 
-int bt_le_whitelist_rem(const bt_addr_le_t *addr)
+int bt_le_filter_accept_list_remove(const bt_addr_le_t *addr)
 {
 	struct nrf_rpc_cbor_ctx ctx;
 	int result;
@@ -1677,7 +1712,7 @@ int bt_le_whitelist_rem(const bt_addr_le_t *addr)
 }
 
 
-int bt_le_whitelist_clear(void)
+int bt_le_filter_accept_list_clear(void)
 {
 	struct nrf_rpc_cbor_ctx ctx;
 	int result;
@@ -1690,7 +1725,7 @@ int bt_le_whitelist_clear(void)
 
 	return result;
 }
-#endif /* defined(CONFIG_BT_WHITELIST) */
+#endif /* defined(CONFIG_BT_FILTER_ACCEPT_LIST) */
 
 int bt_le_set_chan_map(uint8_t chan_map[5])
 {
@@ -1903,3 +1938,32 @@ void bt_foreach_bond(uint8_t id, void (*func)(const struct bt_bond_info *info,
 				&ctx, ser_rsp_decode_void, NULL);
 }
 #endif /* (defined(CONFIG_BT_CONN) && defined(CONFIG_BT_SMP)) */
+
+static int rpc_settings_set(const char *key, size_t len_rd, settings_read_cb read_cb,
+				    void *cb_arg)
+{
+	struct nrf_rpc_cbor_ctx ctx;
+	size_t buffer_size_max = 0;
+	ssize_t len;
+	const char *next;
+
+	if (!key) {
+		LOG_ERR("Insufficient number of arguments");
+		return -ENOENT;
+	}
+
+	len = settings_name_next(key, &next);
+
+	if (!strncmp(key, "network", len)) {
+		NRF_RPC_CBOR_ALLOC(ctx, buffer_size_max);
+
+		nrf_rpc_cbor_cmd_no_err(&bt_rpc_grp, BT_SETTINGS_LOAD_RPC_CMD,
+					&ctx, ser_rsp_decode_void, NULL);
+
+	}
+
+	return 0;
+}
+
+SETTINGS_STATIC_HANDLER_DEFINE(bt_gatt_rpc, "bt_rpc", NULL, rpc_settings_set,
+			       NULL, NULL);

@@ -13,7 +13,7 @@ The Asset Tracker v2 application introduces a set of new features, which are not
 * Offline first - Highly-mobile cellular IoT products need to handle unreliable connections gracefully by implementing mechanisms to retry the failed sending of data.
 * Timestamping on the device - Sensor data is timestamped on the device using multiple time sources. When the device is offline (planned or unplanned), the timestamping does not rely on the cloud side.
 * Batching of data - Data can be batched to reduce the number of messages transmitted, and to be able to retain collected data while the device is offline.
-* Configurable at run time - The application behavior (for example, accelerometer sensitivity or GPS timeout) can be configured at run time. This improves the development experience with individual devices or when debugging the device behavior in specific areas and situations. It also reduces the cost for transmitting data to the devices by reducing the frequency of sending firmware updates to the devices.
+* Configurable at run time - The application behavior (for example, accelerometer sensitivity or GNSS timeout) can be configured at run time. This improves the development experience with individual devices or when debugging the device behavior in specific areas and situations. It also reduces the cost for transmitting data to the devices by reducing the frequency of sending firmware updates to the devices.
 
 Implementation of the above features required a rework of the existing application.
 Hence, this application is not backward compatible to the :ref:`asset_tracker` application.
@@ -24,7 +24,7 @@ Hence, this application is not backward compatible to the :ref:`asset_tracker` a
 Overview
 ********
 
-The application samples sensor data and publishes the data to a connected cloud service over TCP/IP via LTE.
+The application samples sensor data and publishes the data to a connected cloud service over TCP/IP through LTE.
 As of now, the application supports the following cloud services and the corresponding cloud-side instances:
 
 +---------------------------+---------------------------------------------------------------------------------------+
@@ -105,7 +105,7 @@ The device modes and their descriptions are listed in the following table:
 |          +---------------------+--------------------------------------------------------------------------------------------------------------------------------------+----------------+
 |          | Movement timeout    | Sample and publish data at a minimum of the time interval specified by the parameter. Not dependent on movement.                     | 3600 seconds   |
 +----------+---------------------+--------------------------------------------------------------------------------------------------------------------------------------+----------------+
-| GPS timeout                    | Timeout for acquiring a GPS fix during sampling of the data.                                                                         | 60 seconds     |
+| GPS timeout                    | Timeout for acquiring a GNSS fix during sampling of the data.                                                                        | 60 seconds     |
 +--------------------------------+--------------------------------------------------------------------------------------------------------------------------------------+----------------+
 | Accelerometer threshold        | Accelerometer threshold in m/s². Minimal absolute value in m/s² for the accelerometer readings to be considered as a valid movement. | 10 m/s²        |
 +--------------------------------+--------------------------------------------------------------------------------------------------------------------------------------+----------------+
@@ -164,6 +164,17 @@ Newly sampled data is always published prior to the old, buffered data.
 The application has LTE and cloud connection awareness.
 Upon a disconnect from the cloud service, the application keeps the sensor data that has been buffered and empty the buffers in batch messages when the application reconnects to the cloud service.
 
+Requirements
+************
+
+The application supports the following development kits:
+
+.. table-from-rows:: /includes/sample_board_rows.txt
+   :header: heading
+   :rows: thingy91_nrf9160_ns, nrf9160dk_nrf9160_ns
+
+.. include:: /includes/spm.txt
+
 User interface
 **************
 
@@ -192,7 +203,7 @@ The following table shows the LED behavior demonstrated by the application:
 +===========================+=========================+=======================+
 | LTE connection search     | Yellow, blinking        | LED1 blinking         |
 +---------------------------+-------------------------+-----------------------+
-| GPS fix search            | Purple, blinking        | LED2 blinking         |
+| GNSS fix search           | Purple, blinking        | LED2 blinking         |
 +---------------------------+-------------------------+-----------------------+
 | Publishing data           | Green, blinking         | LED3 blinking         |
 +---------------------------+-------------------------+-----------------------+
@@ -222,17 +233,6 @@ See :ref:`cmake_options` for more information.
 
 Alternatively, you can manually set the configuration options to match the contents of the overlay configuration file.
 
-Requirements
-************
-
-The application supports the following development kits:
-
-.. table-from-rows:: /includes/sample_board_rows.txt
-   :header: heading
-   :rows: thingy91_nrf9160_ns, nrf9160dk_nrf9160_ns
-
-.. include:: /includes/spm.txt
-
 Configuration
 *************
 
@@ -258,13 +258,16 @@ Currently, the application supports the following services and technologies in t
 |                          |   :ref:`lib_nrf_cloud_agps`     |
 |                          +---------------------------------+
 |                          |   :ref:`lib_nrf_cloud_pgps`     |
-|                          |   :ref:`FOTA <nrf9160_fota>`    |
 +--------------------------+---------------------------------+
 | `Azure IoT Hub`_         |   `MQTT`_                       |
 |                          +---------------------------------+
 |                          |   `TLS`_                        |
 |                          +---------------------------------+
 |                          |   :ref:`FOTA <nrf9160_fota>`    |
++                          +---------------------------------+
+|                          |   :ref:`lib_nrf_cloud_agps`     |
+|                          +---------------------------------+
+|                          |   :ref:`lib_nrf_cloud_pgps`     |
 +--------------------------+---------------------------------+
 | `nRF Cloud`_             |   `MQTT`_                       |
 |                          +---------------------------------+
@@ -277,9 +280,10 @@ Currently, the application supports the following services and technologies in t
 |                          |   :ref:`lib_nrf_cloud_pgps`     |
 +--------------------------+---------------------------------+
 
-When the application is configured to communicate with `AWS IoT Core`_, it supports processing of received A-GPS and P-GPS data through the :ref:`lib_nrf_cloud_agps` and :ref:`lib_nrf_cloud_pgps` libraries.
-This enables the cloud to indirectly fetch A-GPS and P-GPS data from `nRF Cloud`_ using REST calls and relay the data to the nRF9160 DK using the pre-established MQTT connection.
+When the application is configured to communicate with `AWS IoT Core`_ or `Azure IoT Hub`_, it supports processing of received A-GPS and P-GPS data through the :ref:`lib_nrf_cloud_agps` and :ref:`lib_nrf_cloud_pgps` libraries.
+This enables the cloud to indirectly fetch A-GPS and P-GPS data from `nRF Cloud`_ using REST calls and relay the data to the nRF9160 SiP using the pre-established MQTT connection.
 This approach saves data and energy costs related to maintaining multiple connections.
+Requesting and processing of A-GPS data is enabled by default when building for all supported cloud providers.
 
 .. note::
    |gps_tradeoffs|
@@ -305,51 +309,61 @@ To set up the application to work with a specific cloud example, see the followi
 For every cloud service that is supported by this application, you must configure the corresponding *cloud library* by setting certain mandatory Kconfig options that are specific to the cloud library.
 For more information, see :ref:`Cloud-specific mandatory Kconfig options <mandatory_config>`.
 
+
 Configuration options
 =====================
 
 Check and configure the following configuration options for the application:
 
-.. option:: CONFIG_ASSET_TRACKER_V2_APP_VERSION - Configuration for providing the application version
+.. _CONFIG_ASSET_TRACKER_V2_APP_VERSION:
 
-   The application publishes its version number as a part of the static device data. The default value for the application version is ``0.0.0-development``. To configure the application version, set :kconfig:`CONFIG_ASSET_TRACKER_V2_APP_VERSION` to the desired version.
+CONFIG_ASSET_TRACKER_V2_APP_VERSION - Configuration for providing the application version
+   The application publishes its version number as a part of the static device data. The default value for the application version is ``0.0.0-development``. To configure the application version, set :ref:`CONFIG_ASSET_TRACKER_V2_APP_VERSION <CONFIG_ASSET_TRACKER_V2_APP_VERSION>` to the desired version.
 
-.. option:: CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM - Configuration for enabling the use of custom cloud client ID
+.. _CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM:
 
+CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM - Configuration for enabling the use of custom cloud client ID
    This application configuration is used to enable the use of custom client ID for the respective cloud. By default, the application uses the IMEI of the nRF9160-based device as the client ID in the cloud connection.
 
-.. option:: CONFIG_CLOUD_CLIENT_ID - Configuration for providing a custom cloud client ID
+.. _CONFIG_CLOUD_CLIENT_ID:
 
-   This application configuration sets a custom client ID for the respective cloud. For setting a custom client ID, you need to set :kconfig:`CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM` to ``y``.
+CONFIG_CLOUD_CLIENT_ID - Configuration for providing a custom cloud client ID
+   This application configuration sets a custom client ID for the respective cloud. For setting a custom client ID, you need to set :ref:`CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM <CONFIG_CLOUD_CLIENT_ID_USE_CUSTOM>` to ``y``.
 
 
 .. _default_config_values:
 
 The default values for the device configuration parameters can be set by manipulating the following configurations:
 
-.. option:: CONFIG_DATA_DEVICE_MODE - Configuration for the device mode
+.. _CONFIG_DATA_DEVICE_MODE:
 
+CONFIG_DATA_DEVICE_MODE - Configuration for the device mode
    This application configuration sets the device mode.
 
-.. option:: CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS - Configuration for Active mode
+.. _CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS:
 
+CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS - Configuration for Active mode
    This application configuration sets the Active mode timeout value.
 
-.. option:: CONFIG_DATA_MOVEMENT_RESOLUTION_SECONDS - Configuration for Movement resolution
+.. _CONFIG_DATA_MOVEMENT_RESOLUTION_SECONDS:
 
+CONFIG_DATA_MOVEMENT_RESOLUTION_SECONDS - Configuration for Movement resolution
    This configuration sets the Movement resolution timeout value.
 
-.. option:: CONFIG_DATA_MOVEMENT_TIMEOUT_SECONDS - Configuration for Movement timeout
+.. _CONFIG_DATA_MOVEMENT_TIMEOUT_SECONDS:
 
+CONFIG_DATA_MOVEMENT_TIMEOUT_SECONDS - Configuration for Movement timeout
    This configuration sets the Movement timeout value.
 
-.. option:: CONFIG_DATA_ACCELEROMETER_THRESHOLD - Configuration for Accelerometer threshold
+.. _CONFIG_DATA_ACCELEROMETER_THRESHOLD:
 
+CONFIG_DATA_ACCELEROMETER_THRESHOLD - Configuration for Accelerometer threshold
    This configuration sets the Accelerometer threshold value.
 
-.. option:: CONFIG_DATA_GPS_TIMEOUT_SECONDS - Configuration for GPS timeout
+.. _CONFIG_DATA_GPS_TIMEOUT_SECONDS:
 
-   This configuration sets the GPS timeout value.
+CONFIG_DATA_GPS_TIMEOUT_SECONDS - Configuration for GNSS timeout
+   This configuration sets the GNSS timeout value.
 
 
 .. _mandatory_config:
@@ -357,10 +371,12 @@ The default values for the device configuration parameters can be set by manipul
 Mandatory library configuration
 ===============================
 
-You can set the mandatory library-specific Kconfig options in the :file:`prj.conf` file of the application.
+You can set the mandatory library-specific Kconfig options in the designated :file:`overlay-<feature>.conf` file located in the root folder of the application.
 
 Configurations for AWS IoT library
 ----------------------------------
+
+These options are located in the :file:`overlay-aws.conf` file.
 
 * :kconfig:`CONFIG_AWS_IOT_BROKER_HOST_NAME`
 * :kconfig:`CONFIG_AWS_IOT_SEC_TAG`
@@ -368,6 +384,8 @@ Configurations for AWS IoT library
 
 Configurations for Azure IoT Hub library
 ----------------------------------------
+
+These options are located in the :file:`overlay-azure.conf` file.
 
 * :kconfig:`CONFIG_AZURE_IOT_HUB_DPS_HOSTNAME`
 * :kconfig:`CONFIG_AZURE_IOT_HUB_DPS_ID_SCOPE`
@@ -386,16 +404,6 @@ You can add the following optional configurations to configure the heap or to pr
 * :kconfig:`CONFIG_PDN_DEFAULTS_OVERRIDE` - Used for manual configuration of the APN. Set the option to ``y`` to override the default PDP context configuration.
 * :kconfig:`CONFIG_PDN_DEFAULT_APN` - Used for manual configuration of the APN. An example is ``apn.example.com``.
 
-The application supports Assisted GPS.
-To set the source of the A-GPS data, set the following options:
-
-* :kconfig:`CONFIG_AGPS_SRC_SUPL` - Sets the external SUPL Client library as A-GPS data source. See the documentation on :ref:`supl_client_lib`.
-* :kconfig:`CONFIG_AGPS_SRC_NRF_CLOUD` - Sets nRF Cloud as A-GPS data source.
-
-The application supports Predicted GPS (P-GPS).
-To enable P-GPS, set the :kconfig:`CONFIG_NRF_CLOUD_PGPS` option.
-It enables requesting and processing of P-GPS data from nRF Cloud.
-
 Configuration files
 ===================
 
@@ -410,7 +418,10 @@ The following configuration files are available in the application folder:
 * :file:`prj.conf` - Configuration file common for all build targets
 * :file:`boards/thingy91_nrf9160_ns.conf` - Configuration file specific for Thingy:91. This file is automatically merged with the :file:`prj.conf` file when you build for the ``thingy91_nrf9160_ns`` build target.
 * :file:`boards/nrf9160dk_nrf9160_ns.conf` - Configuration file specific for nRF9160 DK. This file is automatically merged with the :file:`prj.conf` file when you build for the ``nrf9160dk_nrf9160_ns`` build target.
-* :file:`overlay-low-power.conf` - Configuration file that achieves the lowest power consumption by disabling features  that consume extra power like LED control and logging.
+* :file:`overlay-aws.conf` - Configuration file to set AWS as cloud provider.
+* :file:`overlay-azure.conf` - Configuration file to set Azure as cloud provider.
+* :file:`overlay-pgps.conf` - Configuration file to enable P-GPS.
+* :file:`overlay-low-power.conf` - Configuration file that achieves the lowest power consumption by disabling features that consume extra power, such as LED control and logging.
 * :file:`overlay-debug.conf` - Configuration file that adds additional verbose logging capabilities and enables the debug module.
 * :file:`overlay-memfault.conf` - Configuration file that enables `Memfault`_. To take advantage of all Memfault features in the application, you must build Memfault with the debug module enabled. To enable the debug module, include both :file:`overlay-debug.conf` and :file:`overlay-memfault.conf` in the ``west build`` command.
 * :file:`overlay-carrier.conf` - Configuration file that adds |NCS| :ref:`liblwm2m_carrier_readme` support. See :ref:`atv2_lwm2m_carrier_support` for more information.
@@ -428,6 +439,12 @@ Building and running
 Before building and running the firmware ensure that the cloud side is set up.
 Also, the device must be provisioned and configured with the certificates according to the instructions for the respective cloud for the connection attempt to succeed.
 
+The application defaults to using nRF Cloud as the cloud provider.
+However, you can change the cloud provider by specifying the overlay file that corresponds to another supported cloud provider when building the application.
+Set the CMake variable ``OVERLAY_CONFIG`` when calling the ``west build`` command.
+You can set this variable to contain a list of overlays that will be patched in, each enabling a specific feature.
+See :ref:`building_with_overlays` on how to combine overlay configuration files to enable multiple features at the same time.
+
 .. note::
 
    This application supports :ref:`ug_bootloader`, which is disabled by default.
@@ -440,27 +457,29 @@ Also, the device must be provisioned and configured with the certificates accord
 .. external_antenna_note_start
 
 .. note::
-   For nRF9160 DK v0.15.0 and later, set the :kconfig:`CONFIG_NRF9160_GPS_ANTENNA_EXTERNAL` option to ``y`` when building the application to achieve the best external antenna performance.
+   When you build the application for the nRF9160 DK v0.15.0 and later, set the ``CONFIG_GPS_MODULE_ANTENNA_EXTERNAL`` option to ``y`` to achieve the best external antenna performance.
 
 .. external_antenna_note_end
+
+.. _building_with_overlays:
 
 Building with overlays
 ======================
 
-To build with Kconfig overlay, it must be based to the build system, as shown in the following example:
+To build with a Kconfig overlay, it must be passed to the build system, as shown in the following example:
 
 .. code-block:: console
 
    west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG=overlay-low-power.conf
 
-The above command will build for nRF9160 DK using the configurations found in :file:`overlay-low-power.conf`, in addition to the configurations found in :file:`prj_nrf9160dk_nrf9160_ns.conf`.
+This command builds for the nRF9160 DK using the configurations found in the :file:`overlay-low-power.conf` file, in addition to the configurations found in the :file:`prj.conf` file.
 If some options are defined in both files, the options set in the overlay take precedence.
 
 To build with multiple overlay files, ``-DOVERLAY_CONFIG`` must be set to a list of overlay configurations, as shown in the following example:
 
 .. code-block:: console
 
-   west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG="overlay-debug.conf;overlay-memfault.conf"
+   west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG="overlay-aws.conf;overlay-debug.conf;overlay-memfault.conf"
 
 Testing
 =======
@@ -539,37 +558,6 @@ Following are the current limitations in the nRF Cloud implementation of the Ass
 		}
 	}
 
-* nRF Cloud does not support a separate endpoint for *batch* data updates. To temporarily circumvent this, batched data updates are sent to the message endpoint.
-
-
-Dependencies
-************
-
-This application uses the following |NCS| libraries and drivers:
-
-* :ref:`event_manager`
-* :ref:`lib_aws_iot`
-* :ref:`lib_aws_fota`
-* :ref:`lib_azure_iot_hub`
-* :ref:`lib_azure_fota`
-* :ref:`lib_nrf_cloud`
-* :ref:`lib_nrf_cloud_fota`
-* :ref:`lib_nrf_cloud_agps`
-* :ref:`lib_date_time`
-* :ref:`lte_lc_readme`
-* :ref:`modem_info_readme`
-* :ref:`lib_download_client`
-* :ref:`lib_fota_download`
-* :ref:`caf_leds`
-
-It uses the following `sdk-nrfxlib`_ library:
-
-* :ref:`nrfxlib:nrf_modem`
-
-In addition, it uses the following sample:
-
-* :ref:`secure_partition_manager`
-
 .. _asset_tracker_v2_internal_modules:
 
 Internal modules
@@ -621,7 +609,7 @@ All module threads have the following identical properties by default:
 
 * Thread is initialized at boot.
 * Thread is preemptive.
-* Priority is set to the lowest application priority in the system, which is done by setting ``CONFIG_NUM_PREEMPT_PRIORITIES`` to ``1``.
+* Priority is set to the lowest application priority in the system, which is done by setting :kconfig:`CONFIG_NUM_PREEMPT_PRIORITIES` to ``1``.
 * Thread is started instantly after it is initialized in the boot sequence.
 
 Following is the basic structure for all the threads:
@@ -673,3 +661,32 @@ You can configure the heap memory by using the :kconfig:`CONFIG_HEAP_MEM_POOL_SI
 The data management module that encodes data destined for cloud is the biggest consumer of heap memory.
 Therefore, when adjusting buffer sizes in the data management module, you must also adjust the heap accordingly.
 This avoids the problem of running out of heap memory in worst-case scenarios.
+
+Dependencies
+************
+
+This application uses the following |NCS| libraries and drivers:
+
+* :ref:`event_manager`
+* :ref:`lib_aws_iot`
+* :ref:`lib_aws_fota`
+* :ref:`lib_azure_iot_hub`
+* :ref:`lib_azure_fota`
+* :ref:`lib_nrf_cloud`
+* :ref:`lib_nrf_cloud_fota`
+* :ref:`lib_nrf_cloud_agps`
+* :ref:`lib_nrf_cloud_pgps`
+* :ref:`lib_date_time`
+* :ref:`lte_lc_readme`
+* :ref:`modem_info_readme`
+* :ref:`lib_download_client`
+* :ref:`lib_fota_download`
+* :ref:`caf_leds`
+
+It uses the following `sdk-nrfxlib`_ library:
+
+* :ref:`nrfxlib:nrf_modem`
+
+In addition, it uses the following sample:
+
+* :ref:`secure_partition_manager`

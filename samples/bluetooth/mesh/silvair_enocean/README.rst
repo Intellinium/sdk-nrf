@@ -19,7 +19,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833
+   :rows: nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832, nrf52833dk_nrf52833, nrf21540dk_nrf52840
 
 You need at least two development kits:
 
@@ -69,6 +69,7 @@ The following table shows the mesh Silvair EnOcean composition data for this sam
    =============================  ===================
    Config Server                  Gen. Level Client
    Health Server                  Gen. OnOff Client
+   Gen. DTT Server
    Gen. Level Client
    Gen. OnOff Client
    Silvair EnOcean Proxy Server
@@ -77,6 +78,7 @@ The following table shows the mesh Silvair EnOcean composition data for this sam
 The models are used for the following purposes:
 
 * The Silvair EnOcean Proxy Server instantiates :ref:`bt_mesh_onoff_cli_readme` and :ref:`bt_mesh_lvl_cli_readme` on both elements, where each element is controlled by the buttons on the EnOcean switch.
+* :ref:`bt_mesh_dtt_srv_readme` is used to control transition time of the Generic OnOff Server instances.
 * Config Server allows configurator devices to configure the node remotely.
 * Health Server provides ``attention`` callbacks that are used during provisioning to call your attention to the device. These callbacks trigger blinking of the LEDs.
 
@@ -117,6 +119,11 @@ The Silvair EnOcean sample is split into the following source files:
 
 * A :file:`main.c` file to handle initialization.
 * One additional file for handling mesh models, :file:`model_handler.c`.
+
+FEM support
+===========
+
+.. include:: /includes/sample_fem_support.txt
 
 Building and running
 ********************
@@ -162,6 +169,9 @@ Configure the Generic OnOff Client and the Generic Level Client models on each e
 * Set the publication parameters:
 
   * Destination/publish address: Set the :guilabel:`Publish Address` to the first unicast address of the Mesh Light Fixture node.
+
+.. note::
+   Configuring the periodic publication and publication retransmission of these models has no effect.
 
 Once the provisioning and the configuration of the client node and at least one of the server nodes are complete, you can use buttons on the EnOcean switch.
 The buttons will control the LED lights on the associated servers, as described in :ref:`bluetooth_mesh_silvair_enocean_user_interface`.

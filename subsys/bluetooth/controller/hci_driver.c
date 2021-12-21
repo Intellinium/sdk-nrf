@@ -83,12 +83,48 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_CENTRAL) ||
 BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_PERIPHERAL) ||
 			 (CONFIG_SDC_SLAVE_COUNT > 0));
 
-#if defined(CONFIG_BT_EXT_ADV)
-	#define SDC_ADV_SET_COUNT CONFIG_BT_EXT_ADV_MAX_ADV_SET
-#elif defined(CONFIG_BT_BROADCASTER)
-	#define SDC_ADV_SET_COUNT 1
+#if defined(CONFIG_BT_BROADCASTER)
+	#if defined(CONFIG_BT_CTLR_ADV_EXT)
+		#define SDC_ADV_SET_COUNT CONFIG_BT_CTLR_ADV_SET
+		#define SDC_ADV_BUF_SIZE  CONFIG_BT_CTLR_ADV_DATA_LEN_MAX
+	#else
+		#define SDC_ADV_SET_COUNT 1
+		#define SDC_ADV_BUF_SIZE SDC_DEFAULT_ADV_BUF_SIZE
+	#endif
+	#define SDC_ADV_SET_MEM_SIZE \
+		(SDC_ADV_SET_COUNT * SDC_MEM_PER_ADV_SET(SDC_ADV_BUF_SIZE))
 #else
 	#define SDC_ADV_SET_COUNT 0
+	#define SDC_ADV_SET_MEM_SIZE 0
+#endif
+
+#if defined(CONFIG_BT_PER_ADV)
+	#define SDC_PERIODIC_ADV_COUNT CONFIG_BT_EXT_ADV_MAX_ADV_SET
+	#define SDC_PERIODIC_ADV_MEM_SIZE \
+		(SDC_PERIODIC_ADV_COUNT * \
+		 SDC_MEM_PER_PERIODIC_ADV_SET(CONFIG_BT_CTLR_ADV_DATA_LEN_MAX))
+#else
+	#define SDC_PERIODIC_ADV_COUNT 0
+	#define SDC_PERIODIC_ADV_MEM_SIZE 0
+#endif
+
+#if defined(CONFIG_BT_PER_ADV_SYNC)
+	#define SDC_PERIODIC_ADV_SYNC_COUNT CONFIG_BT_PER_ADV_SYNC_MAX
+	#define SDC_PERIODIC_SYNC_MEM_SIZE \
+		(SDC_MEM_PER_PERIODIC_SYNC(SDC_DEFAULT_PERIODIC_SYNC_BUFFER_COUNT))
+#else
+	#define SDC_PERIODIC_ADV_SYNC_COUNT 0
+	#define SDC_PERIODIC_SYNC_MEM_SIZE 0
+#endif
+
+#if defined(CONFIG_BT_OBSERVER)
+	#if defined(CONFIG_BT_CTLR_ADV_EXT)
+		#define SDC_SCAN_BUF_SIZE SDC_MEM_SCAN_BUFFER_EXT(CONFIG_SDC_SCAN_BUFFER_COUNT)
+	#else
+		#define SDC_SCAN_BUF_SIZE SDC_MEM_SCAN_BUFFER(CONFIG_SDC_SCAN_BUFFER_COUNT)
+	#endif
+#else
+	#define SDC_SCAN_BUF_SIZE 0
 #endif
 
 #ifdef CONFIG_BT_CTLR_DATA_LENGTH_MAX
@@ -115,7 +151,10 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_PERIPHERAL) ||
 
 #define MEMPOOL_SIZE ((CONFIG_SDC_SLAVE_COUNT * SLAVE_MEM_SIZE) + \
 		      (SDC_MASTER_COUNT * MASTER_MEM_SIZE) + \
-		      (SDC_ADV_SET_COUNT * SDC_MEM_DEFAULT_ADV_SIZE))
+		       SDC_ADV_SET_MEM_SIZE + \
+		       SDC_PERIODIC_ADV_MEM_SIZE + \
+		       SDC_PERIODIC_SYNC_MEM_SIZE + \
+		       SDC_SCAN_BUF_SIZE)
 
 static uint8_t sdc_mempool[MEMPOOL_SIZE];
 
@@ -430,6 +469,13 @@ static int configure_supported_features(void)
 		}
 	}
 
+	if (IS_ENABLED(CONFIG_BT_PER_ADV)) {
+		err = sdc_support_le_periodic_adv();
+		if (err) {
+			return -ENOTSUP;
+		}
+	}
+
 	if (IS_ENABLED(CONFIG_BT_PERIPHERAL)) {
 		err = sdc_support_slave();
 		if (err) {
@@ -445,6 +491,13 @@ static int configure_supported_features(void)
 			}
 		} else {
 			err = sdc_support_scan();
+			if (err) {
+				return -ENOTSUP;
+			}
+		}
+
+		if (IS_ENABLED(CONFIG_BT_PER_ADV_SYNC)) {
+			err = sdc_support_le_periodic_sync();
 			if (err) {
 				return -ENOTSUP;
 			}
@@ -539,6 +592,56 @@ static int configure_memory_usage(void)
 		    &cfg);
 	if (required_memory < 0) {
 		return required_memory;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_BROADCASTER)) {
+#if defined(CONFIG_BT_CTLR_ADV_EXT)
+		cfg.adv_buffer_cfg.max_adv_data = CONFIG_BT_CTLR_ADV_DATA_LEN_MAX;
+#else
+		cfg.adv_buffer_cfg.max_adv_data = SDC_DEFAULT_ADV_BUF_SIZE;
+#endif
+
+		required_memory =
+		sdc_cfg_set(SDC_DEFAULT_RESOURCE_CFG_TAG,
+			    SDC_CFG_TYPE_ADV_BUFFER_CFG,
+			    &cfg);
+		if (required_memory < 0) {
+			return required_memory;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_PER_ADV)) {
+		cfg.periodic_adv_count.count = SDC_PERIODIC_ADV_COUNT;
+		required_memory =
+		sdc_cfg_set(SDC_DEFAULT_RESOURCE_CFG_TAG,
+			    SDC_CFG_TYPE_PERIODIC_ADV_COUNT,
+			    &cfg);
+		if (required_memory < 0) {
+			return required_memory;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_OBSERVER)) {
+		cfg.scan_buffer_cfg.count = CONFIG_SDC_SCAN_BUFFER_COUNT;
+
+		required_memory =
+		sdc_cfg_set(SDC_DEFAULT_RESOURCE_CFG_TAG,
+			    SDC_CFG_TYPE_SCAN_BUFFER_CFG,
+			    &cfg);
+		if (required_memory < 0) {
+			return required_memory;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_PER_ADV_SYNC)) {
+		cfg.periodic_sync_count.count = SDC_PERIODIC_ADV_SYNC_COUNT;
+		required_memory =
+		sdc_cfg_set(SDC_DEFAULT_RESOURCE_CFG_TAG,
+			    SDC_CFG_TYPE_PERIODIC_SYNC_COUNT,
+			    &cfg);
+		if (required_memory < 0) {
+			return required_memory;
+		}
 	}
 
 	BT_DBG("BT mempool size: %u, required: %u",

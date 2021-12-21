@@ -17,7 +17,7 @@ The sample supports the following development kits:
 
 .. table-from-rows:: /includes/sample_board_rows.txt
    :header: heading
-   :rows: nrf9160dk_nrf9160_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832
+   :rows: nrf9160dk_nrf9160_ns, nrf5340dk_nrf5340_cpuapp_and_cpuapp_ns, nrf52840dk_nrf52840, nrf52dk_nrf52832
 
 Overview
 ********
@@ -94,14 +94,22 @@ After programming the sample to your development kit, test it by performing the 
    .. parsed-literal::
       :class: highlight
 
-      *** Booting Zephyr OS build v2.4.0-ncs1-3484-g21046b8cdb4e  ***
+      *** Booting Zephyr OS build v2.6.99-ncs1-14-g15be5e615498  ***
+      Machine learning model sampling frequency: 52
+      Labels assigned by the model:
+      - idle
+      - sine
+      - triangle
+
       Prediction started...
 
       Classification results
       ======================
-      Label: sine
-      Value: 1.00
-      Anomaly: 0.47
+      Value: 1.00     Label: sine
+      Value: 0.00     Label: triangle
+      Value: 0.00     Label: idle
+      Anomaly: -0.07
+
 
 The observed classification results depend on machine learning model and input data.
 

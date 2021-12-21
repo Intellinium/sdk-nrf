@@ -86,6 +86,8 @@ You can enable existing child images in the |NCS| by enabling the respective mod
 To turn an application that you have implemented into a child image that can be included in a parent image, you must update the build scripts to enable the child image and add the required configuration options.
 You should also know how image-specific variables are disambiguated and what targets of the child images are available.
 
+.. _ug_multi_image_build_scripts:
+
 Updating the build scripts
 ==========================
 
@@ -193,7 +195,7 @@ The listing below describes how to leverage this functionality, where ``ACI_NAME
 .. literalinclude:: ../../cmake/multi_image.cmake
     :language: c
     :start-at: It is possible for a sample to use a custom set of Kconfig fragments for a
-    :end-before: set(ACI_CONF_DIR ${APPLICATION_SOURCE_DIR}/child_image)
+    :end-before: set(ACI_CONF_DIR ${APPLICATION_CONFIG_DIR}/child_image)
 
 Variables in child images
 -------------------------

@@ -24,13 +24,15 @@ Syntax
 
 ::
 
-   AT#XFOTA=<op>,<file_url>[,<sec_tag>[,<apn>]]
+   AT#XFOTA=<op>,<file_url>[,<sec_tag>[,<pdn_id>]]
 
 * The ``<op>`` parameter can accept one of the following values:
 
   * ``0`` - Cancel FOTA (during download only).
   * ``1`` - Start FOTA for application update.
   * ``2`` - Start FOTA for modem delta update.
+  * ``6`` - Read application image size and version (optional for application FOTA).
+  * ``7`` - Read modem scratch space size and offset (optional for modem FOTA).
   * ``8`` - Erase mcuboot secondary slot (optional for application FOTA).
   * ``9`` - Erase modem scratch space (optional for modem FOTA).
 
@@ -40,26 +42,67 @@ Syntax
   It indicates to the modem the credential of the security tag used for establishing a secure connection for downloading the image.
   It is associated with the certificate or PSK.
   Specifying the ``<sec_tag>`` is mandatory when using HTTPS.
-* The ``<apn>`` parameter is a string.
-  It represents an alternative access point name (APN), other than the default primary APN, to use for downloading.
+* The ``<pdn_id>`` parameter is an integer.
+  It represents the Packet Data Network (PDN) ID that can be used instead of the default PDN for downloading.
+
+Response syntax
+~~~~~~~~~~~~~~~
+
+::
+
+  #XFOTA: <primary_partition_id>,<MCUBOOT_version>,<img_size>,<img_version>
+  #XFOTA: <secondary_partition_id>,<MCUBOOT_version>,<img_size>,<img_version>
+
+* The ``<primary_partition_id>`` and ``<secondary_partition_id>`` integers give the partition ID.
+* The ``<MCUBOOT_version>`` major version integer. Value 1 corresponds to MCUboot versions 1.x.y.
+* The ``<img_size>`` integer gives the size of the application image in this partition in bytes.
+* The ``<img_version>`` string gives the version of the application image as "<major>.<minor>.<revision>+<build_number>".
+
+::
+
+  #XFOTA: <size>,<offset>
+
+* The ``<size>`` integer gives the size of the modem DFU area in bytes.
+* The ``<offset>`` integer gives the offset of the firmware image in the modem DFU area.
 
 Example
 ~~~~~~~
 
 ::
 
+   Read image size and version
+   at#xfota=6
+   #XFOTA: 3,1,295288,"0.0.0+0"
+   #XFOTA: 7,1,294376,"0.0.0+0"
+   OK
+
    Application download and activate
    AT#XFOTA=1,"http://remote.host/fota/slm_app_update.bin"
+   OK
+   #XFOTA: 1,0,0
+   ...
+   #XFOTA: 1,4,0
    AT#XRESET
 
    Erase previous image after FOTA
    AT#XFOTA=8
+   OK
+
+   Read modem scratch space size and offset
+   at#xfota=7
+   #XFOTA: 368640,0
+   OK
 
    Erase modem scratch space before FOTA
    AT#XFOTA=9
+   OK
 
    Modem download and activate
    AT#XFOTA=2,"http://remote.host/fota/mfw_nrf9160_update_from_1.3.0_to_1.3.0-FOTA-TEST.bin"
+   OK
+   #XFOTA: 1,0,0
+   ...
+   #XFOTA: 1,4,0
    AT#XRESET
 
 Unsolicited notification
@@ -145,6 +188,6 @@ Examples
 
    AT#XFOTA=?
 
-   #XFOTA: (0,1,2,8,9),<file_url>,<sec_tag>,<apn>
+   #XFOTA: (0,1,2,6,7,8,9),<file_url>,<sec_tag>,<apn>
 
    OK

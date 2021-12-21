@@ -72,6 +72,26 @@ Configuration
 
 |config|
 
+.. matter_door_lock_sample_configuration_file_types_start
+
+The sample uses different configuration files depending on the supported features.
+The configuration files are automatically attached to the build based on the build type suffix of the file name, such as :file:`_single_image_dfu` in the :file:`prj_single_image_dfu.conf` file.
+To modify configuration options, apply the modifications to the files with the appropriate suffix.
+See the table below for information about available configuration types:
+
++---------------------------+--------------------------------------+------------------------+------------------------------+
+| Config suffix             | Enabled feature                      | Enabling build option  | Supported boards             |
++===========================+======================================+========================+==============================+
+| none                      | none (basic build)                   | none                   | ``nrf52840dk_nrf52840``      |
+|                           |                                      |                        | ``nrf5340dk_nrf5340_cpuapp`` |
++---------------------------+--------------------------------------+------------------------+------------------------------+
+| :file:`_single_image_dfu` | Single-image Device Firmware Upgrade | ``-DBUILD_WITH_DFU=1`` | ``nrf52840dk_nrf52840``      |
++---------------------------+--------------------------------------+------------------------+------------------------------+
+| :file:`_multi_image_dfu`  | Multi-image Device Firmware Upgrade  | ``-DBUILD_WITH_DFU=1`` | ``nrf5340dk_nrf5340_cpuapp`` |
++---------------------------+--------------------------------------+------------------------+------------------------------+
+
+.. matter_door_lock_sample_configuration_file_types_end
+
 Device Firmware Upgrade support
 ===============================
 
@@ -98,6 +118,21 @@ FEM support
 
 .. include:: /includes/sample_fem_support.txt
 
+Low-power build
+===============
+
+You can configure the sample to consume less power by using the low-power build, which enables Thread's Sleepy End Device mode and disables debug features, such as the UART console or the **LED 1** usage.
+
+To trigger the low-power build, use the ``-DOVERLAY_CONFIG="overlay-low_power.conf"`` option when building the sample.
+See :ref:`cmake_options` for instructions on how to add this option to your build.
+
+For example, when building on the command line, you can run the following command with *build_target* replaced with the build target name of the hardware platform you are using (see `Requirements`_):
+
+.. parsed-literal::
+   :class: highlight
+
+   west build -b *build_target* -- -DOVERLAY_CONFIG="overlay-low_power.conf"
+
 User interface
 **************
 
@@ -109,8 +144,7 @@ LED 1:
 
     * Short Flash On (50 ms on/950 ms off) - The device is in the unprovisioned (unpaired) state and is waiting for a commissioning application to connect.
     * Rapid Even Flashing (100 ms on/100 ms off) - The device is in the unprovisioned state and a commissioning application is connected through Bluetooth LE.
-    * Short Flash Off (950 ms on/50 ms off) - The device is fully provisioned, but does not yet have full Thread network or service connectivity.
-    * Solid On - The device is fully provisioned and has full Thread network and service connectivity.
+    * Solid On - The device is fully provisioned.
 
 .. matter_door_lock_sample_led1_end
 
@@ -218,20 +252,11 @@ Commissioning the device
 
 .. matter_door_lock_sample_commissioning_start
 
-To commission the device, go to the :ref:`ug_matter_configuring` page and complete the steps for the Matter controller you want to use.
+To commission the device, go to the :ref:`ug_matter_configuring_env` page and complete the steps for the Matter controller you want to use.
 As part of this tutorial, you will configure Thread Border Router, build and install the Matter controller, commission the device, and send Matter commands that cover scenarios described in the `Testing`_ section.
 If you are new to Matter, the recommended approach is :ref:`ug_matter_configuring_mobile` using an Android smartphone.
 
-In Matter, the commissioning procedure takes place over Bluetooth LE between a Matter accessory device and the Matter controller, where the controller has the commissioner role.
-When the procedure has completed, the device should be equipped with all information needed to securely operate in the Matter network.
-
-During the last part of the commissioning procedure (the provisioning operation), the Matter controller sends the Thread network credentials to the Matter accessory device.
-As a result, the device can join the Thread network and communicate with other Thread devices in the network.
-
 .. matter_door_lock_sample_commissioning_end
-
-To start the commissioning procedure, the controller must get the commissioning information from the Matter accessory device.
-The data payload, which includes the device discriminator and setup PIN code, is encoded within a QR code, printed to the UART console, and can be shared using an NFC tag.
 
 Upgrading the device firmware
 =============================

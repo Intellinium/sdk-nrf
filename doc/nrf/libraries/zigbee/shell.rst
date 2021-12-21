@@ -100,6 +100,8 @@ For example, ``zdo help`` displays help for all ``zdo`` commands.
 
 Example:
 
+.. zigbee_help_output_start
+
 .. code-block::
 
    help
@@ -113,8 +115,9 @@ Example:
    Please refer to shell documentation for more details.
 
    Available commands:
-   bdb                :Base device behaviour manipulation
+   bdb                :Base device behaviour manipulation.
    clear              :Clear screen.
+   debug              :Return state of debug mode.
    device             :Device commands
    devmem             :Read/write physical memory"devmem address [width [value]]"
    flash              :Flash shell commands
@@ -122,14 +125,18 @@ Example:
    history            :Command history.
    kernel             :Kernel commands
    nrf_clock_control  :Clock control commmands
+   nvram              :Zigbee NVRAM manipulation.
    resize             :Console gets terminal screen size or assumes default in
-                      case the readout fails. It must be executed after each
-                      terminal width change to ensure correct text display.
+                       case the readout fails. It must be executed after each
+                       terminal width change to ensure correct text display.
    sensor             :Sensor commands
    shell              :Useful, not Unix-like shell commands.
    version            :Print firmware version
    zcl                :ZCL subsystem commands.
-   zdo                :ZDO manipulation
+   zdo                :ZDO manipulation.
+   zscheduler         :Zigbee scheduler manipulation.
+
+.. zigbee_help_output_end
 
 ----
 
@@ -254,35 +261,29 @@ Example:
 
 ----
 
-.. _bdb_ic:
+.. _bdb_ic_add:
 
-bdb ic
-======
+bdb ic add
+==========
 
-Set install code on the device, add information about the install code on the trust center, set the trust center install code policy.
+Add information about the install code on the trust center.
 
 .. parsed-literal::
    :class: highlight
 
    bdb ic add *h:install code* *h:eui64*
-   bdb ic set *h:install code*
-   bdb ic policy *enable|disable*
+
+For *h:eui64*, use the address of the joining device.
+For *h:install code*, use 128bit install code with correct CRC value.
 
 .. note::
     |precondition3|
 
-* ``bdb ic set`` must only be used on a joining device.
+    |precondition5|
 
-* ``bdb ic add`` must only be used on a coordinator.
-  For *h:eui64*, use the address of the joining device.
+    |precondition6|
 
-* ``bdb ic policy`` must only be used on a coordinator.
-
-Provide the install code as an ASCII-encoded :file:`HEX` file that includes CRC16/X-25 in little-endian order.
-
-For production devices, an install code must be installed by the production
-configuration present in flash.
-
+    |precondition7|
 
 Example:
 
@@ -291,6 +292,93 @@ Example:
    > bdb ic add 83FED3407A939723A5C639B26916D505C3B5 0B010E2F79E9DBFA
    Done
 
+----
+
+.. _bdb_ic_list:
+
+bdb ic list
+===========
+
+Read and print install codes stored on the device.
+
+.. parsed-literal::
+   :class: highlight
+
+   bdb ic list
+
+.. note::
+    |precondition4|
+
+    |precondition6|
+
+    |precondition7|
+
+Example:
+
+.. code-block::
+
+   > bdb ic list
+   [idx] EUI64:           IC:                                  options:
+   [  0] 0b010e2f79e9dbfa 83fed3407a939723a5c639b26916d505c3b5 0x3
+   Total entries for the install codes table: 1
+   Done
+
+----
+
+.. _bdb_ic_policy:
+
+bdb ic policy
+=============
+
+Set the trust center install code policy.
+
+.. parsed-literal::
+   :class: highlight
+
+   bdb ic policy *enable|disable*
+
+.. note::
+    |precondition6|
+
+    |precondition7|
+
+Example:
+
+.. code-block::
+
+    > bdb ic policy enable
+    Done
+
+
+----
+
+.. _bdb_ic_set:
+
+bdb ic set
+==========
+
+Set install code on the device.
+
+.. parsed-literal::
+   :class: highlight
+
+   bdb ic set *h:install code*
+
+Must only be used on a joining device.
+
+.. note::
+    |precondition2|
+
+    |precondition5|
+
+    |precondition6|
+
+Example:
+
+.. code-block::
+
+   > bdb ic set 83fed3407a939723a5c639b26916d505c3b5
+   Done
 
 ----
 
@@ -348,7 +436,7 @@ Example:
 bdb factory_reset
 =================
 
-Perform a factory reset via local action.
+Perform a factory reset using local action.
 See Base Device Behavior specification chapter 9.5 for details.
 
 .. code-block::
@@ -380,6 +468,168 @@ Example:
    > bdb child_max 16
    Setting max children to: 16
    Done
+
+----
+
+.. _zcl_cmd:
+
+zcl cmd
+=======
+
+Send a generic ZCL command to the remote node.
+
+.. parsed-literal::
+   :class: highlight
+
+   zcl cmd [-d] *h:dst_addr* *d:ep* *h:cluster* [-p *h:profile*] *h:cmd_ID* [-l *h:payload*]
+
+.. note::
+    By default, the profile is set to Home Automation Profile, and the payload is empty.
+
+    The payload requires the **little-endian** byte order.
+
+    To send a request using binding table entries, set ``dst_addr`` and ``ep`` to ``0``.
+
+Send a generic ZCL command with ID ``cmd_ID`` and payload ``payload`` to the cluster ``cluster``.
+The cluster belongs to the profile ``profile``, which resides on the endpoint ``ep`` of the remote node ``dst_addr``.
+Optional default response can be requested with ``-d``.
+
+Examples:
+
+.. code-block::
+
+   zcl cmd 0x1234 10 0x0006 0x00
+
+This command sends the Off command from the On/Off cluster (ZCL specification 3.8.2.3.1) to the device with the short address ``0x1234`` and endpoint ``10``.
+
+.. code-block::
+
+   zcl cmd 0x1234 10 0x0008 0x00 -l FF0A00
+
+This command sends the Move to Level command from the Level Control cluster (ZCL specification 3.10.2.3.1) to the device with the short address ``0x1234`` and endpoint ``10``, asking it to move the CurrentLevel attribute to a new value ``255`` in 1 second.
+
+.. code-block::
+
+   zcl cmd -d 0x1234 10 0x0008 -p 0x0104 0x00 -l FF0A00
+
+This command sends the same Move to Level command and requests additional Default response.
+The same Home Automation Profile is used, but is set directly instead.
+
+----
+
+.. _zcl_read_attr:
+
+zcl attr read
+=============
+
+Retrieve the attribute value of the remote node.
+
+.. parsed-literal::
+   :class: highlight
+
+   zcl attr read *h:dst_addr* *d:ep* *h:cluster* [-c] *h:profile* *h:attr_id*
+
+Read the value of the attribute ``attr_id`` in the cluster ``cluster``.
+The cluster belongs to the profile ``profile``, which resides on the endpoint ``ep`` of the remote node ``dst_addr``.
+If the attribute is on the client role side of the cluster, use the ``-c`` switch.
+
+Example:
+
+.. code-block::
+
+   > zcl attr read 0x1234 10 0x0000 0x0104 0x00
+   ID: 0 Type: 20 Value: 3
+   Done
+
+This command sends the Read Attributes command (ZCL specification 2.5.1) to the device with the short address ``0x1234`` and endpoint ``10``, asking it to reply with the ZCLVersion attribute value of the Basic cluster.
+
+----
+
+.. _zcl_attr_write:
+
+zcl attr write
+==============
+
+Write the attribute value to the remote node.
+
+.. parsed-literal::
+   :class: highlight
+
+   zcl attr write *h:dst_addr* *d:ep* *h:cluster* [-c] *h:profile* *h:attr_id* *h:attr_type* *h:attr_value*
+
+Write the ``attr_value`` value of the attribute ``attr_id`` of the type ``attr_type`` in the cluster ``cluster``.
+The cluster belongs to the profile ``profile``, which resides on the endpoint ``ep`` of the remote node ``dst_addr``.
+If the attribute is on the client role side of the cluster, use the``-c`` switch.
+
+.. note::
+    The ``attr_value`` value must be in the hexadecimal format, unless it is a string (``attr_type == 42``), then it must be a string.
+
+Example:
+
+.. code-block::
+
+   > zcl attr write 0x1234 10 0x0003 0x0104 0x00 0x21 0x0F
+   Done
+
+This command sends the Write Attributes command (ZCL specification 2.5.3) to the device with the short address ``0x1234`` and endpoint ``10``, asking it to set the IdentifyTime attribute value to ``15`` in the identify cluster.
+
+----
+
+.. _zcl_subscribe_on:
+
+zcl subscribe on
+================
+
+Subscribe to the attribute changes on the remote node.
+
+.. parsed-literal::
+   :class: highlight
+
+   zcl subscribe on *h:addr* *d:ep* *h:cluster* *h:profile* *h:attr_id* *d:attr_type* [*d:min interval (s)*] [*d:max interval (s)*]
+
+Enable reporting on the node identified by the address ``addr``, with the endpoint ``ep``
+that uses the profile ``profile`` of the attribute ``attr_id`` with the type
+``attr_type`` in the cluster ``cluster``.
+
+The reports must be generated in intervals not shorter than ``min interval``
+(1 second by default) and not longer than ``max interval`` (60 seconds by default).
+
+Example:
+
+.. code-block::
+
+   > zcl subscribe on 0x1234 10 0x0006 0x0104 0x00 16 5 20
+   Done
+
+
+This command sends the Configure Reporting command (ZCL specification 2.5.7) to the device with the short address ``0x1234`` and endpoint ``10``, asking it to configure reporting for the OnOff attribute of the On/Off cluster with minimum reporting interval of ``5`` seconds and maximum reporting interval of ``20`` seconds.
+
+----
+
+.. _zcl_subscribe_off:
+
+zcl subscribe off
+=================
+
+Unsubscribe from the attribute reports.
+
+.. parsed-literal::
+   :class: highlight
+
+   zcl subscribe off *h:addr* *d:ep* *h:cluster* *h:profile* *h:attr_id* *d:attr_type*
+
+Disable reporting on the node identified by the address ``addr``, with the endpoint ``ep``
+that uses the profile ``profile`` of the attribute ``attr_id`` with the type
+``attr_type`` in the cluster ``cluster``.
+
+Example:
+
+.. code-block::
+
+   > zcl subscribe off 0x1234 10 0x0006 0x0104 0x00 16
+   Done
+
+This command sends the Configure Reporting command (ZCL specification 2.5.7) to the device with the short address ``0x1234`` and endpoint ``10``, asking it to stop issuing reports for the OnOff attribute of the On/Off cluster, by setting maximum reporting interval to ``0xffff``.
 
 ----
 
@@ -843,6 +1093,9 @@ Suspend Zigbee scheduler processing.
 
    zscheduler suspend
 
+.. note::
+    |precondition4|
+
 ----
 
 .. _zscheduler_resume:
@@ -856,12 +1109,52 @@ Resume Zigbee scheduler processing.
 
    zscheduler resume
 
+.. note::
+    |precondition4|
+
+----
+
+.. _nvram_enable:
+
+nvram enable
+============
+
+Enable Zigbee NVRAM.
+
+.. note::
+    |precondition2|
+
+.. code-block::
+
+   nvram enable
+
+----
+
+.. _nvram_disable:
+
+nvram disable
+=============
+
+Disable Zigbee NVRAM.
+
+.. note::
+    |precondition2|
+
+.. code-block::
+
+   nvram disable
+
 .. |precondition| replace:: Setting only before :ref:`bdb_start`.
    Reading only after :ref:`bdb_start`.
 
 .. |precondition2| replace:: Setting only before :ref:`bdb_start`.
 
-.. |precondition3| replace:: Setting and defining policy only before :ref:`bdb_start`.
-   Adding only after :ref:`bdb_start`.
+.. |precondition3| replace:: Adding install codes only after :ref:`bdb_start`.
 
 .. |precondition4| replace:: Use only after :ref:`bdb_start`.
+
+.. |precondition5| replace:: Provide the install code as an ASCII-encoded hexadecimal file that includes CRC16/X-25 in little-endian order.
+
+.. |precondition6| replace:: For production devices, make sure that an install code is installed by the production configuration present in the flash.
+
+.. |precondition7| replace:: Must only be used on a coordinator.

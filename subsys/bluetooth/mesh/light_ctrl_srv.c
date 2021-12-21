@@ -557,11 +557,10 @@ static void reg_step(struct k_work *work)
 	float p = input * kp;
 	uint16_t output = CLAMP(srv->reg.i + p, 0, UINT16_MAX);
 
-	/* The regulator output is always in linear format. We'll convert to
-	 * the configured representation again before calling the Lightness
-	 * server.
+	/* The regulator output is always in linear format, so we need the
+	 * target value to be linear as well for the comparison.
 	 */
-	uint16_t lvl = light_get(srv);
+	uint16_t lvl = to_linear(light_get(srv));
 
 	/* Output value is max out of regulator and configured level. */
 	if (output > lvl) {
@@ -579,7 +578,9 @@ static void reg_step(struct k_work *work)
 	srv->reg.prev = output;
 
 	struct bt_mesh_lightness_set set = {
-		.lvl = light_to_repr(output, LINEAR),
+		/* Regulator output is linear, but lightness works in the configured representation.
+		 */
+		.lvl = from_linear(output),
 	};
 
 	bt_mesh_lightness_srv_set(srv->lightness, NULL, &set,
@@ -601,6 +602,7 @@ static void timeout(struct k_work *work)
 		if (srv->resume && atomic_test_and_clear_bit(&srv->flags, FLAG_RESUME_TIMER)) {
 			BT_DBG("Resuming LC server");
 			ctrl_enable(srv);
+			store(srv, FLAG_STORE_STATE);
 		}
 		return;
 	}
@@ -1121,13 +1123,13 @@ static int prop_get(struct net_buf_simple *buf,
 		break; /* Prevent returning -ENOENT */
 #endif
 	case BT_MESH_LIGHT_CTRL_PROP_LIGHTNESS_ON:
-		val.val1 = srv->cfg.light[LIGHT_CTRL_STATE_ON];
+		val.val1 = to_actual(srv->cfg.light[LIGHT_CTRL_STATE_ON]);
 		break;
 	case BT_MESH_LIGHT_CTRL_PROP_LIGHTNESS_PROLONG:
-		val.val1 = srv->cfg.light[LIGHT_CTRL_STATE_PROLONG];
+		val.val1 = to_actual(srv->cfg.light[LIGHT_CTRL_STATE_PROLONG]);
 		break;
 	case BT_MESH_LIGHT_CTRL_PROP_LIGHTNESS_STANDBY:
-		val.val1 = srv->cfg.light[LIGHT_CTRL_STATE_STANDBY];
+		val.val1 = to_actual(srv->cfg.light[LIGHT_CTRL_STATE_STANDBY]);
 		break;
 	case BT_MESH_LIGHT_CTRL_PROP_TIME_FADE_PROLONG:
 		to_prop_time(srv->cfg.fade_prolong, &val);
@@ -1228,14 +1230,15 @@ static int prop_set(struct net_buf_simple *buf,
 	case BT_MESH_LIGHT_CTRL_PROP_ILLUMINANCE_STANDBY:
 		break; /* Prevent returning -ENOENT */
 #endif
+	/* Properties are always set in light actual representation: */
 	case BT_MESH_LIGHT_CTRL_PROP_LIGHTNESS_ON:
-		srv->cfg.light[LIGHT_CTRL_STATE_ON] = val.val1;
+		srv->cfg.light[LIGHT_CTRL_STATE_ON] = from_actual(val.val1);
 		break;
 	case BT_MESH_LIGHT_CTRL_PROP_LIGHTNESS_PROLONG:
-		srv->cfg.light[LIGHT_CTRL_STATE_PROLONG] = val.val1;
+		srv->cfg.light[LIGHT_CTRL_STATE_PROLONG] = from_actual(val.val1);
 		break;
 	case BT_MESH_LIGHT_CTRL_PROP_LIGHTNESS_STANDBY:
-		srv->cfg.light[LIGHT_CTRL_STATE_STANDBY] = val.val1;
+		srv->cfg.light[LIGHT_CTRL_STATE_STANDBY] = from_actual(val.val1);
 		break;
 	case BT_MESH_LIGHT_CTRL_PROP_TIME_FADE_PROLONG:
 		srv->cfg.fade_prolong = from_prop_time(&val);
@@ -1433,8 +1436,7 @@ static ssize_t scene_store(struct bt_mesh_model *model, uint8_t data[])
 #endif
 
 	srv->lightness->handlers->light_get(srv->lightness, NULL, &light);
-	scene->lightness = light_to_repr(light.remaining_time ? light.target : light.current,
-					 ACTUAL);
+	scene->lightness = to_actual(light.remaining_time ? light.target : light.current);
 
 	return sizeof(struct scene_data);
 }
@@ -1462,7 +1464,7 @@ static void scene_recall(struct bt_mesh_model *model, const uint8_t data[],
 	} else {
 		struct bt_mesh_lightness_status status;
 		struct bt_mesh_lightness_set set = {
-			.lvl = repr_to_light(scene->lightness, ACTUAL),
+			.lvl = from_actual(scene->lightness),
 			.transition = transition,
 		};
 
@@ -1633,6 +1635,9 @@ static int light_ctrl_srv_start(struct bt_mesh_model *model)
 		} else if (atomic_test_bit(&srv->lightness->flags,
 					   LIGHTNESS_SRV_FLAG_IS_ON)) {
 			lightness_on_power_up(srv->lightness);
+			schedule_resume_timer(srv);
+		} else {
+			schedule_resume_timer(srv);
 		}
 		break;
 	default:
@@ -1657,6 +1662,7 @@ static void light_ctrl_srv_reset(struct bt_mesh_model *model)
 
 	ctrl_disable(srv);
 	net_buf_simple_reset(srv->pub.msg);
+	srv->resume = CONFIG_BT_MESH_LIGHT_CTRL_SRV_RESUME_DELAY;
 
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		(void)bt_mesh_model_data_store(srv->setup_srv, false, NULL,
@@ -1777,14 +1783,14 @@ int bt_mesh_light_ctrl_srv_disable(struct bt_mesh_light_ctrl_srv *srv)
 {
 	atomic_clear_bit(&srv->flags, FLAG_CTRL_SRV_MANUALLY_ENABLED);
 
-	/* Restart resume timer even if the server has already been disabled: */
-	schedule_resume_timer(srv);
-
 	if (!is_enabled(srv)) {
+		/* Restart resume timer even if the server has already been disabled: */
+		schedule_resume_timer(srv);
 		return -EALREADY;
 	}
 
 	ctrl_disable(srv);
+	schedule_resume_timer(srv);
 	store(srv, FLAG_STORE_STATE);
 	if (IS_ENABLED(CONFIG_BT_MESH_SCENE_SRV)) {
 		bt_mesh_scene_invalidate(srv->model);

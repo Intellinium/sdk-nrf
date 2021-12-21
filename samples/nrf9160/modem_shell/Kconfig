@@ -64,11 +64,32 @@ config MOSH_SMS
 	help
 	  SMS tool for sending and receiving SMS messages.
 
+config MOSH_LOCATION
+	bool "Location"
+	default y
+	select LOCATION
+	help
+	  Tool for location queries via location library.
+
 config MOSH_FOTA
 	bool "FOTA"
 	default y
 	help
 	  FOTA for performing software updates over-the-air for both modem and application side.
+
+config MOSH_REST
+	bool "REST client"
+	default y
+	select REST_CLIENT
+	help
+	  REST client for sending and receiving simple REST requests/responses.
+
+config MOSH_PRINT_BUFFER_SIZE
+	int "Buffer size used when printing modem shell output"
+	default 1024
+	help
+	  If the printed string exceeds this buffer, an error message is printed first and
+	  then the requested string cut into the length of this buffer.
 
 if MOSH_IPERF3
 menu "MoSH iperf3 command selections"
@@ -102,9 +123,6 @@ choice MOSH_GNSS_API
 
 config MOSH_GNSS_INTERFACE
 	bool "GNSS interface"
-
-config MOSH_GNSS_SOCKET
-	bool "GNSS socket"
 
 config MOSH_GNSS_GPS_DRIVER
 	bool "GPS driver"

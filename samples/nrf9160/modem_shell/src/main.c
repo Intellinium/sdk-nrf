@@ -20,8 +20,11 @@
 #include <shell/shell_uart.h>
 
 #include <modem/nrf_modem_lib.h>
+
 #include <modem/at_cmd.h>
 #include <modem/at_notif.h>
+#include <modem/at_monitor.h>
+
 #include <modem/modem_info.h>
 #include <modem/lte_lc.h>
 
@@ -29,7 +32,6 @@
 #include "uart/uart_shell.h"
 
 #if defined(CONFIG_MOSH_PPP)
-#include <shell/shell.h>
 #include "ppp_ctrl.h"
 #endif
 
@@ -48,18 +50,15 @@
 #include "th/th_ctrl.h"
 #endif
 #include "mosh_defines.h"
+#include "mosh_print.h"
 
-/* global variables */
+#if defined(CONFIG_MOSH_LOCATION)
+#include "location_shell.h"
+#endif
+
+/* Global variables */
 struct modem_param_info modem_param;
 struct k_poll_signal mosh_signal;
-
-/**
- * @brief Global shell pointer that can be used for printing.
- *
- * @details This is obtained in the beginning of main().
- * However, it won't work instantly but only later in main().
- */
-const struct shell *shell_global;
 
 K_SEM_DEFINE(nrf_modem_lib_initialized, 0, 1);
 
@@ -91,27 +90,26 @@ static void mosh_print_version_info(void)
 static void button_handler(uint32_t button_states, uint32_t has_changed)
 {
 	if (has_changed & button_states & DK_BTN1_MSK) {
-		shell_print(shell_global, "Button 1 pressed - raising a kill signal");
+		mosh_print("Button 1 pressed - raising a kill signal");
 		k_poll_signal_raise(&mosh_signal, MOSH_SIGNAL_KILL);
 #if defined(CONFIG_MOSH_WORKER_THREADS)
 		th_ctrl_kill_em_all();
 #endif
 	} else if (has_changed & ~button_states & DK_BTN1_MSK) {
-		shell_print(shell_global, "Button 1 released - resetting a kill signal");
+		mosh_print("Button 1 released - resetting a kill signal");
 		k_poll_signal_reset(&mosh_signal);
 	}
 
 	if (has_changed & button_states & DK_BTN2_MSK) {
-		shell_print(shell_global, "Button 2 pressed, toggling UART power state");
-		uart_toggle_power_state(shell_global);
+		mosh_print("Button 2 pressed, toggling UART power state");
+		uart_toggle_power_state();
 	}
 }
 
 void main(void)
 {
 	int err;
-
-	shell_global = shell_backend_uart_get_ptr();
+	const struct shell *shell = shell_backend_uart_get_ptr();
 
 	mosh_print_version_info();
 
@@ -149,6 +147,9 @@ void main(void)
 #if !defined(CONFIG_AT_NOTIF_SYS_INIT)
 	at_notif_init();
 #endif
+#if !defined(CONFIG_AT_MONITOR_SYS_INIT)
+	at_monitor_init();
+#endif
 	lte_lc_init();
 #else
 	/* Wait until modemlib has been initialized. */
@@ -171,6 +172,10 @@ void main(void)
 	}
 #endif
 
+#if defined(CONFIG_MOSH_LOCATION)
+	/* Location library should be initialized before LTE normal mode */
+	location_ctrl_init();
+#endif
 #if defined(CONFIG_LTE_LINK_CONTROL) && defined(CONFIG_MOSH_LINK)
 	link_init();
 #endif
@@ -198,7 +203,7 @@ void main(void)
 	k_poll_signal_init(&mosh_signal);
 
 	/* Resize terminal width and height of the shell to have proper command editing. */
-	shell_execute_cmd(shell_global, "resize");
+	shell_execute_cmd(shell, "resize");
 	/* Run empty command because otherwise "resize" would be set to the command line. */
-	shell_execute_cmd(shell_global, "");
+	shell_execute_cmd(shell, "");
 }

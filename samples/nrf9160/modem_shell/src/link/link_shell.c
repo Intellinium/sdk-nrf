@@ -11,8 +11,9 @@
 #include <unistd.h>
 #include <getopt.h>
 
-#include <modem/at_cmd.h>
+#include <nrf_modem_at.h>
 
+#include "mosh_print.h"
 #include "link.h"
 #include "link_api.h"
 #include "link_shell.h"
@@ -60,7 +61,9 @@ enum link_shell_common_options {
 struct link_shell_cmd_args_t {
 	enum link_shell_command command;
 	enum link_shell_common_options common_option;
+	enum link_sett_modem_reset_type mreset_type;
 	enum link_ncellmeas_modes ncellmeasmode;
+	enum lte_lc_neighbor_search_type ncellmeas_search_type;
 	enum lte_lc_func_mode funmode_option;
 	enum lte_lc_system_mode sysmode_option;
 	enum lte_lc_system_mode_preference sysmode_lte_pref_option;
@@ -106,10 +109,12 @@ static const char link_usage_str[] =
 	"                supporting RAI. Effective when going to normal mode.\n";
 
 static const char link_settings_usage_str[] =
-	"Usage: link settings --read | --reset\n"
+	"Usage: link settings --read | --reset | --mreset_all | --mreset_user\n"
 	"Options:\n"
-	"  -r, --read,   Read and print current persistent settings\n"
-	"      --reset,  Reset all persistent settings as their defaults\n";
+	"  -r, --read,        Read and print current persistent settings\n"
+	"      --reset,       Reset all persistent settings to defaults\n"
+	"      --mreset_all,  Reset all modem settings to defaults\n"
+	"      --mreset_user, Reset modem user configurable settings to defaults\n";
 
 static const char link_defcont_usage_str[] =
 	"Usage: link defcont --enable [options] | --disable | --read\n"
@@ -149,11 +154,11 @@ static const char link_connect_usage_str[] =
 static const char link_sysmode_usage_str[] =
 	"Usage: link sysmode [options] | --read | --reset\n"
 	"Options:\n"
-	"  -r, --read,            Read system modes set in modem and by 'link sysmode'\n"
-	"      --reset,           Reset the set sysmode as default\n"
-	"  -m, --ltem,            Set LTE-M (LTE Cat-M1) system mode\n"
-	"  -n, --nbiot,           Set NB-IoT (LTE Cat-NB1) system mode\n"
-	"      --ltem_nbiot,      Set LTE-M + NB-IoT system mode\n"
+	"  -r, --read,             Read system modes set in modem and by 'link sysmode'\n"
+	"      --reset,            Reset the set sysmode as default\n"
+	"  -m, --ltem,             Set LTE-M (LTE Cat-M1) system mode\n"
+	"  -n, --nbiot,            Set NB-IoT (LTE Cat-NB1) system mode\n"
+	"      --ltem_nbiot,       Set LTE-M + NB-IoT system mode\n"
 	"  -g, --gnss,             Set GNSS system mode\n"
 	"  -M, --ltem_gnss,        Set LTE-M + GNSS system mode\n"
 	"  -N, --nbiot_gnss,       Set NB-IoT + GNSS system mode\n"
@@ -177,6 +182,7 @@ static const char link_funmode_usage_str[] =
 	"  -r, --read,              Read modem functional mode\n"
 	"  -0, --pwroff,            Set modem power off\n"
 	"  -1, --normal,            Set modem normal mode\n"
+	"      --normal_no_rel14,   Set modem normal mode without setting Release 14 features\n"
 	"  -4, --flightmode,        Set modem offline.\n"
 	"      --lteoff,            Deactivates LTE without shutting down GNSS services.\n"
 	"      --lteon,             Activates LTE without changing GNSS.\n"
@@ -197,11 +203,12 @@ static const char link_normal_mode_at_usage_str[] =
 	"                    \"link nmodeat --mem2 \"\"\"\n";
 
 static const char link_normal_mode_auto_usage_str[] =
-	"Usage: link nmodeauto --read | --enable | --disable\n"
+	"Usage: link nmodeauto --read | --enable | --enable_no_rel14 | --disable\n"
 	"Options:\n"
-	"  -r, --read,       Read and print current setting\n"
-	"  -e, --enable,     Enable autoconnect (default)\n"
-	"  -d, --disable,    Disable autoconnect\n";
+	"  -r, --read,            Read and print current setting\n"
+	"  -e, --enable,          Enable autoconnect (default)\n"
+	"      --enable_no_rel14, Enable autoconnect without setting Release 14 features\n"
+	"  -d, --disable,         Disable autoconnect\n";
 
 static const char link_edrx_usage_str[] =
 	"Usage: link edrx --enable --ltem|--nbiot [options] | --disable\n"
@@ -233,11 +240,27 @@ static const char link_rsrp_usage_str[] =
 	"  -u, --unsubscribe,  Unsubscribe for RSRP info\n";
 
 static const char link_ncellmeas_usage_str[] =
-	"Usage: link ncellmeas --single | --continuous |--cancel\n"
+	"Usage: link ncellmeas --single | --continuous | --cancel | [--search_type <type>]\n"
 	"Options:\n"
-	"      --single,     Start a neighbor cell measurement and report result\n"
-	"      --continuous, Start continuous neighbor cell measurement mode and report result\n"
-	"      --cancel,     Cancel/Stop neighbor cell measurement if still ongoing\n";
+	"      --single,       Start a neighbor cell measurement and report result\n"
+	"      --continuous,   Start continuous neighbor cell measurement mode and report result\n"
+	"      --cancel,       Cancel/Stop neighbor cell measurement if still ongoing\n"
+	"      --search_type,  Used search type:\n"
+	"                      'default', 'ext_light' or 'ext_comp.'\n"
+	"\n"
+	"                      Default: The modem searches the network it is registered to\n"
+	"                      based on previous cell history. For modem firmware\n"
+	"                      versions < 1.3.1, this is the only valid option.\n"
+	"\n"
+	"                      Extended light: the modem starts with the same\n"
+	"                      search method as the default type. If needed, it continues to\n"
+	"                      search by measuring the radio conditions and makes assumptions on\n"
+	"                      where networks might be deployed, i.e. a light search.\n"
+	"\n"
+	"                      Extended complete: the modem follows the same\n"
+	"                      procedure as for type_ext_light, but will continue to perform\n"
+	"                      a complete search instead of a light search, and the search is\n"
+	"                      performed for all supported bands.\n";
 
 static const char link_msleep_usage_str[] =
 	"Usage: link msleep --subscribe [options] | --unsubscribe\n"
@@ -278,6 +301,8 @@ enum {
 	LINK_SHELL_OPT_MEM_SLOT_2,
 	LINK_SHELL_OPT_MEM_SLOT_3,
 	LINK_SHELL_OPT_RESET,
+	LINK_SHELL_OPT_MRESET_ALL,
+	LINK_SHELL_OPT_MRESET_USER,
 	LINK_SHELL_OPT_SYSMODE_LTEM_NBIOT,
 	LINK_SHELL_OPT_SYSMODE_LTEM_NBIOT_GNSS,
 	LINK_SHELL_OPT_SYSMODE_PREF_AUTO,
@@ -297,6 +322,8 @@ enum {
 	LINK_SHELL_OPT_STOP,
 	LINK_SHELL_OPT_SINGLE,
 	LINK_SHELL_OPT_CONTINUOUS,
+	LINK_SHELL_OPT_NCELLMEAS_SEARCH_TYPE,
+	LINK_SHELL_OPT_NMODE_NO_REL14,
 };
 
 /* Specifying the expected options (both long and short): */
@@ -323,6 +350,7 @@ static struct option long_options[] = {
 	{ "ltem_gnss", no_argument, 0, 'M' },
 	{ "nbiot_gnss", no_argument, 0, 'N' },
 	{ "enable", no_argument, 0, 'e' },
+	{ "enable_no_rel14", no_argument, 0, LINK_SHELL_OPT_NMODE_NO_REL14 },
 	{ "disable", no_argument, 0, 'd' },
 	{ "edrx_value", required_argument, 0, 'x' },
 	{ "ptw", required_argument, 0, 'w' },
@@ -335,6 +363,8 @@ static struct option long_options[] = {
 	{ "mem2", required_argument, 0, LINK_SHELL_OPT_MEM_SLOT_2 },
 	{ "mem3", required_argument, 0, LINK_SHELL_OPT_MEM_SLOT_3 },
 	{ "reset", no_argument, 0, LINK_SHELL_OPT_RESET },
+	{ "mreset_all", no_argument, 0, LINK_SHELL_OPT_MRESET_ALL },
+	{ "mreset_user", no_argument, 0, LINK_SHELL_OPT_MRESET_USER },
 	{ "ltem_nbiot", no_argument, 0, LINK_SHELL_OPT_SYSMODE_LTEM_NBIOT },
 	{ "ltem_nbiot_gnss", no_argument, 0, LINK_SHELL_OPT_SYSMODE_LTEM_NBIOT_GNSS },
 	{ "pref_auto", no_argument, 0, LINK_SHELL_OPT_SYSMODE_PREF_AUTO },
@@ -348,63 +378,64 @@ static struct option long_options[] = {
 	{ "single", no_argument, 0, LINK_SHELL_OPT_SINGLE },
 	{ "continuous", no_argument, 0, LINK_SHELL_OPT_CONTINUOUS },
 	{ "threshold", required_argument, 0, LINK_SHELL_OPT_THRESHOLD_TIME },
+	{ "search_type", required_argument, 0, LINK_SHELL_OPT_NCELLMEAS_SEARCH_TYPE },
+	{ "normal_no_rel14", no_argument, 0, LINK_SHELL_OPT_NMODE_NO_REL14 },
 	{ 0, 0, 0, 0 }
 };
 
 /******************************************************************************/
 
-static void link_shell_print_usage(const struct shell *shell,
-				    struct link_shell_cmd_args_t *link_cmd_args)
+static void link_shell_print_usage(struct link_shell_cmd_args_t *link_cmd_args)
 {
 	switch (link_cmd_args->command) {
 	case LINK_CMD_SETTINGS:
-		shell_print(shell, "%s", link_settings_usage_str);
+		mosh_print_no_format(link_settings_usage_str);
 		break;
 	case LINK_CMD_DEFCONT:
-		shell_print(shell, "%s", link_defcont_usage_str);
+		mosh_print_no_format(link_defcont_usage_str);
 		break;
 	case LINK_CMD_DEFCONTAUTH:
-		shell_print(shell, "%s", link_defcontauth_usage_str);
+		mosh_print_no_format(link_defcontauth_usage_str);
 		break;
 	case LINK_CMD_CONNECT:
 	case LINK_CMD_DISCONNECT:
-		shell_print(shell, "%s", link_connect_usage_str);
+		mosh_print_no_format(link_connect_usage_str);
 		break;
 	case LINK_CMD_SYSMODE:
-		shell_print(shell, "%s", link_sysmode_usage_str);
+		mosh_print_no_format(link_sysmode_usage_str);
 		break;
 	case LINK_CMD_FUNMODE:
-		shell_print(shell, "%s", link_funmode_usage_str);
+		mosh_print_no_format(link_funmode_usage_str);
 		break;
 	case LINK_CMD_NORMAL_MODE_AT:
-		shell_print(shell, "%s", link_normal_mode_at_usage_str);
+		mosh_print_no_format(link_normal_mode_at_usage_str);
 		break;
 	case LINK_CMD_NORMAL_MODE_AUTO:
-		shell_print(shell, "%s", link_normal_mode_auto_usage_str);
+		mosh_print_no_format(link_normal_mode_auto_usage_str);
 		break;
 	case LINK_CMD_EDRX:
-		shell_print(shell, "%s", link_edrx_usage_str);
+		mosh_print_no_format(link_edrx_usage_str);
 		break;
 	case LINK_CMD_PSM:
-		shell_print(shell, "%s", link_psm_usage_str);
+		mosh_print_no_format(link_psm_usage_str);
 		break;
 	case LINK_CMD_RSRP:
-		shell_print(shell, "%s", link_rsrp_usage_str);
+		mosh_print_no_format(link_rsrp_usage_str);
 		break;
 	case LINK_CMD_NCELLMEAS:
-		shell_print(shell, "%s", link_ncellmeas_usage_str);
+		mosh_print_no_format(link_ncellmeas_usage_str);
 		break;
 	case LINK_CMD_MDMSLEEP:
-		shell_print(shell, "%s", link_msleep_usage_str);
+		mosh_print_no_format(link_msleep_usage_str);
 		break;
 	case LINK_CMD_TAU:
-		shell_print(shell, "%s", link_tau_usage_str);
+		mosh_print_no_format(link_tau_usage_str);
 		break;
 	case LINK_CMD_RAI:
-		shell_print(shell, "%s", link_rai_usage_str);
+		mosh_print_no_format(link_rai_usage_str);
 		break;
 	default:
-		shell_print(shell, "%s", link_usage_str);
+		mosh_print_no_format(link_usage_str);
 		break;
 	}
 }
@@ -417,8 +448,10 @@ static void link_shell_cmd_defaults_set(struct link_shell_cmd_args_t *link_cmd_a
 	link_cmd_args->sysmode_lte_pref_option =
 		LTE_LC_SYSTEM_MODE_PREFER_AUTO;
 	link_cmd_args->lte_mode = LTE_LC_LTE_MODE_NONE;
-	link_cmd_args->ncellmeasmode = LINK_NCELLMEAS_MODE_NONE;
 	link_cmd_args->common_option = LINK_COMMON_NONE;
+	link_cmd_args->mreset_type = LINK_SHELL_MODEM_FACTORY_RESET_NONE;
+	link_cmd_args->ncellmeasmode = LINK_NCELLMEAS_MODE_NONE;
+	link_cmd_args->ncellmeas_search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT;
 }
 
 /******************************************************************************/
@@ -439,33 +472,52 @@ static void link_shell_cmd_defaults_set(struct link_shell_cmd_args_t *link_cmd_a
 	 LTE_LC_SYSTEM_MODE_LTEM_NBIOT_GPS               :	   \
 	 LTE_LC_SYSTEM_MODE_NONE)
 
-static void link_shell_sysmode_set(const struct shell *shell, int sysmode,
-				    int lte_pref)
+static void link_shell_sysmode_set(int sysmode, int lte_pref)
 {
 	enum lte_lc_func_mode functional_mode;
 	char snum[64];
 	int ret = lte_lc_system_mode_set(sysmode, lte_pref);
 
 	if (ret < 0) {
-		shell_error(shell, "Cannot set system mode to modem: %d", ret);
+		mosh_error("Cannot set system mode to modem: %d", ret);
 		ret = lte_lc_func_mode_get(&functional_mode);
 		if (functional_mode != LTE_LC_FUNC_MODE_OFFLINE ||
 		    functional_mode != LTE_LC_FUNC_MODE_POWER_OFF) {
-			shell_warn(
-				shell,
+			mosh_warn(
 				"Requested mode couldn't set to modem. "
 				"Not in flighmode nor in pwroff?");
 		}
 	} else {
-		shell_print(shell, "System mode set successfully to modem: %s",
-			    link_shell_sysmode_to_string(sysmode, snum));
+		mosh_print(
+			"System mode set successfully to modem: %s",
+			link_shell_sysmode_to_string(sysmode, snum));
 	}
 }
 
 /******************************************************************************/
 
+#define MOSH_NCELLMEAS_SEARCH_TYPE_NONE 0xFF
+
+static enum lte_lc_neighbor_search_type
+	link_shell_string_to_ncellmeas_search_type(const char *search_type_str)
+{
+	enum lte_lc_neighbor_search_type search_type = MOSH_NCELLMEAS_SEARCH_TYPE_NONE;
+
+	if (strcmp(search_type_str, "default") == 0) {
+		search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT;
+	} else if (strcmp(search_type_str, "ext_light") == 0) {
+		search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_EXTENDED_LIGHT;
+	} else if (strcmp(search_type_str, "ext_comp") == 0) {
+		search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_EXTENDED_COMPLETE;
+	}
+
+	return search_type;
+}
+
+/******************************************************************************/
+
 int link_shell_get_and_print_current_system_modes(
-	const struct shell *shell, enum lte_lc_system_mode *sys_mode_current,
+	enum lte_lc_system_mode *sys_mode_current,
 	enum lte_lc_system_mode_preference *sys_mode_preferred,
 	enum lte_lc_lte_mode *currently_active_mode)
 {
@@ -475,21 +527,22 @@ int link_shell_get_and_print_current_system_modes(
 
 	ret = lte_lc_system_mode_get(sys_mode_current, sys_mode_preferred);
 	if (ret >= 0) {
-		shell_print(shell, "Modem config for system mode: %s",
-			    link_shell_sysmode_to_string(*sys_mode_current,
-							  snum));
-		shell_print(shell, "Modem config for LTE preference: %s",
-			    link_shell_sysmode_preferred_to_string(
-				    *sys_mode_preferred, snum));
+		mosh_print(
+			"Modem config for system mode: %s",
+			link_shell_sysmode_to_string(*sys_mode_current, snum));
+		mosh_print(
+			"Modem config for LTE preference: %s",
+			link_shell_sysmode_preferred_to_string(*sys_mode_preferred, snum));
 	} else {
 		return ret;
 	}
 
 	ret = lte_lc_lte_mode_get(currently_active_mode);
 	if (ret >= 0) {
-		shell_print(shell, "Currently active system mode: %s",
-			    link_shell_sysmode_currently_active_to_string(
-				    *currently_active_mode, snum));
+		mosh_print(
+			"Currently active system mode: %s",
+			link_shell_sysmode_currently_active_to_string(
+				*currently_active_mode, snum));
 	}
 	return ret;
 }
@@ -502,6 +555,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 	bool require_pdn_cid = false;
 	bool require_subscribe = false;
 	bool require_option = false;
+	bool nmode_use_rel14 = true;
 	char *apn = NULL;
 	char *family = NULL;
 	int protocol = 0;
@@ -567,7 +621,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		require_option = true;
 		link_cmd_args.command = LINK_CMD_RAI;
 	} else {
-		shell_error(shell, "Unsupported command=%s\n", argv[1]);
+		mosh_error("Unsupported command=%s\n", argv[1]);
 		ret = -EINVAL;
 		goto show_usage;
 	}
@@ -655,8 +709,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				strcpy(edrx_value_str, optarg);
 				edrx_value_set = true;
 			} else {
-				shell_error(
-					shell,
+				mosh_error(
 					"eDRX value string length must be %d.",
 					LINK_SHELL_EDRX_VALUE_STR_LENGTH);
 				return -EINVAL;
@@ -667,9 +720,9 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				strcpy(edrx_ptw_bit_str, optarg);
 				edrx_ptw_set = true;
 			} else {
-				shell_error(shell,
-					    "PTW string length must be %d.",
-					    LINK_SHELL_EDRX_PTW_STR_LENGTH);
+				mosh_error(
+					"PTW string length must be %d.",
+					LINK_SHELL_EDRX_PTW_STR_LENGTH);
 				return -EINVAL;
 			}
 			break;
@@ -681,8 +734,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				strcpy(psm_rptau_bit_str, optarg);
 				psm_rptau_set = true;
 			} else {
-				shell_error(
-					shell,
+				mosh_error(
 					"RPTAU bit string length must be %d.",
 					LINK_SHELL_PSM_PARAM_STR_LENGTH);
 				return -EINVAL;
@@ -694,9 +746,9 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				strcpy(psm_rat_bit_str, optarg);
 				psm_rat_set = true;
 			} else {
-				shell_error(shell,
-					    "RAT bit string length must be %d.",
-					    LINK_SHELL_PSM_PARAM_STR_LENGTH);
+				mosh_error(
+					"RAT bit string length must be %d.",
+					LINK_SHELL_PSM_PARAM_STR_LENGTH);
 				return -EINVAL;
 			}
 			break;
@@ -736,8 +788,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		case 'I': /* PDN CID */
 			pdn_cid = atoi(optarg);
 			if (pdn_cid == 0) {
-				shell_error(
-					shell,
+				mosh_error(
 					"PDN CID (%d) must be positive integer. "
 					"Default PDN context (CID=0) cannot be given.",
 					pdn_cid);
@@ -747,8 +798,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		case 'a': /* APN */
 			apn_len = strlen(optarg);
 			if (apn_len > LINK_APN_STR_MAX_LENGTH) {
-				shell_error(
-					shell,
+				mosh_error(
 					"APN string length %d exceeded. Maximum is %d.",
 					apn_len, LINK_APN_STR_MAX_LENGTH);
 				return -EINVAL;
@@ -775,8 +825,23 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		case LINK_SHELL_OPT_CONTINUOUS:
 			link_cmd_args.ncellmeasmode = LINK_NCELLMEAS_MODE_CONTINUOUS;
 			break;
+		case LINK_SHELL_OPT_NCELLMEAS_SEARCH_TYPE:
+			link_cmd_args.ncellmeas_search_type =
+				link_shell_string_to_ncellmeas_search_type(optarg);
+			if (link_cmd_args.ncellmeas_search_type ==
+			    MOSH_NCELLMEAS_SEARCH_TYPE_NONE) {
+				mosh_error("Unknown search_type. See usage:");
+				goto show_usage;
+			}
+			break;
 		case LINK_SHELL_OPT_RESET:
 			link_cmd_args.common_option = LINK_COMMON_RESET;
+			break;
+		case LINK_SHELL_OPT_MRESET_ALL:
+			link_cmd_args.mreset_type = LINK_SHELL_MODEM_FACTORY_RESET_ALL;
+			break;
+		case LINK_SHELL_OPT_MRESET_USER:
+			link_cmd_args.mreset_type = LINK_SHELL_MODEM_FACTORY_RESET_USER_CONFIG;
 			break;
 		case LINK_SHELL_OPT_START:
 			link_cmd_args.common_option = LINK_COMMON_START;
@@ -830,39 +895,46 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		case LINK_SHELL_OPT_THRESHOLD_TIME:
 			threshold_time = atoi(optarg);
 			if (threshold_time == 0) {
-				shell_error(
-					shell,
+				mosh_error(
 					"Not a valid number for --threshold_time (milliseconds).");
 				return -EINVAL;
 			}
 			break;
+		case LINK_SHELL_OPT_NMODE_NO_REL14:
+			if (link_cmd_args.command == LINK_CMD_NORMAL_MODE_AUTO) {
+				/* Enable autoconnect without REL14 features */
+				link_cmd_args.common_option = LINK_COMMON_ENABLE;
+			} else if (link_cmd_args.command == LINK_CMD_FUNMODE) {
+				/* Go to normal mode without REL14 features */
+				link_cmd_args.funmode_option = LTE_LC_FUNC_MODE_NORMAL;
+			}
+			nmode_use_rel14 = false;
+			break;
 		case '?':
 			goto show_usage;
 		default:
-			shell_error(shell, "Unknown option. See usage:");
+			mosh_error("Unknown option. See usage:");
 			goto show_usage;
 		}
 	}
 
 	/* Check that all mandatory args were given: */
 	if (require_apn && apn == NULL) {
-		shell_error(shell,
-			    "Option -a | -apn MUST be given. See usage:");
+		mosh_error("Option -a | -apn MUST be given. See usage:");
 		goto show_usage;
 	} else if (require_pdn_cid && pdn_cid == 0) {
-		shell_error(shell, "-I / --cid MUST be given. See usage:");
+		mosh_error("-I / --cid MUST be given. See usage:");
 		goto show_usage;
 	} else if (require_subscribe &&
 		   link_cmd_args.common_option == LINK_COMMON_NONE) {
-		shell_error(shell, "Either -s or -u MUST be given. See usage:");
+		mosh_error("Either -s or -u MUST be given. See usage:");
 		goto show_usage;
 	} else if (require_option &&
 		   link_cmd_args.funmode_option == LINK_FUNMODE_NONE &&
 		   link_cmd_args.sysmode_option == LTE_LC_SYSTEM_MODE_NONE &&
 		   link_cmd_args.ncellmeasmode == LINK_NCELLMEAS_MODE_NONE &&
 		   link_cmd_args.common_option == LINK_COMMON_NONE) {
-		shell_error(shell,
-			    "Command needs option to be given. See usage:");
+		mosh_error("Command needs option to be given. See usage:");
 		goto show_usage;
 	}
 
@@ -871,27 +943,17 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 	switch (link_cmd_args.command) {
 	case LINK_CMD_DEFCONT:
 		if (link_cmd_args.common_option == LINK_COMMON_READ) {
-			link_sett_defcont_conf_shell_print(shell);
-		} else if (link_cmd_args.common_option ==
-			   LINK_COMMON_ENABLE) {
+			link_sett_defcont_conf_shell_print();
+		} else if (link_cmd_args.common_option == LINK_COMMON_ENABLE) {
 			link_sett_save_defcont_enabled(true);
-		} else if (link_cmd_args.common_option ==
-			   LINK_COMMON_DISABLE) {
-			static const char cgdcont[] = "AT+CGDCONT=0";
-
-			if (at_cmd_write(cgdcont, NULL, 0, NULL) != 0) {
-				shell_warn(
-					shell,
+		} else if (link_cmd_args.common_option == LINK_COMMON_DISABLE) {
+			if (nrf_modem_at_printf("AT+CGDCONT=0") != 0) {
+				mosh_warn(
 					"ERROR from modem. Getting the initial PDP context back "
 					"wasn't successful.");
-				shell_warn(
-					shell,
-					"Please note: you might need to visit the pwroff state to "
-					"make an impact to modem.");
 			}
 			link_sett_save_defcont_enabled(false);
-			shell_print(shell,
-				    "Custom default context config disabled.");
+			mosh_print("Custom default context config disabled.");
 		} else if (link_cmd_args.common_option == LINK_COMMON_NONE &&
 			   apn == NULL && family == NULL) {
 			goto show_usage;
@@ -905,8 +967,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			ret = link_family_str_to_pdn_lib_family(&pdn_lib_fam,
 								 family);
 			if (ret) {
-				shell_error(shell, "Unknown PDN family %s",
-					    family);
+				mosh_error("Unknown PDN family %s", family);
 				goto show_usage;
 			} else {
 				(void)link_sett_save_defcont_pdn_family(
@@ -916,21 +977,16 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		break;
 	case LINK_CMD_DEFCONTAUTH:
 		if (link_cmd_args.common_option == LINK_COMMON_READ) {
-			link_sett_defcontauth_conf_shell_print(shell);
+			link_sett_defcontauth_conf_shell_print();
 		} else if (link_cmd_args.common_option ==
 			   LINK_COMMON_ENABLE) {
 			if (link_sett_save_defcontauth_enabled(true) < 0) {
-				shell_warn(shell,
-					   "Cannot enable authentication.");
+				mosh_warn("Cannot enable authentication.");
 			}
 		} else if (link_cmd_args.common_option ==
 			   LINK_COMMON_DISABLE) {
-			static const char cgauth[] = "AT+CGAUTH=0,0";
-
-			if (at_cmd_write(cgauth, NULL, 0, NULL) != 0) {
-				shell_warn(
-					shell,
-					"Disabling of auth cannot be done to modem.");
+			if (nrf_modem_at_printf("AT+CGAUTH=0,0") != 0) {
+				mosh_warn("Disabling of auth cannot be done to modem.");
 			}
 			link_sett_save_defcontauth_enabled(false);
 		} else if (link_cmd_args.common_option == LINK_COMMON_NONE &&
@@ -957,22 +1013,17 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 
 		ret = lte_lc_func_mode_get(&functional_mode);
 		if (ret) {
-			shell_warn(shell,
-				   "Cannot get functional mode from modem: %d",
-				   ret);
+			mosh_warn("Cannot get functional mode from modem: %d", ret);
 		} else {
-			shell_print(shell, "Modem functional mode: %s",
-				    link_shell_funmode_to_string(
-					    functional_mode, snum));
+			mosh_print(
+				"Modem functional mode: %s",
+				link_shell_funmode_to_string(functional_mode, snum));
 		}
 		ret = lte_lc_nw_reg_status_get(&current_reg_status);
 		if (ret >= 0) {
-			link_shell_print_reg_status(shell, current_reg_status);
+			link_shell_print_reg_status(current_reg_status);
 		} else {
-			shell_error(
-				shell,
-				"Cannot get current registration status (%d)",
-				ret);
+			mosh_error("Cannot get current registration status (%d)", ret);
 		}
 		if (current_reg_status == LTE_LC_NW_REG_REGISTERED_EMERGENCY ||
 		    current_reg_status == LTE_LC_NW_REG_REGISTERED_HOME ||
@@ -980,22 +1031,32 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			connected = true;
 		}
 
-		link_api_modem_info_get_for_shell(shell, connected);
+		link_api_modem_info_get_for_shell(connected);
 		break;
 	}
 	case LINK_CMD_SETTINGS:
 		if (link_cmd_args.common_option == LINK_COMMON_READ) {
-			link_sett_all_print(shell);
-		} else if (link_cmd_args.common_option == LINK_COMMON_RESET) {
-			link_sett_defaults_set(shell);
-			link_shell_sysmode_set(shell, SYS_MODE_PREFERRED,
-						CONFIG_LTE_MODE_PREFERENCE);
+			link_sett_all_print();
+		} else if (link_cmd_args.common_option == LINK_COMMON_RESET ||
+			   link_cmd_args.mreset_type != LINK_SHELL_MODEM_FACTORY_RESET_NONE) {
+			if (link_cmd_args.common_option == LINK_COMMON_RESET) {
+				link_sett_defaults_set();
+				link_shell_sysmode_set(SYS_MODE_PREFERRED,
+						       CONFIG_LTE_MODE_PREFERENCE);
+			}
+			if (link_cmd_args.mreset_type == LINK_SHELL_MODEM_FACTORY_RESET_ALL) {
+				link_sett_modem_factory_reset(LINK_SHELL_MODEM_FACTORY_RESET_ALL);
+			} else if (link_cmd_args.mreset_type ==
+					   LINK_SHELL_MODEM_FACTORY_RESET_USER_CONFIG) {
+				link_sett_modem_factory_reset(
+					LINK_SHELL_MODEM_FACTORY_RESET_USER_CONFIG);
+			}
 		} else {
 			goto show_usage;
 		}
 		break;
 	case LINK_CMD_CONEVAL:
-		link_api_coneval_read_for_shell(shell);
+		link_api_coneval_read_for_shell();
 		break;
 
 	case LINK_CMD_SYSMODE:
@@ -1005,39 +1066,32 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			enum lte_lc_lte_mode currently_active_mode;
 
 			ret = link_shell_get_and_print_current_system_modes(
-				shell, &sys_mode_current,
-				&sys_mode_pref_current, &currently_active_mode);
+				&sys_mode_current, &sys_mode_pref_current, &currently_active_mode);
 			if (ret < 0) {
-				shell_error(
-					shell,
-					"Cannot read system mode of the modem: %d",
-					ret);
+				mosh_error("Cannot read system mode of the modem: %d", ret);
 			} else {
 				enum lte_lc_system_mode sett_sys_mode;
 				enum lte_lc_system_mode_preference sett_lte_pref;
 
 				/* Print also settings stored in mosh side: */
-				link_sett_sysmode_print(shell);
+				link_sett_sysmode_print();
 				sett_sys_mode = link_sett_sysmode_get();
 				sett_lte_pref =
 					link_sett_sysmode_lte_preference_get();
 				if (sett_sys_mode != LTE_LC_SYSTEM_MODE_NONE &&
 				    sett_sys_mode != sys_mode_current &&
 				    sett_lte_pref != sys_mode_pref_current) {
-					shell_warn(
-						shell,
+					mosh_warn(
 						"note: seems that set link sysmode and a "
 						"counterparts in modem are not in synch");
-					shell_warn(
-						shell,
+					mosh_warn(
 						"but no worries; requested system mode retried "
 						"next time when going to normal mode");
 				}
 			}
-		} else if (link_cmd_args.sysmode_option !=
-			   LTE_LC_SYSTEM_MODE_NONE) {
+		} else if (link_cmd_args.sysmode_option != LTE_LC_SYSTEM_MODE_NONE) {
 			link_shell_sysmode_set(
-				shell, link_cmd_args.sysmode_option,
+				link_cmd_args.sysmode_option,
 				link_cmd_args.sysmode_lte_pref_option);
 
 			/* Save system modem to link settings: */
@@ -1046,8 +1100,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				link_cmd_args.sysmode_lte_pref_option);
 
 		} else if (link_cmd_args.common_option == LINK_COMMON_RESET) {
-			link_shell_sysmode_set(shell, SYS_MODE_PREFERRED,
-						CONFIG_LTE_MODE_PREFERENCE);
+			link_shell_sysmode_set(SYS_MODE_PREFERRED, CONFIG_LTE_MODE_PREFERENCE);
 
 			(void)link_sett_sysmode_default_set();
 		} else {
@@ -1060,31 +1113,22 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 
 			ret = lte_lc_func_mode_get(&functional_mode);
 			if (ret) {
-				shell_error(shell,
-					    "Cannot get functional mode: %d",
-					    ret);
+				mosh_error("Cannot get functional mode: %d", ret);
 			} else {
-				shell_print(
-					shell,
+				mosh_print(
 					"Functional mode read successfully: %s",
-					link_shell_funmode_to_string(
-						functional_mode, snum));
+					link_shell_funmode_to_string(functional_mode, snum));
 			}
 		} else if (link_cmd_args.funmode_option !=
 			   LINK_FUNMODE_NONE) {
-			ret = link_func_mode_set(
-				link_cmd_args.funmode_option);
+			ret = link_func_mode_set(link_cmd_args.funmode_option, nmode_use_rel14);
 			if (ret < 0) {
-				shell_error(shell,
-					    "Cannot set functional mode: %d",
-					    ret);
+				mosh_error("Cannot set functional mode: %d", ret);
 			} else {
-				shell_print(
-					shell,
+				mosh_print(
 					"Functional mode set successfully: %s",
 					link_shell_funmode_to_string(
-						link_cmd_args.funmode_option,
-						snum));
+						link_cmd_args.funmode_option, snum));
 			}
 		} else {
 			goto show_usage;
@@ -1092,18 +1136,16 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		break;
 	case LINK_CMD_NORMAL_MODE_AT:
 		if (link_cmd_args.common_option == LINK_COMMON_READ) {
-			link_sett_normal_mode_at_cmds_shell_print(shell);
+			link_sett_normal_mode_at_cmds_shell_print();
 		} else if (normal_mode_at_str != NULL) {
 			ret = link_sett_save_normal_mode_at_cmd_str(
 				normal_mode_at_str, normal_mode_at_mem_slot);
 			if (ret < 0) {
-				shell_error(
-					shell,
+				mosh_error(
 					"Cannot set normal mode AT-command: \"%s\"",
 					normal_mode_at_str);
 			} else {
-				shell_print(
-					shell,
+				mosh_print(
 					"Normal mode AT-command \"%s\" set successfully to "
 					"memory slot %d.",
 					((strlen(normal_mode_at_str)) ?
@@ -1117,13 +1159,13 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		break;
 	case LINK_CMD_NORMAL_MODE_AUTO:
 		if (link_cmd_args.common_option == LINK_COMMON_READ) {
-			link_sett_normal_mode_autoconn_shell_print(shell);
+			link_sett_normal_mode_autoconn_shell_print();
 		} else if (link_cmd_args.common_option ==
 			   LINK_COMMON_ENABLE) {
-			link_sett_save_normal_mode_autoconn_enabled(true);
+			link_sett_save_normal_mode_autoconn_enabled(true, nmode_use_rel14);
 		} else if (link_cmd_args.common_option ==
 			   LINK_COMMON_DISABLE) {
-			link_sett_save_normal_mode_autoconn_enabled(false);
+			link_sett_save_normal_mode_autoconn_enabled(false, nmode_use_rel14);
 		} else {
 			goto show_usage;
 		}
@@ -1135,9 +1177,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				NULL; /* Set with the defaults if not given */
 
 			if (link_cmd_args.lte_mode == LTE_LC_LTE_MODE_NONE) {
-				shell_error(
-					shell,
-					"LTE mode is mandatory to be given. See usage:");
+				mosh_error("LTE mode is mandatory to be given. See usage:");
 				goto show_usage;
 			}
 
@@ -1148,8 +1188,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			ret = lte_lc_edrx_param_set(link_cmd_args.lte_mode,
 						    value);
 			if (ret < 0) {
-				shell_error(
-					shell,
+				mosh_error(
 					"Cannot set eDRX value %s, error: %d",
 					((value == NULL) ? "NULL" : value),
 					ret);
@@ -1162,8 +1201,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 
 			ret = lte_lc_ptw_set(link_cmd_args.lte_mode, value);
 			if (ret < 0) {
-				shell_error(
-					shell,
+				mosh_error(
 					"Cannot set PTW value %s, error: %d",
 					((value == NULL) ? "NULL" : value),
 					ret);
@@ -1172,24 +1210,20 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 
 			ret = lte_lc_edrx_req(true);
 			if (ret < 0) {
-				shell_error(shell, "Cannot enable eDRX: %d",
-					    ret);
+				mosh_error("Cannot enable eDRX: %d", ret);
 			} else {
-				shell_print(shell, "eDRX enabled");
+				mosh_print("eDRX enabled");
 			}
 		} else if (link_cmd_args.common_option ==
 			   LINK_COMMON_DISABLE) {
 			ret = lte_lc_edrx_req(false);
 			if (ret < 0) {
-				shell_error(shell, "Cannot disable eDRX: %d",
-					    ret);
+				mosh_error("Cannot disable eDRX: %d", ret);
 			} else {
-				shell_print(shell, "eDRX disabled");
+				mosh_print("eDRX disabled");
 			}
 		} else {
-			shell_error(
-				shell,
-				"Unknown option for edrx command. See usage:");
+			mosh_error("Unknown option for edrx command. See usage:");
 			goto show_usage;
 		}
 		break;
@@ -1210,46 +1244,35 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			ret = lte_lc_psm_param_set(rptau_bit_value,
 						   rat_bit_value);
 			if (ret < 0) {
-				shell_error(
-					shell,
-					"Cannot set PSM parameters: error %d",
-					ret);
-				shell_error(shell, "  rptau %s, rat %s",
-					    ((rptau_bit_value == NULL) ?
-					     "NULL" :
-					     rptau_bit_value),
-					    ((rat_bit_value == NULL) ?
-					     "NULL" :
-					     rat_bit_value));
+				mosh_error("Cannot set PSM parameters: error %d", ret);
+				mosh_error(
+					"  rptau %s, rat %s",
+					((rptau_bit_value == NULL) ? "NULL" : rptau_bit_value),
+					((rat_bit_value == NULL) ? "NULL" : rat_bit_value));
 				return -EINVAL;
 			}
 
 			ret = lte_lc_psm_req(true);
 			if (ret < 0) {
-				shell_error(shell, "Cannot enable PSM: %d",
-					    ret);
+				mosh_error("Cannot enable PSM: %d", ret);
 			} else {
-				shell_print(shell, "PSM enabled");
+				mosh_print("PSM enabled");
 			}
-		} else if (link_cmd_args.common_option ==
-			   LINK_COMMON_DISABLE) {
+		} else if (link_cmd_args.common_option == LINK_COMMON_DISABLE) {
 			ret = lte_lc_psm_req(false);
 			if (ret < 0) {
-				shell_error(shell, "Cannot disable PSM: %d",
-					    ret);
+				mosh_error("Cannot disable PSM: %d", ret);
 			} else {
-				shell_print(shell, "PSM disabled");
+				mosh_print("PSM disabled");
 			}
 		} else if (link_cmd_args.common_option == LINK_COMMON_READ) {
 			int tau, active_time;
 
 			ret = lte_lc_psm_get(&tau, &active_time);
 			if (ret < 0) {
-				shell_error(shell, "Cannot get PSM configs: %d",
-					    ret);
+				mosh_error("Cannot get PSM configs: %d", ret);
 			} else {
-				shell_print(
-					shell,
+				mosh_print(
 					"PSM config: TAU %d %s, active time %d %s",
 					tau,
 					(tau == -1) ? "(timer deactivated)" :
@@ -1260,9 +1283,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 					"seconds");
 			}
 		} else {
-			shell_error(
-				shell,
-				"Unknown option for psm command. See usage:");
+			mosh_error("Unknown option for psm command. See usage:");
 			goto show_usage;
 		}
 		break;
@@ -1274,13 +1295,15 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		break;
 	case LINK_CMD_NCELLMEAS:
 		if (link_cmd_args.common_option == LINK_COMMON_STOP) {
-			link_ncellmeas_start(false, LINK_NCELLMEAS_MODE_NONE);
+			link_ncellmeas_start(false,
+					     LINK_NCELLMEAS_MODE_NONE,
+					     LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT);
 
 		} else if (link_cmd_args.ncellmeasmode != LINK_NCELLMEAS_MODE_NONE) {
-			shell_print(
-				shell,
-				"Neighbor cell measurements and reporting starting");
-			link_ncellmeas_start(true, link_cmd_args.ncellmeasmode);
+			mosh_print("Neighbor cell measurements and reporting starting");
+			link_ncellmeas_start(true,
+					     link_cmd_args.ncellmeasmode,
+					     link_cmd_args.ncellmeas_search_type);
 		} else {
 			goto show_usage;
 		}
@@ -1315,9 +1338,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		     (username == NULL || password == NULL)) ||
 		    ((username != NULL || password != NULL) &&
 		     !protocol_given)) {
-			shell_error(
-				shell,
-				"When setting authentication, all auth options must be given");
+			mosh_error("When setting authentication, all auth options must be given");
 			goto show_usage;
 		} else {
 			enum pdn_auth method;
@@ -1325,8 +1346,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 			ret = link_shell_pdn_auth_prot_to_pdn_lib_method_map(
 				protocol, &method);
 			if (ret) {
-				shell_error(shell, "Uknown auth protocol %d",
-					    protocol);
+				mosh_error("Uknown auth protocol %d", protocol);
 				goto show_usage;
 			}
 			auth_params.method = method;
@@ -1337,8 +1357,7 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 				auth_params_ptr = &auth_params;
 			}
 		}
-		ret = link_shell_pdn_connect(shell, apn, family,
-					     auth_params_ptr);
+		ret = link_shell_pdn_connect(apn, family, auth_params_ptr);
 	} break;
 	case LINK_CMD_RAI:
 		if (link_cmd_args.common_option == LINK_COMMON_READ) {
@@ -1352,11 +1371,10 @@ int link_shell(const struct shell *shell, size_t argc, char **argv)
 		}
 		break;
 	case LINK_CMD_DISCONNECT:
-		ret = link_shell_pdn_disconnect(shell, pdn_cid);
+		ret = link_shell_pdn_disconnect(pdn_cid);
 		break;
 	default:
-		shell_error(shell, "Internal error. Unknown link command=%d",
-			    link_cmd_args.command);
+		mosh_error("Internal error. Unknown link command=%d", link_cmd_args.command);
 		ret = -EINVAL;
 		break;
 	}
@@ -1366,6 +1384,6 @@ show_usage:
 	/* Reset getopt for another users: */
 	optreset = 1;
 
-	link_shell_print_usage(shell, &link_cmd_args);
+	link_shell_print_usage(&link_cmd_args);
 	return ret;
 }

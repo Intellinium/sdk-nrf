@@ -6,9 +6,10 @@
 
 #include "thread_util.h"
 
+#include <app/server/Dnssd.h>
+#include <lib/support/ThreadOperationalDataset.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <platform/internal/DeviceNetworkInfo.h>
-#include <support/ThreadOperationalDataset.h>
 
 #include <zephyr.h>
 
@@ -37,4 +38,8 @@ void StartDefaultThreadNetwork(uint64_t datasetTimestamp)
 	ThreadStackMgr().SetThreadEnabled(false);
 	ThreadStackMgr().SetThreadProvision(dataset.AsByteSpan());
 	ThreadStackMgr().SetThreadEnabled(true);
+
+#if CHIP_DEVICE_CONFIG_ENABLE_DNSSD
+	chip::app::DnssdServer::Instance().StartServer();
+#endif
 }

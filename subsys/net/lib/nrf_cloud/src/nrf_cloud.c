@@ -3,7 +3,11 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
+#if defined(CONFIG_POSIX_API)
+#include <posix/poll.h>
+#else
 #include <net/socket.h>
+#endif
 #include <net/cloud.h>
 #include <net/nrf_cloud.h>
 #include <net/mqtt.h>
@@ -276,7 +280,7 @@ int nrf_cloud_shadow_device_status_update(const struct nrf_cloud_device_status *
 		return -EACCES;
 	}
 
-	err = nrf_cloud_device_status_encode(dev_status, &tx_data.data);
+	err = nrf_cloud_device_status_encode(dev_status, &tx_data.data, true);
 	if (err) {
 		return err;
 	}
@@ -386,6 +390,21 @@ int nrf_cloud_send(const struct nrf_cloud_tx_data *msg)
 
 		break;
 	}
+	case NRF_CLOUD_TOPIC_BULK: {
+		const struct nct_dc_data buf = {
+			.data.ptr = msg->data.ptr,
+			.data.len = msg->data.len,
+			.message_id = NCT_MSG_ID_USE_NEXT_INCREMENT
+		};
+
+		err = nct_dc_bulk_send(&buf, msg->qos);
+		if (err) {
+			LOG_ERR("nct_dc_bulk_send failed, error: %d", err);
+			return err;
+		}
+
+		break;
+	}
 	default:
 		LOG_ERR("Unknown topic type");
 		return -ENODATA;
@@ -394,12 +413,7 @@ int nrf_cloud_send(const struct nrf_cloud_tx_data *msg)
 	return 0;
 }
 
-int nrf_cloud_client_id_get(char *id_buf, int id_len)
-{
-	return nct_client_id_get(id_buf, id_len);
-}
-
-int nrf_cloud_tenant_id_get(char *id_buf, int id_len)
+int nrf_cloud_tenant_id_get(char *id_buf, size_t id_len)
 {
 	return nct_tenant_id_get(id_buf, id_len);
 }

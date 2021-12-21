@@ -18,8 +18,6 @@ static void reset_to_valid_time(struct tm *time)
 	time->tm_hour = 15;
 	time->tm_min = 11;
 	time->tm_sec = 30;
-	time->tm_wday = 5;
-	time->tm_yday = 200;
 }
 
 static void test_date_time_invalid_input(void)
@@ -117,34 +115,6 @@ static void test_date_time_invalid_input(void)
 
 	reset_to_valid_time(&date_time_dummy);
 
-	/**********************************************************************/
-
-	/** Invalid week day. */
-	date_time_dummy.tm_wday = -1;
-
-	ret = date_time_set(&date_time_dummy);
-	zassert_equal(-EINVAL, ret, "date_time_set should equal -EINVAL");
-
-	date_time_dummy.tm_wday = 7;
-
-	ret = date_time_set(&date_time_dummy);
-	zassert_equal(-EINVAL, ret, "date_time_set should equal -EINVAL");
-
-	reset_to_valid_time(&date_time_dummy);
-
-	/**********************************************************************/
-
-	/** Invalid year day. */
-	date_time_dummy.tm_yday = -1;
-
-	ret = date_time_set(&date_time_dummy);
-	zassert_equal(-EINVAL, ret, "date_time_set should equal -EINVAL");
-
-	date_time_dummy.tm_yday = 366;
-
-	ret = date_time_set(&date_time_dummy);
-	zassert_equal(-EINVAL, ret, "date_time_set should equal -EINVAL");
-
 }
 
 static void test_date_time_premature_request(void)
@@ -189,6 +159,17 @@ static void test_date_time_already_converted(void)
 
 	zassert_equal(ts_unix_ms_prev, ts_unix_ms,
 		      "ts_unix_ms should equal ts_unix_ms_prev");
+}
+
+static void test_date_time_negative_uptime(void)
+{
+	int ret;
+
+	int64_t ts_unix_ms = -1000;
+
+	ret = date_time_uptime_to_unix_time_ms(&ts_unix_ms);
+	zassert_equal(-EINVAL, ret,
+		      "date_time_uptime_to_unix_time_ms should return -EINVAL");
 }
 
 static void test_date_time_clear(void)
@@ -308,6 +289,10 @@ void test_main(void)
 					test_date_time_teardown),
 		ztest_unit_test_setup_teardown(
 					test_date_time_clear,
+					test_date_time_setup,
+					test_date_time_teardown),
+		ztest_unit_test_setup_teardown(
+					test_date_time_negative_uptime,
 					test_date_time_setup,
 					test_date_time_teardown),
 		ztest_unit_test_setup_teardown(

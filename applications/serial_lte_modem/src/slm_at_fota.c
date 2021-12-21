@@ -5,9 +5,10 @@
  */
 #include <logging/log.h>
 
+#include <stdint.h>
 #include <zephyr.h>
 #include <stdio.h>
-#include <nrf_socket.h>
+#include <nrf_modem_delta_dfu.h>
 #include <dfu/mcuboot.h>
 #include <net/tls_credentials.h>
 #include <net/http_parser_url.h>
@@ -31,12 +32,14 @@ LOG_MODULE_REGISTER(slm_fota, CONFIG_SLM_LOG_LEVEL);
 #define FOTA_FUTURE_FEATURE	0
 
 enum slm_fota_operation {
-	AT_FOTA_STOP,
-	AT_FOTA_START_APP,
-	AT_FOTA_START_MFW,
-	AT_FOTA_PAUSE_RESUME,
-	AT_FOTA_ERASE_APP = 8,
-	AT_FOTA_ERASE_MFW
+	SLM_FOTA_STOP,
+	SLM_FOTA_START_APP,
+	SLM_FOTA_START_MFW,
+	SLM_FOTA_PAUSE_RESUME,
+	SLM_FOTA_APP_READ = 6,
+	SLM_FOTA_MFW_READ,
+	SLM_FOTA_ERASE_APP,
+	SLM_FOTA_ERASE_MFW
 };
 
 static char path[SLM_MAX_URL];
@@ -47,7 +50,7 @@ int slm_setting_fota_init(void);
 int slm_setting_fota_save(void);
 
 /* global variable defined in different files */
-extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
+extern char rsp_buf[SLM_AT_CMD_RESPONSE_MAX_LEN];
 extern struct at_param_list at_param_list;
 extern uint8_t fota_stage;
 extern uint8_t fota_status;
@@ -69,42 +72,99 @@ static int do_fota_erase_app(void)
 	return ret;
 }
 
+static void do_fota_app_read(uint8_t area_id)
+{
+	int err;
+	struct mcuboot_img_header header;
+
+	err = boot_read_bank_header(area_id, &header, sizeof(header));
+	if (err) {
+		LOG_WRN("failed in area %d banker header: %d", area_id, err);
+		return;
+	}
+
+	sprintf(rsp_buf, "\r\n#XFOTA: %d,%d,%d,\"%d.%d.%d+%d\"\r\n", area_id,
+		header.mcuboot_version,
+		header.h.v1.image_size,
+		header.h.v1.sem_ver.major, header.h.v1.sem_ver.minor,
+		header.h.v1.sem_ver.revision, header.h.v1.sem_ver.build_num);
+	rsp_send(rsp_buf, strlen(rsp_buf));
+}
+
+static int do_fota_mfw_read(void)
+{
+	int err;
+	size_t offset = 0;
+	size_t area = 0;
+
+	err = nrf_modem_delta_dfu_area(&area);
+	if (err) {
+		LOG_ERR("failed in delta dfu area: %d", err);
+		return err;
+	}
+
+	err = nrf_modem_delta_dfu_offset(&offset);
+	if (err) {
+		LOG_ERR("failed in delta dfu offset: %d", err);
+		return err;
+	}
+
+	sprintf(rsp_buf, "\r\n#XFOTA: %d,%d\r\n", area, offset);
+	rsp_send(rsp_buf, strlen(rsp_buf));
+
+	return 0;
+}
+
 static int do_fota_erase_mfw(void)
 {
-	int fd;
 	int err;
-	nrf_dfu_fw_offset_t offset;
-	nrf_socklen_t len = sizeof(offset);
+	size_t offset = 0;
 
-	LOG_INF("Erasing modem scratch");
-
-	fd = nrf_socket(NRF_AF_LOCAL, NRF_SOCK_STREAM, NRF_PROTO_DFU);
-	if (fd < 0) {
-		LOG_ERR("nrf_socket error: %d", errno);
-		return -errno;
-	}
-	err = nrf_setsockopt(fd, NRF_SOL_DFU, NRF_SO_DFU_BACKUP_DELETE, NULL, 0);
+	err = nrf_modem_delta_dfu_offset(&offset);
 	if (err) {
-		LOG_ERR("nrf_setsockopt error: %d", errno);
-		nrf_close(fd);
-		return -errno;
+		LOG_ERR("failed in delta dfu offset: %d", err);
+		return err;
 	}
-	while (true) {
-		err = nrf_getsockopt(fd, NRF_SOL_DFU, NRF_SO_DFU_OFFSET, &offset, &len);
-		if (err < 0) {
-			k_sleep(K_SECONDS(1));
-		} else {
+	if (offset == 0) {
+		/* no need of erasing */
+		return 0;
+	}
+	err = nrf_modem_delta_dfu_erase();
+	if (err) {
+		LOG_ERR("failed in delta dfu erase: %d", err);
+		return err;
+	}
+
+	/* Based on measurement, erasing takes about 10 seconds */
+	#define WAIT_TIME 10
+	#define POLL_TIME 2
+
+	int time_elapsed = 0;
+
+	do {
+		k_sleep(K_SECONDS(POLL_TIME));
+		err = nrf_modem_delta_dfu_offset(&offset);
+		if (err != 0 && err != NRF_MODEM_DELTA_DFU_ERASE_PENDING) {
+			LOG_ERR("failed in delta dfu offset: %d", err);
+			return err;
+		}
+		if (err == 0 && offset == 0) {
 			LOG_INF("Erase completed");
 			break;
 		}
+		time_elapsed += POLL_TIME;
+	} while (time_elapsed < WAIT_TIME);
+
+	if (time_elapsed >= WAIT_TIME) {
+		LOG_WRN("Erase timeout");
+		return -ETIME;
 	}
 
-	nrf_close(fd);
 	return 0;
 }
 
 static int do_fota_start(int op, const char *file_uri, int sec_tag,
-			 const char *apn, enum dfu_target_image_type type)
+			 uint8_t pdn_id, enum dfu_target_image_type type)
 {
 	int ret;
 	struct http_parser_url parser = {
@@ -159,9 +219,9 @@ static int do_fota_start(int op, const char *file_uri, int sec_tag,
 			LOG_ERR("Missing sec_tag");
 			return -EINVAL;
 		}
-		ret = fota_download_start_with_image_type(hostname, path, sec_tag, apn, 0, type);
+		ret = fota_download_start_with_image_type(hostname, path, sec_tag, pdn_id, 0, type);
 	} else if (slm_util_cmd_casecmp(schema, SCHEMA_HTTP)) {
-		ret = fota_download_start_with_image_type(hostname, path, -1, apn, 0, type);
+		ret = fota_download_start_with_image_type(hostname, path, -1, pdn_id, 0, type);
 	} else {
 		ret = -EINVAL;
 	}
@@ -222,7 +282,7 @@ static void fota_dl_handler(const struct fota_download_evt *evt)
 }
 
 /**@brief handle AT#XFOTA commands
- *  AT#XFOTA=<op>,<file_uri>[,<sec_tag>[,<apn>]]
+ *  AT#XFOTA=<op>,<file_uri>[,<sec_tag>[,<pdn_id>]]
  *  AT#XFOTA? TEST command not supported
  *  AT#XFOTA=?
  */
@@ -240,11 +300,11 @@ int handle_at_fota(enum at_cmd_type cmd_type)
 		if (err < 0) {
 			return err;
 		}
-		if (op == AT_FOTA_STOP) {
+		if (op == SLM_FOTA_STOP) {
 			err = fota_download_cancel();
-		} else if (op == AT_FOTA_START_APP || op == AT_FOTA_START_MFW) {
+		} else if (op == SLM_FOTA_START_APP || op == SLM_FOTA_START_MFW) {
 			char uri[FILE_URI_MAX];
-			char apn[APN_MAX];
+			uint16_t pdn_id;
 			int size = FILE_URI_MAX;
 			sec_tag_t sec_tag = INVALID_SEC_TAG;
 			enum dfu_target_image_type type;
@@ -256,23 +316,19 @@ int handle_at_fota(enum at_cmd_type cmd_type)
 			if (at_params_valid_count_get(&at_param_list) > 3) {
 				at_params_unsigned_int_get(&at_param_list, 3, &sec_tag);
 			}
-			if (op == AT_FOTA_START_APP) {
+			if (op == SLM_FOTA_START_APP) {
 				type = DFU_TARGET_IMAGE_TYPE_MCUBOOT;
 			} else {
 				type = DFU_TARGET_IMAGE_TYPE_MODEM_DELTA;
 			}
 			if (at_params_valid_count_get(&at_param_list) > 4) {
-				size = APN_MAX;
-				err = util_string_get(&at_param_list, 4, apn, &size);
-				if (err) {
-					return err;
-				}
-				err = do_fota_start(op, uri, sec_tag, apn, type);
+				at_params_unsigned_short_get(&at_param_list, 4, &pdn_id);
+				err = do_fota_start(op, uri, sec_tag, pdn_id, type);
 			} else {
-				err = do_fota_start(op, uri, sec_tag, NULL, type);
+				err = do_fota_start(op, uri, sec_tag, 0, type);
 			}
 #if FOTA_FUTURE_FEATURE
-		} else if (op == AT_FOTA_PAUSE_RESUME) {
+		} else if (op == SLM_FOTA_PAUSE_RESUME) {
 			if (paused) {
 				fota_download_resume();
 				paused = false;
@@ -282,16 +338,24 @@ int handle_at_fota(enum at_cmd_type cmd_type)
 			}
 			err = 0;
 #endif
-		} else if (op == AT_FOTA_ERASE_APP) {
+		} else if (op == SLM_FOTA_APP_READ) {
+			do_fota_app_read(PM_MCUBOOT_PRIMARY_ID);
+			do_fota_app_read(PM_MCUBOOT_SECONDARY_ID);
+			err = 0;
+		} else if (op == SLM_FOTA_MFW_READ) {
+			err = do_fota_mfw_read();
+		} else if (op == SLM_FOTA_ERASE_APP) {
 			err = do_fota_erase_app();
-		} else if (op == AT_FOTA_ERASE_MFW) {
+		} else if (op == SLM_FOTA_ERASE_MFW) {
 			err = do_fota_erase_mfw();
 		} break;
 
 	case AT_CMD_TYPE_TEST_COMMAND:
-		sprintf(rsp_buf, "\r\n#XFOTA: (%d,%d,%d,%d,%d),<file_uri>,<sec_tag>,<apn>\r\n",
-			AT_FOTA_STOP, AT_FOTA_START_APP, AT_FOTA_START_MFW,
-			AT_FOTA_ERASE_APP, AT_FOTA_ERASE_MFW);
+		sprintf(rsp_buf,
+			"\r\n#XFOTA: (%d,%d,%d,%d,%d,%d,%d),<file_uri>,<sec_tag>,<apn>\r\n",
+			SLM_FOTA_STOP, SLM_FOTA_START_APP, SLM_FOTA_START_MFW,
+			SLM_FOTA_APP_READ, SLM_FOTA_MFW_READ,
+			SLM_FOTA_ERASE_APP, SLM_FOTA_ERASE_MFW);
 		rsp_send(rsp_buf, strlen(rsp_buf));
 		err = 0;
 		break;

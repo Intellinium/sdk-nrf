@@ -19,6 +19,9 @@
 /.github/labeler.yml                      @thst-nordic @guwa @mariusz-nordicsemi @tomaszkob89 @totyz @doublemis1 @wiminordic @jorgenmk @maciekrozanski @ns-tolu @miha-nordic @maciejpietras @piwe-nordic @nordic-babu @fredaas @torsteingrindvik @mswarowsky @shantha-14 @ardo-nordic
 /.github/workflows/manifest.yml           @thst-nordic @guwa @mariusz-nordicsemi @tomaszkob89 @totyz @doublemis1 @wiminordic @jorgenmk @maciekrozanski @ns-tolu @miha-nordic @maciejpietras @piwe-nordic @nordic-babu @fredaas @torsteingrindvik @mswarowsky @shantha-14 @ardo-nordic
 
+# VS Code Configuration files
+/.vscode/                                 @trond-snekvik
+
 # Applications
 /applications/asset_tracker/              @jhn-nordic @jtguggedal @rlubos
 /applications/asset_tracker_v2/           @simensrostad @jtguggedal @jhn-nordic @coderbyheart
@@ -44,8 +47,10 @@ Kconfig*                                  @tejlmand
 /doc/CMakeLists.txt                       @carlescufi
 /doc/**/conf.py                           @carlescufi
 /doc/nrf/                                 @carlescufi
+/doc/nrf/images/                          @Avalei
 /doc/nrfx/                                @gmarull
 /doc/matter/                              @gmarull
+/doc/mcuboot/                             @carlescufi
 /doc/nrfxlib/                             @gmarull
 /doc/update_versions.cmake                @carlescufi
 /doc/versions.json                        @carlescufi
@@ -72,11 +77,14 @@ Kconfig*                                  @tejlmand
 /lib/at_host/                             @rlubos
 /lib/at_monitor/                          @emdi @rlubos
 /lib/at_notif/                            @rlubos
+/lib/at_shell/                            @jtguggedal @simensrostad
+/lib/at_sms_cert/                         @eivindj-nordic
 /lib/agps/                                @jtguggedal @simensrostad
 /lib/nrf_modem_lib/                       @rlubos
 /lib/edge_impulse/                        @pdunaj
 /lib/fprotect/                            @hakonfam
 /lib/flash_patch/                         @hakonfam
+/lib/location/                            @trantanen @hiltunent @jhirsi @tokangas
 /lib/lte_link_control/                    @jtguggedal
 /lib/modem_info/                          @rlubos
 /lib/modem_key_mgmt/                      @rlubos
@@ -110,6 +118,7 @@ Kconfig*                                  @tejlmand
 /samples/edge_impulse/                    @pdunaj
 /samples/esb/                             @lemrey
 /samples/event_manager/                   @pdunaj @MarekPieta
+/samples/gazell/                          @leewkb4567
 /samples/keys/random_hw_unique_key/       @oyvindronningstad @Vge0rge
 /samples/mpsl/                            @rugeGerritsen
 /samples/nfc/                             @grochu
@@ -117,6 +126,7 @@ Kconfig*                                  @tejlmand
 /samples/nrf5340/empty_app_core/          @doki-nordic
 /samples/nrf9160/                         @rlubos @lemrey
 /samples/nrf9160/azure_*                  @jtguggedal @simensrostad @coderbyheart
+/samples/nrf9160/location/                @trantanen @hiltunent @jhirsi @tokangas
 /samples/nrf9160/lwm2m_client/            @rlubos @VeijoPesonen
 /samples/spm/                             @lemrey @hakonfam @ioannisg
 /samples/openthread/                      @MarekPorwisz @lmaciejonczyk @rlubos
@@ -145,7 +155,9 @@ Kconfig*                                  @tejlmand
 /subsys/mgmt/                             @hakonfam @sigvartmh
 /subsys/esb/                              @Raane @lemrey
 /subsys/event_manager/                    @pdunaj
+/subsys/event_manager_profiler_tracer/    @pdunaj @MarekPieta
 /subsys/fw_info/                          @hakonfam
+/subsys/gazell/                           @leewkb4567
 /subsys/mpsl/                             @rugeGerritsen
 /subsys/net/                              @rlubos
 /subsys/net/lib/azure_*                   @jtguggedal @simensrostad @coderbyheart
@@ -161,13 +173,37 @@ Kconfig*                                  @tejlmand
 /modules/                                 @tejlmand
 /modules/tfm/                             @oyvindronningstad @ioannisg @hakonfam
 /subsys/zigbee/                           @tomchy @sebastiandraus
+/tests/                                   @gopiotr
 /tests/bluetooth/tester/                  @carlescufi @trond-snekvik
+/tests/crypto/                            @torsteingrindvik @magnev
+/tests/drivers/clock_control/clock_control_mpsl/ @ryanjh
 /tests/drivers/flash_nop_device/          @de-nordic
+/tests/drivers/flash_patch/               @oyvindronningstad
+/tests/drivers/fprotect/                  @oyvindronningstad
+/tests/drivers/nrfx_integration_test/     @anangl
+/tests/lib/at_cmd_parser/                 @rlubos
+/tests/lib/at_sms_cert/                   @eivindj-nordic
+/tests/lib/date_time/                     @simensrostad
+/tests/lib/edge_impulse/                  @pdunaj @MarekPieta
 /tests/lib/hw_unique_key*/                @oyvindronningstad @Vge0rge
+/tests/lib/lte_lc/                        @jtguggedal
 /tests/lib/modem_jwt/                     @SeppoTakalo
+/tests/lib/sms/                           @trantanen
+/tests/modules/lib/cddl-gen/              @oyvindronningstad
+/tests/modules/mcuboot/external_flash/    @hakonfam @sigvartmh
 /tests/modules/tfm/                       @hakonfam
-/tests/modules/mcuboot/external_flash/     @hakonfam @sigvartmh
-/tests/subsys/profiler/                   @pdunaj @MarekPieta
-/tests/subsys/zigbee/                     @tomchy @sebastiandraus
 /tests/subsys/bluetooth/mesh/             @trond-snekvik
+/tests/subsys/bootloader/                 @hakonfam
+/tests/subsys/debug/cpu_load/             @nordic-krch
+/tests/subsys/dfu/                        @hakonfam @sigvartmh
+/tests/subsys/event_manager/              @pdunaj @MarekPieta
+/tests/subsys/fw_info/                    @oyvindronningstad
+/tests/subsys/net/lib/aws_*/              @simensrostad
+/tests/subsys/net/lib/azure_iot_hub/      @jtguggedal
+/tests/subsys/net/lib/fota_download/      @hakonfam @sigvartmh
+/tests/subsys/pcd/                        @hakonfam @sigvartmh
+/tests/subsys/profiler/                   @pdunaj @MarekPieta
+/tests/subsys/spm/                        @oyvindronningstad @SebastianBoe
+/tests/subsys/zigbee/                     @tomchy @sebastiandraus
+/tests/unity/                             @nordic-krch
 /zephyr/                                  @carlescufi

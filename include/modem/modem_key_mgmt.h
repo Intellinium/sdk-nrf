@@ -111,31 +111,12 @@ int modem_key_mgmt_delete(nrf_sec_tag_t sec_tag,
 			  enum modem_key_mgmt_cred_type cred_type);
 
 /**
- * @brief Set permissions for a credential in persistent storage.
- *
- * @param[in] sec_tag		The security tag of the credential.
- * @param[in] cred_type		The credential type.
- * @param[in] perm_flags	Permission flags. Not yet implemented.
- *
- * @retval 0		On success.
- * @retval -ENOBUFS	Internal buffer is too small.
- * @retval -ENOENT	No credential associated with the given
- *			@p sec_tag and @p cred_type.
- * @retval -EPERM	Insufficient permissions.
- */
-int modem_key_mgmt_permission_set(nrf_sec_tag_t sec_tag,
-				  enum modem_key_mgmt_cred_type cred_type,
-				  uint8_t perm_flags);
-
-/**
  * @brief Check if a credential exists in persistent storage.
  *
  * @param[in] sec_tag		The security tag to search for.
  * @param[in] cred_type		The credential type.
  * @param[out] exists		Whether the credential exists.
  *				Only valid if the operation is successful.
- * @param[out] perm_flags	The permission flags of the credential.
- *				Not yet implemented.
  *
  * @retval 0		On success.
  * @retval -ENOBUFS	Internal buffer is too small.
@@ -143,7 +124,7 @@ int modem_key_mgmt_permission_set(nrf_sec_tag_t sec_tag,
  */
 int modem_key_mgmt_exists(nrf_sec_tag_t sec_tag,
 			  enum modem_key_mgmt_cred_type cred_type,
-			  bool *exists, uint8_t *perm_flags);
+			  bool *exists);
 
 #endif /* MODEM_KEY_MGMT_H__ */
 /**@} */

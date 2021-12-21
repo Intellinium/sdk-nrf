@@ -62,7 +62,7 @@ static struct slm_httpc_ctx {
 
 /* global variable defined in different resources */
 extern struct at_param_list at_param_list;
-extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
+extern char rsp_buf[SLM_AT_CMD_RESPONSE_MAX_LEN];
 
 static struct k_thread httpc_thread;
 #define HTTPC_THREAD_STACK_SIZE       KB(2)
@@ -306,40 +306,29 @@ static int do_http_connect(void)
 	}
 
 	/* Connect to HTTP server */
-	struct addrinfo *res;
-	struct addrinfo hints = {
-		.ai_family = httpc.family,
-		.ai_socktype = SOCK_STREAM
+	struct sockaddr sa = {
+		.sa_family = AF_UNSPEC
 	};
 
-	ret = getaddrinfo(httpc.host, NULL, &hints, &res);
+	ret = util_resolve_host(0, httpc.host, httpc.port, httpc.family, &sa);
 	if (ret) {
-		LOG_ERR("getaddrinfo() failed: %d", ret);
+		LOG_ERR("getaddrinfo() error: %s", log_strdup(gai_strerror(ret)));
 		goto exit_cli;
 	}
-
-	if (httpc.family == AF_INET) {
-		struct sockaddr_in *host = (struct sockaddr_in *)res->ai_addr;
-
-		host->sin_port = htons(httpc.port);
-		ret = connect(httpc.fd, (struct sockaddr *)host, sizeof(struct sockaddr_in));
+	if (sa.sa_family == AF_INET) {
+		ret = connect(httpc.fd, &sa, sizeof(struct sockaddr_in));
 	} else {
-		struct sockaddr_in6 *host = (struct sockaddr_in6 *)res->ai_addr;
-
-		host->sin6_port = htons(httpc.port);
-		ret = connect(httpc.fd, (struct sockaddr *)host, sizeof(struct sockaddr_in6));
+		ret = connect(httpc.fd, &sa, sizeof(struct sockaddr_in6));
 	}
+
 	if (ret) {
 		LOG_ERR("connect() failed: %d", -errno);
 		ret = -errno;
-		freeaddrinfo(res);
 		goto exit_cli;
 	}
 
 	sprintf(rsp_buf, "\r\n#XHTTPCCON: 1\r\n");
 	rsp_send(rsp_buf, strlen(rsp_buf));
-
-	freeaddrinfo(res);
 	return 0;
 
 exit_cli:
@@ -520,8 +509,54 @@ static void httpc_thread_fn(void *arg1, void *arg2, void *arg3)
 	LOG_INF("HTTP thread terminated");
 }
 
+#define HTTP_CRLF_STR "\\r\\n"
+
+static int http_headers_preprocess(size_t size)
+{
+	const char crlf_str[] = {'\r', '\n', '\0'};
+	const char crlf_crlf_str[] = {'\r', '\n', '\r', '\n', '\0'};
+
+	if (size == 0) {
+		return 0;
+	}
+
+	char *http_crlf = strstr(httpc.headers, HTTP_CRLF_STR);
+	int size_adjust = size;
+
+	while (http_crlf) {
+		char *tmp = http_crlf + sizeof(HTTP_CRLF_STR) - 1;
+
+		memcpy(http_crlf, crlf_str, strlen(crlf_str));
+		memmove(http_crlf + strlen(crlf_str), tmp, strlen(tmp));
+		size_adjust -= sizeof(HTTP_CRLF_STR) - 1 - strlen(crlf_str);
+		memset(httpc.headers + size_adjust, 0x00, 1);
+
+		tmp = http_crlf;
+		http_crlf = strstr(tmp, HTTP_CRLF_STR);
+	}
+
+	/* There should be exactly one <CR><LF> in the end of headers
+	 * HTTP client will add <CR><LF> between headers and message body
+	 * Refer to zephyr/blob/main/subsys/net/lib/http/http_client.c#L50
+	 * Refer to https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
+	 */
+	if (strcmp(httpc.headers + strlen(httpc.headers) - strlen(crlf_str),
+		   crlf_str) != 0) {
+		LOG_ERR("Missing <CR><LF> for headers");
+		return -EINVAL;
+	}
+	if (strcmp(httpc.headers + strlen(httpc.headers) - strlen(crlf_crlf_str),
+		   crlf_crlf_str) == 0) {
+		/* two or more <CR><LF> after headers */
+		LOG_ERR("Too many <CR><LF> after headers");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 /**@brief handle AT#XHTTPCREQ commands
- *  AT#XHTTPCREQ=<method>,<resource>,<header>[,<payload_length>]
+ *  AT#XHTTPCREQ=<method>,<resource>,<headers>[,<payload_length>]
  *  AT#XHTTPCREQ? READ command not supported
  *  AT#XHTTPCREQ=?
  */
@@ -568,6 +603,10 @@ int handle_at_httpc_request(enum at_cmd_type cmd_type)
 			return err;
 		}
 		httpc.headers = (char *)(data_buf + offset);
+		err = http_headers_preprocess(headers_sz);
+		if (err) {
+			return err;
+		}
 		if (param_count >= 5) {
 			err = at_params_unsigned_int_get(&at_param_list, 4, &httpc.pl_len);
 			if (err != 0) {

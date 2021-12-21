@@ -8,8 +8,24 @@
 #include <hw_unique_key.h>
 #include "hw_unique_key_internal.h"
 #include <nrfx.h>
+#include <mdk/nrf_erratas.h>
 
 #define KMU_KEYSLOT_SIZE_WORDS 4
+
+// Use 'copy_of_uicr_word_read' instead of 'nrfx_nvmc_uicr_word_read'
+// until it has become available everywhere. Everywhere consists of
+// TF-M's copy of nrfx, nrfx, hal_nordic in Zephyr and NCS.
+
+static uint32_t copy_of_uicr_word_read(uint32_t const volatile *address)
+{
+	uint32_t value = *address;
+
+#if NRF91_ERRATA_7_ENABLE_WORKAROUND
+	__DSB();
+#endif
+
+	return value;
+}
 
 /* Check whether a Hardware Unique Key has been written to the KMU. */
 static bool key_written(enum hw_unique_key_slot kmu_slot)
@@ -17,16 +33,17 @@ static bool key_written(enum hw_unique_key_slot kmu_slot)
 	uint32_t idx = kmu_slot;
 
 	NRF_KMU->SELECTKEYSLOT = KMU_SELECT_SLOT(kmu_slot);
-	if (NRF_UICR_S->KEYSLOT.CONFIG[idx].PERM != 0xFFFFFFFF) {
+
+	if (copy_of_uicr_word_read(&NRF_UICR_S->KEYSLOT.CONFIG[idx].PERM) != 0xFFFFFFFF) {
 		NRF_KMU->SELECTKEYSLOT = 0;
 		return true;
 	}
-	if (NRF_UICR_S->KEYSLOT.CONFIG[idx].DEST != 0xFFFFFFFF) {
+	if (copy_of_uicr_word_read(&NRF_UICR_S->KEYSLOT.CONFIG[idx].DEST) != 0xFFFFFFFF) {
 		NRF_KMU->SELECTKEYSLOT = 0;
 		return true;
 	}
 	for (int i = 0; i < KMU_KEYSLOT_SIZE_WORDS; i++) {
-		if (NRF_UICR_S->KEYSLOT.KEY[idx].VALUE[i] != 0xFFFFFFFF) {
+		if (copy_of_uicr_word_read(&NRF_UICR_S->KEYSLOT.KEY[idx].VALUE[i]) != 0xFFFFFFFF) {
 			NRF_KMU->SELECTKEYSLOT = 0;
 			return true;
 		}
@@ -46,7 +63,7 @@ void hw_unique_key_write(enum hw_unique_key_slot kmu_slot, const uint8_t *key)
 {
 	int err = write_slot(kmu_slot, NRF_CC3XX_PLATFORM_KMU_AES_ADDR, key);
 
-#if HUK_HAS_CC312
+#ifdef HUK_HAS_CC312
 	if (err == 0) {
 		err = write_slot(kmu_slot + 1, NRF_CC3XX_PLATFORM_KMU_AES_ADDR_2,
 				key + (HUK_SIZE_BYTES / 2));

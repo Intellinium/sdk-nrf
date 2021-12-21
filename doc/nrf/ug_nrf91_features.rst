@@ -155,7 +155,7 @@ Modem library
 =============
 
 The |NCS| applications for the nRF9160-based devices that communicate with the nRF9160 modem firmware must include the :ref:`nrfxlib:nrf_modem`.
-The :ref:`nrfxlib:nrf_modem` is released as an OS-independent binary library in the :ref:`nrfxlib` repository and it is integrated into |NCS| via an integration layer, ``nrf_modem_lib``.
+The :ref:`nrfxlib:nrf_modem` is released as an OS-independent binary library in the :ref:`nrfxlib` repository and it is integrated into |NCS| through an integration layer, ``nrf_modem_lib``.
 
 The Modem library integration layer fulfills the integration requirements of the Modem library in |NCS|.
 For more information on the integration, see :ref:`nrf_modem_lib_readme`.
@@ -234,7 +234,7 @@ Samples and applications implementing FOTA
 * :ref:`http_full_modem_update_sample` sample - performs a full firmware OTA update of the modem.
 * :ref:`http_modem_delta_update_sample` sample - performs a delta OTA update of the modem firmware.
 * :ref:`http_application_update_sample` sample - performs a basic application FOTA update.
-* :ref:`aws_fota_sample` sample - performs a FOTA update via MQTT and HTTP, where the firmware download is triggered through an AWS IoT job.
+* :ref:`aws_fota_sample` sample - performs a FOTA update using MQTT and HTTP, where the firmware download is triggered through an AWS IoT job.
 * :ref:`azure_fota_sample` sample - performs a FOTA update from the Azure IoT Hub.
 * :ref:`asset_tracker_v2` application - performs FOTA updates of the application, modem (delta), and boot (if enabled). It also supports nRF Cloud FOTA as well as AWS or Azure FOTA. Only one must be configured at a time.
 
@@ -261,31 +261,31 @@ See `GPS interface and antenna`_ for more details on GNSS interface and antenna.
 
 .. note::
 
-   Starting from |NCS| v1.6.0 (Modem library v1.2.0), the :ref:`GNSS socket <nrfxlib:gnss_extension>` is deprecated and replaced with the :ref:`GNSS interface <gnss_interface>`.
+   Starting from |NCS| v1.6.0 (Modem library v1.2.0), the GNSS socket is deprecated and replaced with the :ref:`GNSS interface <gnss_interface>`.
 
 
 Obtaining a fix
 ===============
 
-GPS provides lots of useful information including 3D location (latitude, longitude, altitude), time, and velocity.
+GNSS provides lots of useful information including 3D location (latitude, longitude, altitude), time, and velocity.
 
-The time to obtain a fix (also referred to as Time to First Fix (TTFF)) will depend on the time when the GPS receiver was last turned on and used.
+The time to obtain a fix (also referred to as Time to First Fix (TTFF)) will depend on the time when the GNSS receiver was last turned on and used.
 
-Following are the various GPS start modes:
+Following are the various GNSS start modes:
 
-* Cold start - GPS starts after being powered off for a long time with zero knowledge of the time, current location, or the satellite orbits.
-* Warm start - GPS has some coarse knowledge of the time, location, or satellite orbits from a previous fix that is more than around 37 minutes old.
-* Hot start - GPS fix is requested within an interval of around 37 minutes from the last successful fix.
+* Cold start - GNSS starts after being powered off for a long time with zero knowledge of the time, current location, or the satellite orbits.
+* Warm start - GNSS has some coarse knowledge of the time, location, or satellite orbits from a previous fix that is more than around 37 minutes old.
+* Hot start - GNSS fix is requested within an interval of around 37 minutes from the last successful fix.
 
-Each GPS satellite transmits its own `Ephemeris`_ data and common `Almanac`_ data:
+Each satellite transmits its own `Ephemeris`_ data and common `Almanac`_ data:
 
-* Ephemeris data - Provides information about the orbit of the GPS satellite transmitting it. This data is valid for four hours and becomes inaccurate after that.
+* Ephemeris data - Provides information about the orbit of the satellite transmitting it. This data is valid for four hours and becomes inaccurate after that.
 * Almanac data - Provides coarse orbit and status information for each satellite in the constellation. Each satellite broadcasts Almanac data for all satellites.
 
 The data transmission occurs at a slow data rate of 50 bps.
 The orbital data can be received faster using A-GPS.
 
-Due to the clock bias on the receiver, there are four unknowns when looking for a GPS fix - latitude, longitude, altitude, and clock bias.
+Due to the clock bias on the receiver, there are four unknowns when looking for a GNSS fix - latitude, longitude, altitude, and clock bias.
 This results in solving an equation system with four unknowns, and therefore a minimum of four satellites must be tracked to acquire a fix.
 
 Enhancements to GNSS
@@ -317,7 +317,7 @@ Normally, devices connect to the cellular network approximately every two hours 
 P-GPS enables devices to determine the exact orbital location of the satellite without connecting to the network every two hours with a trade-off of reduced accuracy of the calculated position over time.
 Note that P-GPS requires more memory compared to regular A-GPS.
 
-Also, note that due to satellite clock inaccuracies, not all functional satellites will have Ephemerides data valid for two weeks in the downloaded PGPS package.
+Also, note that due to satellite clock inaccuracies, not all functional satellites will have Ephemerides data valid for two weeks in the downloaded P-GPS package.
 This means that the number of satellites having valid predicted Ephemerides reduces in number roughly after ten days.
 Hence, the GNSS module needs to download the Ephemeris data from the satellite broadcast if no predicted Ephemeris is found for that satellite to be able to use the satellite.
 
@@ -346,10 +346,9 @@ Samples using GNSS in |NCS|
 There are many examples in |NCS| that use GNSS.
 Following is a list of the samples and applications with some information about the GNSS usage:
 
-* :ref:`asset_tracker_v2` application - Uses nRF Cloud for A-GPS or P-GPS  or a combination of both. The application obtains GNSS fixes and transmits them to nRF Cloud along with sensor data.
+* :ref:`asset_tracker_v2` application - Uses nRF Cloud for A-GPS or P-GPS or a combination of both. The application obtains GNSS fixes and transmits them to nRF Cloud along with sensor data.
 * :ref:`serial_lte_modem` application - Uses AT commands to start and stop GNSS and has support for nRF Cloud A-GPS and P-GPS. The application displays tracking and GNSS fix information in the serial console.
-* :ref:`agps_sample` sample - Uses nRF Cloud for A-GPS by default and can be configured to use SUPL. The sample obtains GNSS fixes and transmits them to nRF Cloud.
-* :ref:`gps_with_supl_support_sample` sample - Does not use A-GPS by default but can be configured to use SUPL. The sample displays tracking, fix information, and NMEA strings in the serial console.
+* :ref:`gnss_sample` sample - Does not use assistance by default but can be configured to use nRF Cloud A-GPS or P-GPS or a combination of both. The sample displays tracking and fix information as well as NMEA strings in the serial console.
 
 .. _nrf9160_gps_lte:
 

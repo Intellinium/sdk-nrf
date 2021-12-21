@@ -15,27 +15,6 @@ You can use this application as a reference for creating your own application.
 .. note::
     The Matter protocol is in an early development stage and must be treated as an experimental feature.
 
-Requirements
-************
-
-The application supports the following development kits:
-
-.. table-from-rows:: /includes/sample_board_rows.txt
-   :header: heading
-   :rows: thingy53_nrf5340_cpuapp
-
-To commission the weather station device and control it remotely through a Thread network, you also need a Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>` (which requires additional hardware depending on which setup you choose).
-The recommended way of getting measurement values is using the mobile Matter controller application that comes with a neat graphical interface, performs measurements automatically and visualizes the data.
-
-To program a Thingy:53 device where the preprogrammed MCUboot bootloader has been erased, you need the external J-Link programmer.
-If you own an nRF5340 DK that has an onboard J-Link programmer, you can also use it for this purpose.
-
-If the Thingy:53 is programmed with Thingy:53-compatible sample or application, then you can also update the firmware using MCUboot's serial recovery or DFU over Bluetooth LE.
-See :ref:`thingy53_app_guide` for details.
-
-.. note::
-    |matter_gn_required_note|
-
 Overview
 ********
 
@@ -68,7 +47,12 @@ Matter weather station build types
 ==================================
 
 The Matter weather station application does not use a single :file:`prj.conf` file.
-Configuration files are provided for different build types and they are located in the `configuration/thingy53_nrf5340_cpuapp` directory.
+Configuration files are provided for different build types and they are located in the :file:`configuration/thingy53_nrf5340_cpuapp` directory.
+
+The :file:`prj.conf` file represents a ``debug`` build type.
+Other build types are covered by dedicated files with the build type added as a suffix to the ``prj`` part, as per the following list.
+For example, the ``release`` build type file name is :file:`prj_release.conf`.
+If a board has other configuration files, for example associated with partition layout or child image configuration, these follow the same pattern.
 
 .. include:: /gs_modifying.rst
    :start-after: build_types_overview_start
@@ -77,17 +61,33 @@ Configuration files are provided for different build types and they are located 
 Before you start testing the application, you can select one of the build types supported by Matter weather station application, depending on the building method.
 This application supports the following build types:
 
-* ``ZDebug`` -- Debug version of the application - can be used to enable additional features for verifying the application behavior, such as logs or command-line shell.
-* ``ZRelease`` -- Release version of the application - can be used to enable only the necessary application functionalities to optimize its performance.
+* ``debug`` -- Debug version of the application - can be used to enable additional features for verifying the application behavior, such as logs or command-line shell.
+* ``release`` -- Release version of the application - can be used to enable only the necessary application functionalities to optimize its performance.
 
 .. note::
     `Selecting a build type`_ is optional.
-    The ``ZDebug`` build type is used by default if no build type is explicitly selected.
+    The ``debug`` build type is used by default if no build type is explicitly selected.
 
-Configuration
-*************
+Requirements
+************
 
-|config|
+The application supports the following development kits:
+
+.. table-from-rows:: /includes/sample_board_rows.txt
+   :header: heading
+   :rows: thingy53_nrf5340_cpuapp
+
+To commission the weather station device and control it remotely through a Thread network, you also need a Matter controller device :ref:`configured on PC or smartphone <ug_matter_configuring>` (which requires additional hardware depending on which setup you choose).
+The recommended way of getting measurement values is using the mobile Matter controller application that comes with a neat graphical interface, performs measurements automatically and visualizes the data.
+
+To program a Thingy:53 device where the preprogrammed MCUboot bootloader has been erased, you need the external J-Link programmer.
+If you own an nRF5340 DK that has an onboard J-Link programmer, you can also use it for this purpose.
+
+If the Thingy:53 is programmed with Thingy:53-compatible sample or application, then you can also update the firmware using MCUboot's serial recovery or DFU over Bluetooth LE.
+See :ref:`thingy53_app_guide` for details.
+
+.. note::
+    |matter_gn_required_note|
 
 User interface
 **************
@@ -117,6 +117,11 @@ USB port:
 NFC port with antenna attached:
     Used for obtaining the commissioning information from the Matter accessory device to start the commissioning procedure.
 
+Configuration
+*************
+
+|config|
+
 Building and running
 ********************
 
@@ -128,6 +133,13 @@ Selecting a build type
 ======================
 
 Before you start testing the application, you can select one of the :ref:`matter_weather_station_app_build_types`, depending on your building method.
+
+Selecting a build type in |VSC|
+-------------------------------
+
+.. include:: /gs_modifying.rst
+   :start-after: build_types_selection_vsc_start
+   :end-before: build_types_selection_vsc_end
 
 Selecting a build type in SES
 -----------------------------
@@ -143,44 +155,39 @@ Selecting a build type from command line
    :start-after: build_types_selection_cmd_start
    :end-before: For example, you can replace the
 
-For example, you can replace the *selected_build_type* variable to build the ``ZRelease`` firmware for PCA20053 by running the following command in the project directory:
+For example, you can replace the *selected_build_type* variable to build the ``release`` firmware for ``thingy53_nrf5340_cpuapp`` by running the following command in the project directory:
 
 .. parsed-literal::
    :class: highlight
 
-   west build -b thingy53_nrf5340_cpuapp -d build_thingy53_nrf5340_cpuapp -- -DCMAKE_BUILD_TYPE=ZRelease
+   west build -b thingy53_nrf5340_cpuapp -d build_thingy53_nrf5340_cpuapp -- -DCONF_FILE=prj_release.conf
 
 The ``build_thingy53_nrf5340_cpuapp`` parameter specifies the output directory for the build files.
 
 .. note::
    If the selected board does not support the selected build type, the build is interrupted.
-   For example, if the ``ZDebugWithShell`` build type is not supported by the selected board, the following notification appears:
+   For example, if the ``shell`` build type is not supported by the selected board, the following notification appears:
 
    .. code-block:: console
 
-      Configuration file for build type ZDebugWithShell is missing.
+      File not found: ./ncs/nrf/applications/matter_weather_station/configuration/thingy53_nrf5340_cpuapp/prj_shell.conf
 
 Testing
 =======
 
 .. note::
-    The testing procedure assumes you are using the mobile Matter controller application.
-    You can also obtain the measurement values using the PC command-line-based Matter controller and invoking the read commands manually.
-    To see how to send read commands from the PC Matter controller, read the :doc:`matter:python_chip_controller_building` guide in the Matter documentation.
+   The testing procedure assumes you are using the mobile Matter controller application.
+   You can also obtain the measurement values using the PC command-line-based Matter controller and invoking the read commands manually.
+   Compared with the PC Matter controller, the mobile Matter controller only gives access to a subset of clusters supported by the Matter weather station application.
+   If you want to access all the supported clusters, including Descriptor, Identify, and Power Source clusters, use the PC Matter controller.
+   To see how to send commands from the PC Matter controller, read the :doc:`matter:python_chip_controller_building` guide in the Matter documentation.
 
 After programming the application, perform the following steps to test the Matter weather station application on the Thingy:53 with the mobile Matter controller application:
 
 1. Turn on the Thingy:53.
    The application starts in an unprovisioned state.
    The advertising over Bluetooth LE and DFU start automatically, and **LED 1** starts blinking blue (short flash on).
-#. Commission the device into a Thread network by following the guides linked on the :ref:`ug_matter_configuring` page for the mobile Matter controller.
-   As part of this procedure, you will complete the following steps:
-
-   * Configure Thread Border Router.
-   * Build and install the mobile Matter controller.
-   * Commission the device.
-   * Send Matter commands.
-
+#. Commission the device into a Thread network by following the steps in :ref:`ug_matter_configuring_mobile`.
    During the commissioning procedure, **LED 1** of the Matter device starts blinking blue (rapid even flashing).
    This indicates that the device is connected over Bluetooth LE, but does not yet have full Thread network connectivity.
 

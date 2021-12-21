@@ -205,7 +205,7 @@ Every of these reports uses predefined report format and provides the given info
 For example, the mouse motion is forwarded as HID mouse report.
 
 An nRF Desktop device supports the selected subset of the HID input reports.
-For example, the nRF Desktop keyboard reference desing (nrf52kbd_nrf52832) supports HID keyboard report, HID consumer control report and HID system control report.
+For example, the nRF Desktop keyboard reference design (nrf52kbd_nrf52832) supports HID keyboard report, HID consumer control report and HID system control report.
 
 As an example, the following section describes handling HID mouse report data.
 
@@ -260,7 +260,7 @@ The nRF Desktop supports the HID keyboard LED report.
 The report is used by the host to update the state of the keyboard LEDs, for example to indicate that the Caps Lock key is active.
 
 .. note::
-   Only the nrf52840dk_nrf52840 in ``ZDebug_keyboard`` configuration has hardware LEDs that can be used to disaply state of the Caps Lock and Num Lock.
+   Only the nrf52840dk_nrf52840 in ``keyboard`` configuration has hardware LEDs that can be used to disaply state of the Caps Lock and Num Lock.
 
 The following diagrams show the HID output report data exchange between the application modules.
 
@@ -296,6 +296,18 @@ The report is used by the :ref:`nrf_desktop_config_channel`.
    The nRF Desktop also uses a dedicated HID output report to forward the :ref:`nrf_desktop_config_channel` data through the nRF Desktop dongle.
    This report is handled using the configuration channel's infrastructure and it can be enabled using :kconfig:`CONFIG_DESKTOP_CONFIG_CHANNEL_OUT_REPORT`.
    See the Kconfig option's help for details about the report.
+
+HID protocols
+-------------
+
+The following HID protocols are supported by nRF Desktop for HID input reports and HID output reports:
+
+* Report protocol - Most widely used in HID devices.
+  When establishing connection, host reads a HID descriptor from the HID device.
+  HID descriptor describes format of HID reports and is used by the host to interpret data exchanged between HID device and host.
+* Boot protocol - Only available for mice and keyboards data.
+  No HID descriptor is used for this HID protocol.
+  Instead, fixed data packet formats must be used to send data between the HID device and the host.
 
 Requirements
 ************
@@ -366,34 +378,40 @@ nRF Desktop build types
 The nRF Desktop does not use a single :file:`prj.conf` file.
 Configuration files are provided for different build types for each supported board.
 
+Each board has its own :file:`prj.conf` file, which represents a ``debug`` build type.
+Other build types are covered by dedicated files with the build type added as a suffix to the ``prj`` part, as per the following list.
+For example, the ``release_b0`` build type file name is :file:`prj_release_b0.conf`.
+If a board has other configuration files, for example associated with partition layout or child image configuration, these follow the same pattern.
+
 .. include:: /gs_modifying.rst
    :start-after: build_types_overview_start
    :end-before: build_types_overview_end
 
 .. note::
     `Selecting a build type`_ is optional.
-    The ``ZDebug`` build type is used by default in nRF Desktop if no build type is explicitly selected.
+    The ``debug`` build type is used by default in nRF Desktop if no build type is explicitly selected.
 
 The following build types are available for various boards in the nRF Desktop:
 
-* ``ZRelease`` -- Release version of the application with no debugging features.
-* ``ZReleaseB0`` -- ``ZRelease`` build type with the support for the B0 bootloader enabled (for :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
-* ``ZReleaseMCUBoot`` -- ``ZRelease`` build type with the support for the MCUboot bootloader enabled (for :ref:`serial recovery DFU <nrf_desktop_bootloader_serial_dfu>` or :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
-* ``ZDebug`` -- Debug version of the application; the same as the ``ZRelease`` build type, but with debug options enabled.
-* ``ZDebugB0`` -- ``ZDebug`` build type with the support for the B0 bootloader enabled (for :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
-* ``ZDebugMCUBoot`` -- ``ZDebug`` build type with the support for the MCUboot bootloader enabled (for :ref:`serial recovery DFU <nrf_desktop_bootloader_serial_dfu>` or :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
-* ``ZDebugWithShell`` -- ``ZDebug`` build type with the shell enabled.
+* ``release`` -- Release version of the application with no debugging features.
+* ``release_b0`` -- ``release`` build type with the support for the B0 bootloader enabled (for :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
+* ``release_mcuboot`` -- ``release`` build type with the support for the MCUboot bootloader enabled (for :ref:`serial recovery DFU <nrf_desktop_bootloader_serial_dfu>` or :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
+* ``debug`` -- Debug version of the application; the same as the ``release`` build type, but with debug options enabled.
+* ``b0`` -- ``debug`` build type with the support for the B0 bootloader enabled (for :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
+* ``mcuboot`` -- ``debug`` build type with the support for the MCUboot bootloader enabled (for :ref:`serial recovery DFU <nrf_desktop_bootloader_serial_dfu>` or :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`).
+* ``shell`` -- ``debug`` build type with the shell enabled.
 
 In nRF Desktop, not every development kit can support every build type mentioned above.
 If the given build type is not supported on the selected DK, an error message will appear when `Building and running`_.
-For example, if the ``ZDebugWithShell`` build type is not supported on the selected DK, the following notification appears:
+For example, if the ``shell`` build type is not supported on the selected DK, the following notification appears:
 
 .. code-block:: console
 
-  Configuration file for build type ZDebugWithShell is missing.
+   File not found: ./ncs/nrf/applications/nrf_desktop/configuration/nrf52dmouse_nrf52832/prj_shell.conf
 
-In addition to the build types mentioned above, some boards can provide more build types, which can be used to generate an application in a specific variant.
-For example, such additional configurations are used to allow generation of application with different role (such as mouse, keyboard, or dongle on a DK) or to select a different link layer (such as LLPM capable Nordic SoftDevice LL or standard Zephyr SW LL).
+|nrf_desktop_build_type_conf|
+For example, the nRF52840 Development Kit supports the ``keyboard`` configuration, which is defined in the :file:`prj_keyboard.conf` file in the :file:`configuration/nrf52840dk_nrf52840` directory.
+This configuration lets you generate the application with the keyboard role.
 
 See :ref:`nrf_desktop_porting_guide` for detailed information about the application configuration and how to create build type files for your hardware.
 
@@ -471,7 +489,7 @@ No additional software or drivers are required.
       .. figure:: /images/nrf_desktop_dongle_usb.svg
          :alt: nRF Desktop dongle
 
-      The dongle has an USB connector located at one end of the board.
+      The dongle has a USB connector located at one end of the board.
       It should be inserted to the USB slot located on the host.
 
 ..
@@ -799,6 +817,13 @@ Selecting a build type
 
 Before you start testing the application, you can select one of the :ref:`nrf_desktop_requirements_build_types`, depending on your development kit and building method.
 
+Selecting a build type in |VSC|
+-------------------------------
+
+.. include:: /gs_modifying.rst
+   :start-after: build_types_selection_vsc_start
+   :end-before: build_types_selection_vsc_end
+
 Selecting a build type in SES
 -----------------------------
 
@@ -902,7 +927,7 @@ The application configuration files define both a set of options with which the 
 Include the following files in this directory:
 
 Mandatory configuration files
-    * Application configuration file for the ``ZDebug`` :ref:`build type <nrf_desktop_requirements_build_types>`.
+    * Application configuration file for the ``debug`` (:file:`prj.conf`) :ref:`build type <nrf_desktop_requirements_build_types>`.
     * Configuration files for the selected modules.
 
 Optional configuration files
@@ -971,7 +996,7 @@ Adding a new board
 ==================
 
 When adding a new board for the first time, focus on a single configuration.
-Moreover, keep the default ``ZDebug`` build type that the application is built with, and do not add any additional build type parameters.
+Moreover, keep the default ``debug`` build type that the application is built with, and do not add any additional build type parameters.
 
 .. note::
     * The following procedure uses the gaming mouse configuration as an example.
@@ -1058,9 +1083,9 @@ First, create a new motion sensor driver that will provide code for communicatio
 Use the two existing |NCS| sensor drivers as an example.
 
 The communication between the application and the sensor is done through a sensor driver API (see :ref:`sensor_api`).
-For motion module to work correctly, the driver must support a trigger (see ``sensor_trigger_set``) on a new data (see ``SENSOR_TRIG_DATA_READY`` trigger type).
+For the motion module to work correctly, the driver must support a trigger (see ``sensor_trigger_set``) on a new data (see ``SENSOR_TRIG_DATA_READY`` trigger type).
 
-When motion data is ready, the driver calls a registered callback.
+When the motion data is ready, the driver calls a registered callback.
 The application starts a process of retrieving a motion data sample.
 The motion module calls ``sensor_sample_fetch`` and then ``sensor_channel_get`` on two sensor channels, ``SENSOR_CHAN_POS_DX`` and ``SENSOR_CHAN_POS_DY``.
 The driver must support these two channels.
@@ -1120,7 +1145,7 @@ The following options are inherited from the ``spi-device`` binding and are comm
 
   .. note::
       To achieve the full speed, data must be propagated through the application and reach Bluetooth LE a few hundred microseconds before the subsequent connection event.
-      If you aim for the lowest latency through the LLPM (a 1-ms interval), the sensor data readout should take no more than 250 us.
+      If you aim for the lowest latency through the LLPM (an interval of 1 ms), the sensor data readout should take no more than 250 us.
       The bus and the sensor configuration must ensure that communication speed is fast enough.
 
 The remaining option ``irq-gpios`` is specific to ``pixart,pmw3360`` binding.
@@ -1164,14 +1189,14 @@ Changing interrupt priority
 You can edit the DTS files to change the priority of the peripheral's interrupt.
 This can be useful when :ref:`adding a new custom board <porting_guide_adding_board>` or whenever you need to change the interrupt priority.
 
-The ``interrupts`` property is an array, where meaning of each element is defined by the specification of the interrupt controller.
+The ``interrupts`` property is an array, where the meaning of each element is defined by the specification of the interrupt controller.
 These specification files are located at :file:`zephyr/dts/bindings/interrupt-controller/` DTS binding file directory.
 
 For example, for nRF52840 the file is :file:`arm,v7m-nvic.yaml`.
 This file defines ``interrupts`` property in the ``interrupt-cells`` list.
-In case of nRF52840, it contains two elements: ``irq`` and ``priority``.
+For nRF52840, it contains two elements: ``irq`` and ``priority``.
 The default values for these elements for the given peripheral can be found in the :file:`dtsi` file specific for the device.
-In case of nRF52840, this is :file:`zephyr/dts/arm/nordic/nrf52840.dtsi`, which has the following ``interrupts`` property for nRF52840:
+In the case of nRF52840, this is :file:`zephyr/dts/arm/nordic/nrf52840.dtsi`, which has the following ``interrupts``:
 
 .. code-block::
 
@@ -1248,7 +1273,9 @@ Memory layout in partition manager
 When the bootloader is enabled, the nRF Desktop application uses the partition manager for the layout configuration of the flash memory.
 The nRF Desktop configurations with bootloader use static configurations of partitions to ensure that the partition layout will not change between builds.
 
-Add the :file:`pm_static_${CMAKE_BUILD_TYPE}.yml` file to the project's board configuration directory to define the static partition manager configuration for given board and build type.
+Add the :file:`pm_static_${BUILD_TYPE}.yml` file to the project's board configuration directory to define the static partition manager configuration for given board and build type.
+For example, to define the static partition layout for the nrf52840dk_nrf52840 board and ``release`` build type, you would need to add the :file:`pm_static_release.yml` file into the :file:`applicatons/nrf_desktop/configuration/nrf52840dk_nrf52840` directory.
+
 Take into account the following points:
 
 * For the :ref:`background firmware upgrade <nrf_desktop_bootloader_background_dfu>`, you must define the secondary image partition.
@@ -1267,7 +1294,7 @@ Enabling external flash can be useful especially for memory-limited devices.
 For example, the MCUboot can use it as a secondary image partition for the :ref:`background firmware upgrade <nrf_desktop_bootloader_background_dfu>`.
 The MCUboot moves the image data from the secondary image partition to the primary image partition before booting the new firmware.
 
-For an example of the nRF Desktop application configuration that uses an external flash, see the ``ZDebugMCUBootQSPI`` configuration of the nRF52840 Development Kit.
+For an example of the nRF Desktop application configuration that uses an external flash, see the ``mcuboot_qspi`` configuration of the nRF52840 Development Kit.
 This configuration uses the ``MX25R64`` external flash that is part of the development kit.
 
 For detailed information, see the :ref:`partition_manager` documentation.
@@ -1492,7 +1519,7 @@ To enable the MCUboot bootloader, select the :kconfig:`CONFIG_BOOTLOADER_MCUBOOT
 
 Configure the MCUboot bootloader with the following options:
 
-* ``CONFIG_BOOT_SIGNATURE_KEY_FILE`` - This option defines the path to the private key that is used to sign the application and that is used by the bootloader to verify the application signature.
+* :kconfig:`CONFIG_BOOT_SIGNATURE_KEY_FILE` - This option defines the path to the private key that is used to sign the application and that is used by the bootloader to verify the application signature.
   The key must be defined only in the MCUboot bootloader configuration file.
 * :kconfig:`CONFIG_IMG_MANAGER` and :kconfig:`CONFIG_MCUBOOT_IMG_MANAGER` - These options allow the application to manage the DFU image.
   Enable both of them only for configurations that support :ref:`background DFU <nrf_desktop_bootloader_background_dfu>`.
@@ -1586,10 +1613,10 @@ Configuring serial recovery DFU
 
 Configure :ref:`MCUboot <mcuboot:mcuboot_wrapper>` to enable the serial recovery DFU through USB.
 The MCUboot configuration for a given board and :ref:`build type <nrf_desktop_requirements_build_types>` should be written to :file:`applications/nrf_desktop/configuration/your_board_name/mcuboot_buildtype.conf`.
-For an example of the configuration, see the ``ZReleaseMCUBoot`` build type of the nRF52820 or the nRF52833 dongle.
+For an example of the configuration, see the ``release_mcuboot`` build type of the nRF52820 or the nRF52833 dongle.
 
 Not every configuration with MCUboot in the nRF Desktop supports the USB serial recovery.
-For example, the ``ZDebugMCUBootSMP`` configuration for the nRF52840 Development Kit supports the MCUboot bootloader with background firmware upgrade.
+For example, the ``mcuboot_smp`` configuration for the nRF52840 Development Kit supports the MCUboot bootloader with background firmware upgrade.
 
 Select the following Kconfig options to enable the serial recovery DFU:
 
@@ -1660,6 +1687,7 @@ These are valid for events that have many listeners or sources, and are gathered
    doc/ble_passkey.rst
    doc/ble_qos.rst
    doc/ble_scan.rst
+   doc/ble_state_pm.rst
    doc/ble_state.rst
    doc/board.rst
    doc/buttons.rst
@@ -1687,6 +1715,7 @@ These are valid for events that have many listeners or sources, and are gathered
    doc/selector.rst
    doc/smp.rst
    doc/settings_loader.rst
+   doc/usb_state_pm.rst
    doc/usb_state.rst
    doc/watchdog.rst
    doc/wheel.rst

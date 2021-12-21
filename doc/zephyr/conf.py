@@ -63,6 +63,10 @@ kconfig_mapping = utils.get_intersphinx_mapping("kconfig")
 if kconfig_mapping:
     intersphinx_mapping["kconfig"] = kconfig_mapping
 
+# -- Options for zephyr.warnings_filter ----------------------------------------
+
+warnings_filter_silent = True
+
 # Options for ncs_cache --------------------------------------------------------
 
 ncs_cache_docset = "zephyr"
@@ -76,3 +80,5 @@ ncs_cache_manifest = NRF_BASE / "west.yml"
 def setup(app):
     app.add_css_file("css/common.css")
     app.add_css_file("css/zephyr.css")
+
+    utils.add_google_analytics(app)

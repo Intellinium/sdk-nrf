@@ -11,7 +11,7 @@ The nRF Cloud library enables applications to connect to Nordic Semiconductor's 
 It abstracts and hides the details of the transport and the encoding scheme that is used for the payload and provides a simplified API interface for sending data from supported sensor types to the cloud.
 The current implementation supports the following technologies:
 
-* GPS and FLIP sensor data
+* GNSS and FLIP sensor data
 * TLS secured MQTT as the communication protocol
 * JSON as the data format
 
@@ -111,7 +111,17 @@ Configuration options for device ID
 Firmware over-the-air (FOTA) updates
 ************************************
 The nRF Cloud library supports FOTA updates for your nRF9160-based device.
-When the library is included by the application, the :kconfig:`CONFIG_NRF_CLOUD_FOTA` option is enabled by default, and the FOTA functionality is made available to the application.
+The :kconfig:`CONFIG_NRF_CLOUD_FOTA` option is enabled by default when :kconfig:`CONFIG_NRF_CLOUD_MQTT` is set.
+This enables FOTA functionality in the application.
+
+nRF Cloud FOTA enables the following additional features and libraries:
+
+* :kconfig:`CONFIG_FOTA_DOWNLOAD` enables :ref:`lib_fota_download`
+* :kconfig:`CONFIG_DFU_TARGET` enables :ref:`lib_dfu_target`
+* :kconfig:`CONFIG_DOWNLOAD_CLIENT` enables :ref:`lib_download_client`
+* :kconfig:`CONFIG_FOTA_DOWNLOAD_PROGRESS_EVT`
+* :kconfig:`CONFIG_REBOOT`
+* :kconfig:`CONFIG_CJSON_LIB`
 
 For FOTA updates to work, the device must provide the information about the supported FOTA types to nRF Cloud.
 The device passes this information by writing a ``fota_v2`` field containing an array of FOTA types into the ``serviceInfo`` field in the device's shadow.
@@ -145,6 +155,18 @@ When the device receives the :c:enumerator:`NRF_CLOUD_EVT_FOTA_DONE` event, the 
 The message payload of the :c:enumerator:`NRF_CLOUD_EVT_FOTA_DONE` event contains the :c:enum:`nrf_cloud_fota_type` value.
 If the value equals :c:enumerator:`NRF_CLOUD_FOTA_MODEM`, the application can optionally avoid a reboot by performing reinitialization of the modem and calling the :c:func:`nrf_cloud_modem_fota_completed` function.
 
+Building FOTA images
+====================
+The build system will create the files :file:`dfu_application.zip` and/or :file:`dfu_mcuboot.zip` for a properly configured application.
+See :ref:`app_build_fota` for more information about FOTA zip files.
+
+When you use the files :file:`dfu_application.zip` or :file:`dfu_mcuboot.zip` to create an update bundle, the `nRF Cloud`_ UI populates the ``Name`` and ``Version`` fields from the :file:`manifest.json` file contained within.
+However, you are free to change them as needed.
+The UI populates the ``Version`` field from only the |NCS| version field in the :file:`manifest.json` file.
+
+Alternatively, you can use the :file:`app_update.bin` file to create an update bundle, but you need to enter the ``Name`` and ``Version`` fields manually.
+See `nRF Cloud Getting Started FOTA documentation`_ to learn how to create an update bundle.
+
 .. _lib_nrf_cloud_data:
 
 Sending sensor data
@@ -170,21 +192,8 @@ Following are the supported UI types on nRF Cloud:
 Removing the link between device and user
 *****************************************
 
-If you want to remove the link between a device and an nRF Cloud user, you must do this from nRF Cloud.
-It is not possible for a device to unlink itself.
-
-When a user disassociates a device, the library disallows any further sensor data to be sent to the cloud and generates an :c:enumerator:`NRF_CLOUD_EVT_USER_ASSOCIATION_REQUEST` event.
-The application can then decide to associate again by responding with :c:func:`nrf_cloud_user_associate` with the new input sequence.
-See the following message sequence chart:
-
-.. msc:
-   hscale = "1.3";
-   Module,Application;
-   Module>>Application      [label="NRF_CLOUD_EVT_USER_ASSOCIATION_REQUEST"];
-   Module<<Application      [label="nrf_cloud_user_associate()"];
-   Module>>Application      [label="NRF_CLOUD_EVT_USER_ASSOCIATED"];
-   Module>>Application      [label="NRF_CLOUD_EVT_READY"];
-   Module>>Application      [label="NRF_CLOUD_EVT_TRANSPORT_DISCONNECTED"];
+If you want to remove the link between a device and an nRF Cloud account, you must do this from nRF Cloud.
+A device cannot remove itself from an nRF Cloud account.
 
 .. _use_nrfcloud_cloudapi:
 
@@ -197,7 +206,7 @@ Initialization
 ==============
 
 To use a defined Cloud API backend, a binding must be obtained using the Cloud API function :c:func:`cloud_get_binding`, to which you can pass the name of the desired backend.
-The nRF Cloud library defines the Cloud API backend as ``NRF_CLOUD`` via the :c:macro:`CLOUD_BACKEND_DEFINE` macro.
+The nRF Cloud library defines the Cloud API backend as ``NRF_CLOUD`` using the :c:macro:`CLOUD_BACKEND_DEFINE` macro.
 
 The backend must be initialized using the :c:func:`cloud_init` function, with the binding, and a function pointer to user-defined Cloud API event handler as parameters.
 If :c:func:`cloud_init` returns success, the backend is ready for use.

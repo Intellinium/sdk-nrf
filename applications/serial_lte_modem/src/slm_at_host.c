@@ -9,12 +9,12 @@
 #include <ctype.h>
 #include <logging/log.h>
 #include <drivers/uart.h>
+#include <hal/nrf_uarte.h>
+#include <hal/nrf_gpio.h>
 #include <sys/ring_buffer.h>
 #include <sys/util.h>
 #include <string.h>
 #include <init.h>
-#include <modem/at_cmd.h>
-#include <modem/at_notif.h>
 #include "slm_util.h"
 #include "slm_at_host.h"
 #include "slm_at_fota.h"
@@ -71,7 +71,7 @@ int slm_setting_uart_save(void);
 
 /* global variable used across different files */
 struct at_param_list at_param_list;           /* For AT parser */
-char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN]; /* SLM URC and socket data */
+char rsp_buf[SLM_AT_CMD_RESPONSE_MAX_LEN];    /* SLM URC and socket data */
 uint16_t datamode_time_limit;                 /* Send trigger by time in data mode */
 
 /* global variable defined in different files */
@@ -197,7 +197,7 @@ int poweroff_uart(void)
 
 	uart_rx_disable(uart_dev);
 	k_sleep(K_MSEC(100));
-	err = pm_device_state_set(uart_dev, PM_DEVICE_STATE_OFF);
+	err = pm_device_state_set(uart_dev, PM_DEVICE_STATE_SUSPENDED);
 	if (err) {
 		LOG_ERR("Can't power off uart: %d", err);
 	}
@@ -229,18 +229,39 @@ int poweron_uart(void)
 	return err;
 }
 
-int set_uart_baudrate(uint32_t baudrate)
+int slm_uart_configure(void)
 {
 	int err;
 
-	LOG_DBG("Set uart baudrate to: %d", baudrate);
+	LOG_DBG("Set uart baudrate to: %d, hw flow control %d", slm_uart.baudrate,
+		slm_uart.flow_ctrl);
 
-	slm_uart.baudrate = baudrate;
 	err = uart_configure(uart_dev, &slm_uart);
 	if (err != 0) {
 		LOG_ERR("uart_configure: %d", err);
+		return err;
 	}
-
+/* Set HWFC dynamically */
+#if defined(CONFIG_UART_0_NRF_HW_ASYNC_TIMER)
+	if (slm_uart.flow_ctrl == UART_CFG_FLOW_CTRL_RTS_CTS) {
+		nrf_uarte_hwfc_pins_set(NRF_UARTE0,
+					DT_PROP(DT_NODELABEL(uart0), rts_pin),
+					DT_PROP(DT_NODELABEL(uart0), cts_pin));
+	} else {
+		nrf_uarte_hwfc_pins_disconnect(NRF_UARTE0);
+		nrf_gpio_pin_clear(DT_PROP(DT_NODELABEL(uart0), rts_pin));
+	}
+#endif
+#if defined(CONFIG_UART_2_NRF_HW_ASYNC_TIMER)
+	if (slm_uart.flow_ctrl == UART_CFG_FLOW_CTRL_RTS_CTS) {
+		nrf_uarte_hwfc_pins_set(NRF_UARTE2,
+					DT_PROP(DT_NODELABEL(uart2), rts_pin),
+					DT_PROP(DT_NODELABEL(uart2), cts_pin));
+	} else {
+		nrf_uarte_hwfc_pins_disconnect(NRF_UARTE2);
+		nrf_gpio_pin_clear(DT_PROP(DT_NODELABEL(uart2), rts_pin));
+	}
+#endif
 	return err;
 }
 
@@ -268,16 +289,14 @@ bool verify_datamode_control(uint16_t time_limit, uint16_t *min_time_limit)
 	return true;
 }
 
-static void response_handler(void *context, const char *response)
+AT_MONITOR(at_notify, ANY, notification_handler);
+
+static void notification_handler(const char *response)
 {
-	int len = strlen(response);
-
-	ARG_UNUSED(context);
-
-	/* Forward the data over UART */
-	if (slm_operation_mode == SLM_AT_COMMAND_MODE && len > 0) {
+	if (slm_operation_mode == SLM_AT_COMMAND_MODE) {
+		/* Forward the data over UART */
 		rsp_send("\r\n", 2);
-		rsp_send(response, len);
+		rsp_send(response, strlen(response));
 	}
 }
 
@@ -511,8 +530,6 @@ static int cmd_grammar_check(const uint8_t *cmd, uint16_t length)
 
 static void cmd_send(struct k_work *work)
 {
-	char str[32];
-	enum at_cmd_state state;
 	int err;
 
 	ARG_UNUSED(work);
@@ -542,34 +559,18 @@ static void cmd_send(struct k_work *work)
 	}
 
 	/* Send to modem */
-	err = at_cmd_write(at_buf, at_buf, sizeof(at_buf), &state);
+	err = nrf_modem_at_cmd(at_buf, sizeof(at_buf), "%s", at_buf);
 	if (err < 0) {
-		LOG_ERR("AT command error: %d", err);
-		state = AT_CMD_ERROR;
+		LOG_ERR("AT command failed: %d", err);
+		rsp_send(ERROR_STR, sizeof(ERROR_STR) - 1);
+		goto done;
+	} else if (err > 0) {
+		LOG_ERR("AT command error, type: %d", nrf_modem_at_err_type(err));
 	}
 
 	if (strlen(at_buf) > 0) {
 		rsp_send("\r\n", 2);
 		rsp_send(at_buf, strlen(at_buf));
-	}
-
-	switch (state) {
-	case AT_CMD_OK:
-		rsp_send(OK_STR, sizeof(OK_STR) - 1);
-		break;
-	case AT_CMD_ERROR:
-		rsp_send(ERROR_STR, sizeof(ERROR_STR) - 1);
-		break;
-	case AT_CMD_ERROR_CMS:
-		sprintf(str, "\r\n+CMS ERROR: %d\r\n", err);
-		rsp_send(str, strlen(str));
-		break;
-	case AT_CMD_ERROR_CME:
-		sprintf(str, "\r\n+CME ERROR: %d\r\n", err);
-		rsp_send(str, strlen(str));
-		break;
-	default:
-		break;
 	}
 
 done:
@@ -752,9 +753,17 @@ int slm_at_host_init(void)
 			return err;
 		}
 		uart_configured = true;
-	} /* else re-config UART based on setting page */
-	LOG_DBG("UART baud: %d d/p/s-bits: %d/%d/%d HWFC: %d", slm_uart.baudrate,
-		slm_uart.data_bits, slm_uart.parity, slm_uart.stop_bits, slm_uart.flow_ctrl);
+	} else {
+		/* else re-config UART based on setting page */
+		LOG_DBG("UART baud: %d d/p/s-bits: %d/%d/%d HWFC: %d",
+			slm_uart.baudrate, slm_uart.data_bits, slm_uart.parity,
+			slm_uart.stop_bits, slm_uart.flow_ctrl);
+		err = slm_uart_configure();
+		if (err != 0) {
+			LOG_ERR("Fail to set uart baudrate: %d", err);
+			return err;
+		}
+	}
 	/* Wait for the UART line to become valid */
 	start_time = k_uptime_get_32();
 	do {
@@ -780,12 +789,6 @@ int slm_at_host_init(void)
 	err = uart_receive();
 	if (err) {
 		return -EFAULT;
-	}
-
-	err = at_notif_register_handler(NULL, response_handler);
-	if (err) {
-		LOG_ERR("Can't register handler: %d", err);
-		return err;
 	}
 
 	/* Initialize AT Parser */
@@ -827,15 +830,10 @@ void slm_at_host_uninit(void)
 
 	slm_at_uninit();
 
-	err = at_notif_deregister_handler(NULL, response_handler);
-	if (err) {
-		LOG_WRN("Can't deregister handler: %d", err);
-	}
-
 	/* Power off UART module */
 	uart_rx_disable(uart_dev);
 	k_sleep(K_MSEC(100));
-	err = pm_device_state_set(uart_dev, PM_DEVICE_STATE_OFF);
+	err = pm_device_state_set(uart_dev, PM_DEVICE_STATE_SUSPENDED);
 	if (err) {
 		LOG_WRN("Can't power off uart: %d", err);
 	}

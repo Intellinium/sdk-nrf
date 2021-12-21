@@ -16,8 +16,10 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/conn.h>
+#include <bluetooth/gatt.h>
 
 #include <nrf_rpc_cbor.h>
+#include <cbkproxy.h>
 
 /** @brief Client commands IDs used in bluetooth API serialization.
  *         Those commands are sent from the client to the host.
@@ -72,6 +74,7 @@ enum bt_rpc_cmd_from_cli_to_host {
 	BT_LE_EXT_ADV_OOB_GET_LOCAL_RPC_CMD,
 	BT_UNPAIR_RPC_CMD,
 	BT_FOREACH_BOND_RPC_CMD,
+	BT_SETTINGS_LOAD_RPC_CMD,
 	/* conn.h API */
 	BT_CONN_REMOTE_UPDATE_REF_RPC_CMD,
 	BT_CONN_GET_INFO_RPC_CMD,
@@ -102,6 +105,33 @@ enum bt_rpc_cmd_from_cli_to_host {
 	BT_CONN_FOREACH_RPC_CMD,
 	BT_CONN_LOOKUP_ADDR_LE_RPC_CMD,
 	BT_CONN_GET_DST_OUT_RPC_CMD,
+	/* gatt.h API */
+	BT_RPC_GATT_START_SERVICE_RPC_CMD,
+	BT_RPC_GATT_SEND_SIMPLE_ATTR_RPC_CMD,
+	BT_RPC_GATT_SEND_DESC_ATTR_RPC_CMD,
+	BT_RPC_GATT_END_SERVICE_RPC_CMD,
+	BT_RPC_GATT_SERVICE_UNREGISTER_RPC_CMD,
+	BT_GATT_NOTIFY_CB_RPC_CMD,
+	BT_GATT_INDICATE_RPC_CMD,
+	BT_GATT_IS_SUBSCRIBED_RPC_CMD,
+	BT_GATT_GET_MTU_RPC_CMD,
+	BT_GATT_ATTR_GET_HANDLE_RPC_CMD,
+	BT_LE_GATT_CB_REGISTER_ON_REMOTE_RPC_CMD,
+	BT_GATT_EXCHANGE_MTU_RPC_CMD,
+	BT_GATT_DISCOVER_RPC_CMD,
+	BT_GATT_READ_RPC_CMD,
+	BT_GATT_WRITE_RPC_CMD,
+	BT_GATT_WRITE_WITHOUT_RESPONSE_CB_RPC_CMD,
+	BT_GATT_SUBSCRIBE_RPC_CMD,
+	BT_GATT_RESUBSCRIBE_RPC_CMD,
+	BT_GATT_UNSUBSCRIBE_RPC_CMD,
+	BT_RPC_GATT_SUBSCRIBE_FLAG_UPDATE_RPC_CMD,
+	/* crypto.h API */
+	BT_RAND_RPC_CMD,
+	BT_ENCRYPT_LE_RPC_CMD,
+	BT_ENCRYPT_BE_RPC_CMD,
+	BT_CCM_DECRYPT_RPC_CMD,
+	BT_CCM_ENCRYPT_RPC_CMD,
 };
 
 /** @brief Host commands IDs used in bluetooth API serialization.
@@ -141,6 +171,22 @@ enum bt_rpc_cmd_from_host_to_cli {
 	BT_RPC_AUTH_CB_PAIRING_COMPLETE_RPC_CMD,
 	BT_RPC_AUTH_CB_PAIRING_FAILED_RPC_CMD,
 	BT_CONN_FOREACH_CB_CALLBACK_RPC_CMD,
+	/* gatt.h API */
+	BT_RPC_GATT_CB_ATTR_READ_RPC_CMD,
+	BT_RPC_GATT_CB_ATTR_WRITE_RPC_CMD,
+	BT_RPC_GATT_CB_CCC_CFG_CHANGED_RPC_CMD,
+	BT_RPC_GATT_CB_CCC_CFG_WRITE_RPC_CMD,
+	BT_RPC_GATT_CB_CCC_CFG_MATCH_RPC_CMD,
+	BT_GATT_COMPLETE_FUNC_T_CALLBACK_RPC_CMD,
+	BT_GATT_INDICATE_FUNC_T_CALLBACK_RPC_CMD,
+	BT_GATT_INDICATE_PARAMS_DESTROY_T_CALLBACK_RPC_CMD,
+	BT_GATT_CB_ATT_MTU_UPDATE_CALL_RPC_CMD,
+	BT_GATT_EXCHANGE_MTU_CALLBACK_RPC_CMD,
+	BT_GATT_DISCOVER_CALLBACK_RPC_CMD,
+	BT_GATT_READ_CALLBACK_RPC_CMD,
+	BT_GATT_WRITE_CALLBACK_RPC_CMD,
+	BT_GATT_SUBSCRIBE_PARAMS_NOTIFY_RPC_CMD,
+	BT_GATT_SUBSCRIBE_PARAMS_WRITE_RPC_CMD,
 };
 
 /** @brief Host events IDs used in bluetooth API serialization.
@@ -222,5 +268,10 @@ void bt_rpc_encode_bt_conn(CborEncoder *encoder, const struct bt_conn *conn);
  * @retval Connection object.
  */
 struct bt_conn *bt_rpc_decode_bt_conn(CborValue *value);
+
+/** @brief Declaration of callback proxy encoder for bt_gatt_complete_func_t.
+ */
+CBKPROXY_HANDLER_DECL(bt_gatt_complete_func_t_encoder,
+		 (struct bt_conn *conn, void *user_data), (conn, user_data));
 
 #endif /* BT_RPC_COMMON_H_ */

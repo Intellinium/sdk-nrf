@@ -4,9 +4,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-if (CONFIG_BT OR CONFIG_BT_RPC_CLIENT)
-  add_subdirectory(bluetooth)
-endif()
+add_subdirectory_ifdef(CONFIG_BT bluetooth)
 
 add_subdirectory_ifdef(CONFIG_IS_SECURE_BOOTLOADER bootloader)
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT bootloader/image)
@@ -17,6 +15,7 @@ add_subdirectory_ifdef(CONFIG_SECURE_BOOT_STORAGE bootloader/bl_storage)
 add_subdirectory(net)
 add_subdirectory_ifdef(CONFIG_ESB		esb)
 add_subdirectory_ifdef(CONFIG_EVENT_MANAGER	event_manager)
+add_subdirectory_ifdef(CONFIG_EVENT_MANAGER	event_manager_profiler_tracer)
 add_subdirectory_ifdef(CONFIG_CAF		caf)
 add_subdirectory_ifdef(CONFIG_PROFILER		profiler)
 add_subdirectory(dfu)
@@ -32,6 +31,7 @@ endif()
 add_subdirectory_ifdef(CONFIG_MPSL_CX mpsl/cx)
 add_subdirectory_ifdef(CONFIG_ZIGBEE zigbee)
 add_subdirectory_ifdef(CONFIG_MGMT_FMFU mgmt/fmfu)
+add_subdirectory_ifdef(CONFIG_GAZELL gazell)
 
 if (CONFIG_NFC_T2T_NRFXLIB OR
     CONFIG_NFC_T4T_NRFXLIB OR

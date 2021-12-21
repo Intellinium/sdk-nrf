@@ -21,6 +21,7 @@
 
 LOG_MODULE_DECLARE(nrf_cloud_pgps, CONFIG_NRF_CLOUD_GPS_LOG_LEVEL);
 
+#define SOCKET_RETRIES				CONFIG_NRF_CLOUD_PGPS_SOCKET_RETRIES
 #define SETTINGS_NAME				"nrf_cloud_pgps"
 #define SETTINGS_KEY_PGPS_HEADER		"pgps_header"
 #define SETTINGS_FULL_PGPS_HEADER		SETTINGS_NAME "/" SETTINGS_KEY_PGPS_HEADER
@@ -80,9 +81,9 @@ static int settings_set(const char *key, size_t len_rd,
 		     strlen(SETTINGS_KEY_LOCATION)) &&
 	    (len_rd == sizeof(saved_location))) {
 		if (read_cb(cb_arg, (void *)&saved_location, len_rd) == len_rd) {
-			LOG_DBG("Read location:%d, %d, gps sec:%lld",
+			LOG_DBG("Read location:%d, %d, gps sec:%d",
 				saved_location.latitude, saved_location.longitude,
-				saved_location.gps_sec);
+				(int32_t)saved_location.gps_sec);
 			return 0;
 		}
 	}
@@ -117,9 +118,9 @@ static int save_location(void)
 {
 	int ret = 0;
 
-	LOG_DBG("Saving location:%d, %d; gps sec:%lld",
+	LOG_DBG("Saving location:%d, %d; gps sec:%d",
 		saved_location.latitude, saved_location.longitude,
-		saved_location.gps_sec);
+		(int32_t)saved_location.gps_sec);
 	ret = settings_save_one(SETTINGS_FULL_LOCATION,
 				&saved_location, sizeof(saved_location));
 	return ret;
@@ -212,7 +213,7 @@ static int64_t utc_to_gps_sec(const int64_t utc, int16_t *gps_time_ms)
 	}
 	gps_sec = (utc_sec - GPS_TO_UNIX_UTC_OFFSET_SECONDS) + gps_leap_seconds;
 
-	LOG_DBG("Converted UTC sec:%lld to GPS sec:%lld", utc_sec, gps_sec);
+	LOG_DBG("Converted UTC sec:%d to GPS sec:%d", (int32_t)utc_sec, (int32_t)gps_sec);
 	return gps_sec;
 }
 
@@ -221,8 +222,8 @@ int64_t npgps_gps_day_time_to_sec(uint16_t gps_day, uint32_t gps_time_of_day)
 	int64_t gps_sec = (int64_t)gps_day * SEC_PER_DAY + gps_time_of_day;
 
 #if PGPS_DEBUG
-	LOG_DBG("Converted GPS day:%u, time of day:%u to GPS sec:%lld",
-		gps_day, gps_time_of_day, gps_sec);
+	LOG_DBG("Converted GPS day:%u, time of day:%u to GPS sec:%d",
+		gps_day, gps_time_of_day, (int32_t)gps_sec);
 #endif
 	return gps_sec;
 }
@@ -236,8 +237,8 @@ void npgps_gps_sec_to_day_time(int64_t gps_sec, uint16_t *gps_day,
 	day = (uint16_t)(gps_sec / SEC_PER_DAY);
 	time = (uint32_t)(gps_sec - (day * SEC_PER_DAY));
 #if PGPS_DEBUG
-	LOG_DBG("Converted GPS sec:%lld to day:%u, time of day:%u, week:%u",
-		gps_sec, day, time,
+	LOG_DBG("Converted GPS sec:%d to day:%u, time of day:%u, week:%u",
+		(int32_t)gps_sec, day, time,
 		(uint16_t)(day / DAYS_PER_WEEK));
 #endif
 	if (gps_day) {
@@ -438,7 +439,7 @@ int npgps_download_init(npgps_buffer_handler_t handler)
 }
 
 int npgps_download_start(const char *host, const char *file, int sec_tag,
-			 const char *apn, size_t fragment_size)
+			 uint8_t pdn_id, size_t fragment_size)
 {
 	if (host == NULL || file == NULL) {
 		return -EINVAL;
@@ -453,11 +454,11 @@ int npgps_download_start(const char *host, const char *file, int sec_tag,
 	}
 	LOG_DBG("pgps_active LOCKED");
 
-	socket_retries_left = CONFIG_FOTA_SOCKET_RETRIES;
+	socket_retries_left = SOCKET_RETRIES;
 
 	struct download_client_cfg config = {
 		.sec_tag = sec_tag,
-		.apn = apn,
+		.pdn_id = pdn_id,
 		.frag_size_override = fragment_size,
 		.set_tls_hostname = (sec_tag != -1),
 	};
@@ -518,10 +519,12 @@ static int download_client_callback(const struct download_client_evt *event)
 		return 0;
 	}
 
-	err = download_client_disconnect(&dlc);
-	if (err) {
+	int ret = download_client_disconnect(&dlc);
+
+	if (ret) {
 		LOG_ERR("Error disconnecting from "
-			"download client:%d", err);
+			"download client:%d", ret);
+		err = ret;
 	}
 	k_sem_give(&pgps_active);
 	LOG_DBG("pgps_active UNLOCKED");

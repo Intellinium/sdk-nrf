@@ -13,6 +13,8 @@ rsource "dfu/Kconfig"
 
 rsource "esb/Kconfig"
 
+rsource "gazell/Kconfig"
+
 rsource "pcd/Kconfig"
 
 rsource "net/Kconfig"
@@ -20,6 +22,8 @@ rsource "net/Kconfig"
 rsource "nfc/Kconfig"
 
 rsource "event_manager/Kconfig"
+
+rsource "event_manager_profiler_tracer/Kconfig"
 
 rsource "profiler/Kconfig"
 

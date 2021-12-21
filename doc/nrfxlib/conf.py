@@ -21,7 +21,7 @@ NRFXLIB_BASE = utils.get_projdir("nrfxlib")
 project = "nrfxlib"
 copyright = "2019-2021, Nordic Semiconductor"
 author = "Nordic Semiconductor"
-version = release = "1.7.99"
+version = release = "1.8.0"
 
 sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
@@ -75,7 +75,6 @@ if nrf_mapping:
 # -- Options for zephyr.warnings_filter ----------------------------------------
 
 warnings_filter_config = str(NRF_BASE / "doc" / "nrfxlib" / "known-warnings.txt")
-warnings_filter_silent = False
 
 # -- Options for doxyrunner plugin ---------------------------------------------
 
@@ -132,3 +131,5 @@ ncs_cache_manifest = NRF_BASE / "west.yml"
 def setup(app):
     app.add_css_file("css/common.css")
     app.add_css_file("css/nrfxlib.css")
+
+    utils.add_google_analytics(app)

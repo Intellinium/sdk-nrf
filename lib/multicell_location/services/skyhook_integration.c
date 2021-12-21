@@ -7,9 +7,11 @@
 #include <zephyr.h>
 #include <stdio.h>
 #include <modem/lte_lc.h>
-#include <modem/modem_info.h>
+#include <modem/modem_jwt.h>
+#include <net/rest_client.h>
 #include <cJSON.h>
 #include <cJSON_os.h>
+#include <net/multicell_location.h>
 
 #include "location_service.h"
 
@@ -18,27 +20,33 @@
 LOG_MODULE_REGISTER(multicell_location_skyhook, CONFIG_MULTICELL_LOCATION_LOG_LEVEL);
 
 #define API_KEY		CONFIG_MULTICELL_LOCATION_SKYHOOK_API_KEY
-#define HOSTNAME	CONFIG_MULTICELL_LOCATION_HOSTNAME
+#define HOSTNAME	CONFIG_MULTICELL_LOCATION_SKYHOOK_HOSTNAME
 
 /* The timing advance returned by the nRF9160 modem must be divided by 16
  * to have the range expected by Skyhook.
  */
 #define TA_DIVIDER		16
+/* Estimated size for current cell information */
+#define CURRENT_CELL_SIZE	250
 /* Buffer size for neighbor element objects */
-#define NEIGHBOR_ELEMENT_SIZE	100
+#define NEIGHBOR_ELEMENT_SIZE	120
 /* Neighbor buffer size that will hold all neighbor cell objects */
 #define NEIGHBOR_BUFFER_SIZE	(CONFIG_MULTICELL_LOCATION_MAX_NEIGHBORS * NEIGHBOR_ELEMENT_SIZE)
+/* Estimated size for HTTP request body */
+#define HTTP_BODY_SIZE		(CURRENT_CELL_SIZE + NEIGHBOR_BUFFER_SIZE)
 
 /* URL and query string format:
  * https://global.skyhookwireless.com/wps2/json/location?key=<API KEY>&user=<DEVICE ID>
  */
 
-#define HTTP_REQUEST_HEADER						\
-	"POST /wps2/json/location?key="API_KEY"&user=%s HTTP/1.1\r\n"	\
-	"Host: "HOSTNAME"\r\n"					        \
-	"Content-Type: application/json\r\n"				\
-	"Connection: close\r\n"						\
-	"Content-Length: %d\r\n\r\n"
+#define API_LOCATE_PATH		"/wps2/json/location"
+#define API_KEY_PARAM		"key="API_KEY
+#define REQUEST_URL		API_LOCATE_PATH"?"API_KEY_PARAM"&user=%s"
+#define REQUEST_URL_NO_USER	API_LOCATE_PATH"?"API_KEY_PARAM
+
+#define HEADER_CONTENT_TYPE    "Content-Type: application/json\r\n"
+#define HEADER_CONNECTION      "Connection: close\r\n"
+
 
 #define HTTP_REQUEST_BODY                                               \
 	"{"								\
@@ -88,6 +96,12 @@ LOG_MODULE_REGISTER(multicell_location_skyhook, CONFIG_MULTICELL_LOCATION_LOG_LE
 		"\"serving\": false"					\
 	"}"
 
+BUILD_ASSERT(sizeof(API_KEY) > 1, "API key must be configured");
+BUILD_ASSERT(sizeof(HOSTNAME) > 1, "Hostname must be configured");
+
+static char body[HTTP_BODY_SIZE];
+static char neighbors[NEIGHBOR_BUFFER_SIZE];
+
 /* TLS certificate:
  *	DigiCert Global Root CA
  *	CN=DigiCert Global Root CA
@@ -122,18 +136,7 @@ static const char tls_certificate[] =
 	"CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=\n"
 	"-----END CERTIFICATE-----\n";
 
-BUILD_ASSERT(sizeof(API_KEY) > 1, "API key must be configured");
-BUILD_ASSERT(sizeof(HOSTNAME) > 1, "Hostname must be configured");
-
-static char body[1536];
-static char neighbors[NEIGHBOR_BUFFER_SIZE];
-
-const char *location_service_get_hostname(void)
-{
-	return HOSTNAME;
-}
-
-const char *location_service_get_certificate(void)
+const char *location_service_get_certificate_skyhook(void)
 {
 	return tls_certificate;
 }
@@ -147,16 +150,15 @@ static int adjust_rsrp(int input)
 	return input - 141;
 }
 
-int location_service_generate_request(const struct lte_lc_cells_info *cell_data,
-				      const char *const device_id,
-				      char *buf, size_t buf_len)
+int location_service_generate_request(
+	const struct lte_lc_cells_info *cell_data,
+	char *buf,
+	size_t buf_len)
 {
 	int len;
 	enum lte_lc_lte_mode mode;
 	int err;
-	char imei[20];
 	char timing_advance[30];
-	char *dev_id = device_id ? (char *)device_id : imei;
 	size_t neighbors_to_use =
 		MIN(CONFIG_MULTICELL_LOCATION_MAX_NEIGHBORS, cell_data->ncells_count);
 
@@ -167,30 +169,6 @@ int location_service_generate_request(const struct lte_lc_cells_info *cell_data,
 	if (cell_data->current_cell.id == 0) {
 		LOG_WRN("No cells were found");
 		return -ENOENT;
-	}
-
-	err = modem_info_init();
-	if (err) {
-		LOG_ERR("modem_info_init failed, error: %d", err);
-		return err;
-	}
-
-	if (device_id == NULL) {
-		err = modem_info_string_get(MODEM_INFO_IMEI, imei, sizeof(imei));
-		if (err < 0) {
-			LOG_ERR("Failed to get IMEI, error: %d", err);
-			LOG_WRN("Falling back to uptime as user ID");
-
-			len = snprintk(imei, sizeof(imei), "%d", k_cycle_get_32());
-			if ((len < 0) || (len >= sizeof(imei))) {
-				LOG_ERR("Too small buffer for IMEI buffer");
-				return -ENOMEM;
-			}
-
-		} else {
-			/* Null-terminate the IMEI. */
-			imei[15] = '\0';
-		}
 	}
 
 	err = lte_lc_lte_mode_get(&mode);
@@ -212,7 +190,7 @@ int location_service_generate_request(const struct lte_lc_cells_info *cell_data,
 	}
 
 	if (neighbors_to_use == 0) {
-		len = snprintk(body, sizeof(body), HTTP_REQUEST_BODY_NO_NEIGHBORS,
+		len = snprintk(buf, buf_len, HTTP_REQUEST_BODY_NO_NEIGHBORS,
 			 mode == LTE_LC_LTE_MODE_LTEM ? "lte" : "nbiot",
 			 cell_data->current_cell.mcc,
 			 cell_data->current_cell.mnc,
@@ -222,12 +200,6 @@ int location_service_generate_request(const struct lte_lc_cells_info *cell_data,
 			 timing_advance,
 			 adjust_rsrp(cell_data->current_cell.rsrp),
 			 cell_data->current_cell.earfcn);
-		if ((len < 0) || (len >= sizeof(body))) {
-			LOG_ERR("Too small buffer for HTTP request body");
-			return -ENOMEM;
-		}
-
-		len = snprintk(buf, buf_len, HTTP_REQUEST_HEADER "%s", dev_id, strlen(body), body);
 		if ((len < 0) || (len >= buf_len)) {
 			LOG_ERR("Too small buffer for HTTP request body");
 			return -ENOMEM;
@@ -267,7 +239,7 @@ int location_service_generate_request(const struct lte_lc_cells_info *cell_data,
 		strncat(neighbors, element, sizeof(neighbors) - strlen(neighbors));
 	}
 
-	len = snprintk(body, sizeof(body), HTTP_REQUEST_BODY,
+	len = snprintk(buf, buf_len, HTTP_REQUEST_BODY,
 		 mode == LTE_LC_LTE_MODE_LTEM ? "lte" : "nbiot",
 		 cell_data->current_cell.mcc,
 		 cell_data->current_cell.mnc,
@@ -278,25 +250,20 @@ int location_service_generate_request(const struct lte_lc_cells_info *cell_data,
 		 adjust_rsrp(cell_data->current_cell.rsrp),
 		 cell_data->current_cell.earfcn,
 		 neighbors);
-	if ((len < 0) || (len >= sizeof(body))) {
-		LOG_ERR("Too small buffer for HTTP request body");
-		return -ENOMEM;
-	}
-
-	len = snprintk(buf, buf_len, HTTP_REQUEST_HEADER "%s", dev_id, strlen(body), body);
 	if ((len < 0) || (len >= buf_len)) {
-		LOG_ERR("Too small buffer for HTTP request");
+		LOG_ERR("Too small buffer for HTTP request body");
 		return -ENOMEM;
 	}
 
 	return 0;
 }
 
-int location_service_parse_response(const char *response, struct multicell_location *location)
+static int location_service_parse_response(
+	const char *response,
+	struct multicell_location *location)
 {
 	int err;
 	struct cJSON *root_obj, *location_obj, *lat_obj, *lng_obj, *accuracy_obj;
-	char *json_start, *http_status;
 	static bool cjson_is_init;
 
 	if ((response == NULL) || (location == NULL)) {
@@ -309,27 +276,12 @@ int location_service_parse_response(const char *response, struct multicell_locat
 		cjson_is_init = true;
 	}
 
-	/* The expected response format is the following:
+	/* The expected body format of the response is the following:
 	 *
-	 * HTTP/1.1 <HTTP status, 200 OK if successful>
-	 * <Additional HTTP header elements>
-	 * <\r\n\r\n>
 	 * {"location":{"lat":<double>,"lng":<double>},"accuracy":<double>}
 	 */
 
-	http_status = strstr(response, "HTTP/1.1 200");
-	if (http_status == NULL) {
-		LOG_ERR("HTTP status was not 200");
-		return -1;
-	}
-
-	json_start = strstr(response, "\r\n\r\n");
-	if (json_start == NULL) {
-		LOG_ERR("No payload found");
-		return -1;
-	}
-
-	root_obj = cJSON_Parse(json_start);
+	root_obj = cJSON_Parse(response);
 	if (root_obj == NULL) {
 		LOG_ERR("Could not parse JSON in payload");
 		return -1;
@@ -376,5 +328,96 @@ int location_service_parse_response(const char *response, struct multicell_locat
 clean_exit:
 	cJSON_Delete(root_obj);
 
+	return err;
+}
+
+static int location_service_generate_url(char * const request_url, const size_t request_url_len)
+{
+	int err;
+	int len;
+	struct nrf_modem_fw_uuid mfw_uuid;
+
+	err = modem_jwt_get_uuids(NULL, &mfw_uuid);
+	if (err) {
+		LOG_WRN("modem_jwt_get_uuids failed (error: %d), not setting UUID as user id", err);
+		len = snprintk(request_url, request_url_len, REQUEST_URL_NO_USER);
+	} else {
+		len = snprintk(request_url, request_url_len, REQUEST_URL, mfw_uuid.str);
+	}
+
+	if ((len < 0) || (len >= request_url_len)) {
+		LOG_ERR("Too small buffer for HTTP request URL");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+int location_service_get_cell_location_skyhook(
+	const struct lte_lc_cells_info *cell_data,
+	char * const rcv_buf,
+	const size_t rcv_buf_len,
+	struct multicell_location *const location)
+{
+	int err;
+	/* Reserving NRF_MODEM_FW_UUID_STR_LEN bytes for UUID */
+	char request_url[sizeof(REQUEST_URL) + NRF_MODEM_FW_UUID_STR_LEN + 1];
+	struct rest_client_req_context req_ctx = { 0 };
+	struct rest_client_resp_context resp_ctx = { 0 };
+	char *const headers[] = {
+		HEADER_CONTENT_TYPE,
+		HEADER_CONNECTION,
+		/* Note: Content-length set according to payload in HTTP library */
+		NULL
+	};
+
+	err = location_service_generate_url(request_url, sizeof(request_url));
+	if (err) {
+		LOG_ERR("location_service_generate_url failed, error: %d", err);
+		return err;
+	}
+
+	LOG_DBG("Generated request URL:\r\n%s", log_strdup(request_url));
+
+	err = location_service_generate_request(cell_data, body, sizeof(body));
+	if (err) {
+		LOG_ERR("Failed to generate HTTP request, error: %d", err);
+		return err;
+	}
+
+	LOG_DBG("Generated request body:\r\n%s", log_strdup(body));
+
+	/* Set the defaults: */
+	rest_client_request_defaults_set(&req_ctx);
+	req_ctx.http_method = HTTP_POST;
+	req_ctx.url = request_url;
+	req_ctx.sec_tag = CONFIG_MULTICELL_LOCATION_SKYHOOK_TLS_SEC_TAG;
+	req_ctx.port = CONFIG_MULTICELL_LOCATION_SKYHOOK_HTTPS_PORT;
+	req_ctx.host = CONFIG_MULTICELL_LOCATION_SKYHOOK_HOSTNAME;
+	req_ctx.header_fields = (const char **)headers;
+	req_ctx.resp_buff = rcv_buf;
+	req_ctx.resp_buff_len = rcv_buf_len;
+
+	/* Get the body/payload to request: */
+	req_ctx.body = body;
+
+	err = rest_client_request(&req_ctx, &resp_ctx);
+	if (err) {
+		LOG_ERR("Error from rest client lib, err: %d", err);
+		return err;
+	}
+
+	if (resp_ctx.http_status_code != REST_CLIENT_HTTP_STATUS_OK) {
+		LOG_ERR("HTTP status: %d", resp_ctx.http_status_code);
+		/* Let it fail in parsing */
+	}
+
+	LOG_DBG("Received response body:\r\n%s", log_strdup(resp_ctx.response));
+
+	err = location_service_parse_response(resp_ctx.response, location);
+	if (err) {
+		LOG_ERR("Failed to parse HTTP response");
+		return -ENOMSG;
+	}
 	return err;
 }

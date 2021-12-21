@@ -11,8 +11,6 @@
 #include <modem/nrf_modem_lib.h>
 #include <net/tls_credentials.h>
 #include <modem/lte_lc.h>
-#include <modem/at_cmd.h>
-#include <modem/at_notif.h>
 #include <modem/modem_key_mgmt.h>
 
 #define HTTPS_PORT 443
@@ -41,51 +39,37 @@ static const char cert[] = {
 
 BUILD_ASSERT(sizeof(cert) < KB(4), "Certificate too large");
 
-
-/* Initialize AT communications */
-int at_comms_init(void)
-{
-	int err;
-
-	err = at_cmd_init();
-	if (err) {
-		printk("Failed to initialize AT commands, err %d\n", err);
-		return err;
-	}
-
-	err = at_notif_init();
-	if (err) {
-		printk("Failed to initialize AT notifications, err %d\n", err);
-		return err;
-	}
-
-	return 0;
-}
-
 /* Provision certificate to modem */
 int cert_provision(void)
 {
 	int err;
 	bool exists;
-	uint8_t unused;
+	int mismatch;
 
-	err = modem_key_mgmt_exists(TLS_SEC_TAG,
-				    MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN,
-				    &exists, &unused);
+	/* It may be sufficient for you application to check whether the correct
+	 * certificate is provisioned with a given tag directly using modem_key_mgmt_cmp().
+	 * Here, for the sake of the completeness, we check that a certificate exists
+	 * before comparing it with what we expect it to be.
+	 */
+	err = modem_key_mgmt_exists(TLS_SEC_TAG, MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN, &exists);
 	if (err) {
 		printk("Failed to check for certificates err %d\n", err);
 		return err;
 	}
 
 	if (exists) {
-		/* For the sake of simplicity we delete what is provisioned
-		 * with our security tag and reprovision our certificate.
-		 */
-		err = modem_key_mgmt_delete(TLS_SEC_TAG,
-					    MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN);
+		mismatch = modem_key_mgmt_cmp(TLS_SEC_TAG,
+					      MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN,
+					      cert, strlen(cert));
+		if (!mismatch) {
+			printk("Certificate match\n");
+			return 0;
+		}
+
+		printk("Certificate mismatch\n");
+		err = modem_key_mgmt_delete(TLS_SEC_TAG, MODEM_KEY_MGMT_CRED_TYPE_CA_CHAIN);
 		if (err) {
-			printk("Failed to delete existing certificate, err %d\n",
-			       err);
+			printk("Failed to delete existing certificate, err %d\n", err);
 		}
 	}
 
@@ -113,6 +97,13 @@ int tls_setup(int fd)
 	const sec_tag_t tls_sec_tag[] = {
 		TLS_SEC_TAG,
 	};
+
+#if defined(CONFIG_SAMPLE_TFM_MBEDTLS)
+	err = tls_credential_add(tls_sec_tag[0], TLS_CREDENTIAL_CA_CERTIFICATE, cert, sizeof(cert));
+	if (err) {
+		return err;
+	}
+#endif
 
 	/* Set up TLS peer verification */
 	enum {
@@ -162,23 +153,13 @@ void main(void)
 
 	printk("HTTPS client sample started\n\r");
 
-	err = nrf_modem_lib_init(NORMAL_MODE);
-	if (err) {
-		printk("Failed to initialize modem library!");
-		return;
-	}
-
-	/* Initialize AT comms in order to provision the certificate */
-	err = at_comms_init();
-	if (err) {
-		return;
-	}
-
+#if !defined(CONFIG_SAMPLE_TFM_MBEDTLS)
 	/* Provision certificates before connecting to the LTE network */
 	err = cert_provision();
 	if (err) {
 		return;
 	}
+#endif
 
 	printk("Waiting for network.. ");
 	err = lte_lc_init_and_connect();
@@ -196,7 +177,11 @@ void main(void)
 
 	((struct sockaddr_in *)res->ai_addr)->sin_port = htons(HTTPS_PORT);
 
-	fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TLS_1_2);
+	if (IS_ENABLED(CONFIG_SAMPLE_TFM_MBEDTLS)) {
+		fd = socket(AF_INET, SOCK_STREAM | SOCK_NATIVE_TLS, IPPROTO_TLS_1_2);
+	} else {
+		fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TLS_1_2);
+	}
 	if (fd == -1) {
 		printk("Failed to open socket!\n");
 		goto clean_up;
@@ -252,4 +237,6 @@ void main(void)
 clean_up:
 	freeaddrinfo(res);
 	(void)close(fd);
+
+	lte_lc_power_off();
 }

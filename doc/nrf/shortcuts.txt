@@ -1,8 +1,8 @@
 .. |NCS| replace:: nRF Connect SDK
 
-.. |release| replace:: v1.7.0
-.. |release_tt| replace:: ``v1.7.0``
-.. |release_number_tt| replace:: ``1.7.0``
+.. |release| replace:: v1.8.0
+.. |release_tt| replace:: ``v1.8.0``
+.. |release_number_tt| replace:: ``1.8.0``
 
 .. |plusminus| unicode:: U+000B1 .. PLUS-MINUS SIGN
    :rtrim:
@@ -12,7 +12,6 @@
 .. |config| replace:: See :ref:`configure_application` for information about how to permanently or temporarily change the configuration.
 
 .. |test_sample| replace:: After programming the sample to your development kit, test it by performing the following steps:
-
 
 .. |connect_kit| replace:: Connect the kit to the computer using a USB cable.
    The kit is assigned a COM port (Windows) or ttyACM device (Linux), which is visible in the Device Manager.
@@ -56,8 +55,8 @@
    When enabled, it allows devices to manage transmission by informing each other about their current state, and ensures more reliable connection in high-speed communication scenarios.
 
 .. |zigbee_version| replace:: Zigbee 3.0
-.. |zboss_version| replace:: 3.8.0.1
-.. |zigbee_ncp_package_version| replace:: 1.0.0
+.. |zboss_version| replace:: 3.9.0.1
+.. |zigbee_ncp_package_version| replace:: 2.0.0
 .. |zigbee_description| replace:: Zigbee is a portable, low-power software networking protocol that provides connectivity over an 802.15.4-based mesh network.
 .. |enable_zigbee_before_testing| replace:: Make sure to configure the Zigbee stack before building and testing this sample.
    See :ref:`ug_zigbee_configuring` for more information.
@@ -71,6 +70,9 @@
    Some of the commands use an endpoint for sending packets, so no endpoint handler is allowed to be registered for this endpoint.
 
 .. |nrf_desktop_module_event_note| replace:: See the :ref:`nrf_desktop_architecture` for more information about the event-based communication in the nRF Desktop application and about how to read this table.
+.. |nrf_desktop_build_type_conf| replace:: In addition to these build types, some boards can have additional build type configurations that you can use to generate an application in a specific variant.
+   Such board-specific configurations use dedicated :file:`app_*build_type*.conf` files, where the name of the configuration replaces the ``*build_type*`` part in the file name.
+   Given the potential number of such configurations, they are not listed above and you can read the description of each of them in the respective configuration file.
 
 .. |how_to_configure| replace:: See :ref:`configure_application` for information on how to set the required configuration options temporarily or permanently.
 
@@ -85,13 +87,18 @@
 .. |external_flash_size| replace:: external flash memory with minimum 4MB
 
 .. |application_sample_definition| replace:: For simplicity, this guide will refer to both :ref:`samples<samples>` and :ref:`applications<applications>` as "applications".
+.. |application_sample_long_path_windows| replace:: On Windows, because of the `Windows path length limitations`_, the build can fail with errors related to permissions or missing files if some paths in the build are too long.
+   To avoid this issue, shorten the build folder name, for example, from ``build_nrf5340dk_nrf5340_cpuapp_ns`` to ``build``, or shorten the path to the build folder in some other way.
 
 .. |gps_tradeoffs| replace:: For more information on the various trade-offs of using A-GPS compared to using P-GPS, see the `nRF Cloud Location Services documentation`_.
 
-.. |vsc_extension_instructions| replace:: The `nRF Connect for Visual Studio Code`_ extension is a complete IDE for developing applications for nRF91, nRF53 and nRF52 Series devices. This includes an interface to the compiler and linker, an RTOS-aware debugger, a seamless interface to the nRF Connect SDK, and a serial terminal.
+.. |vsc_extension_instructions| replace:: The |VSC| extension is a complete IDE for developing applications for nRF91, nRF53 and nRF52 Series devices. This includes an interface to the compiler and linker, an RTOS-aware debugger, a seamless interface to the nRF Connect SDK, and a serial terminal. For detailed instructions, see the `nRF Connect for Visual Studio Code`_ documentation site.
 
 .. |VSC| replace:: nRF Connect for Visual Studio Code
 
 .. |thingy53_sample_note| replace:: If you build this application for Thingy:53, it enables additional features. See :ref:`thingy53_app_guide` for details.
 
-.. |thingy53_unreleased| replace:: As of the |NCS| v1.7.0 release, Thingy:53 is an unreleased product that will be released in the near future.
+.. |thingy53_unreleased| replace:: As of the |NCS| |release| release, Thingy:53 is an unreleased product that will be released in the near future.
+
+.. |tfm_gnu_version_incompatibility| replace:: Do not use GNU Arm Embedded Toolchain versions *9-2020-q2-update* and *10-2020-q4-major* due to `TF-M sample incompatibility issue`_.
+   These versions do not work correctly when compiling binaries for Cortex-M Secure Extensions.

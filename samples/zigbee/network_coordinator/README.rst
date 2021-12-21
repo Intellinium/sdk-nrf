@@ -32,8 +32,10 @@ You can mix different development kits.
 Overview
 ********
 
-This Zigbee network coordinator sample demonstrates the Zigbee Coordinator role.
+This Zigbee network coordinator sample demonstrates the Zigbee Coordinator role and implements two clusters (Basic and Identify) that used to be required by the Zigbee Home Automation profile.
 It is a minimal implementation that supports only the network steering commissioning mechanism.
+The Basic cluster provides attributes and commands for determining basic information about the node.
+The Identify cluster allows to put the device into the identification mode, which provides a way to locate the device.
 
 Configuration
 *************
@@ -47,6 +49,9 @@ FEM support
 
 User interface
 **************
+
+LED 1:
+    Blinks to indicate that the main application thread is running.
 
 LED 3:
     Indicates whether the network is open or closed:
@@ -76,6 +81,7 @@ Testing
 After programming the sample to your development kit, test it by performing the following steps:
 
 1. Turn on the development kit that runs the coordinator sample.
+   When **LED 1** starts blinking, the main application thread has started.
    When **LED 3** turns on, this development kit has become the Coordinator of the Zigbee network and the network is established.
 #. Turn on the other development kits that you programmed.
 
@@ -99,7 +105,7 @@ Dependencies
 
 This sample uses the following |NCS| libraries:
 
-* :file:`include/zigbee/zigbee_error_handler.h`
+* :ref:`lib_zigbee_error_handler`
 * :ref:`lib_zigbee_application_utilities`
 * Zigbee subsystem:
 

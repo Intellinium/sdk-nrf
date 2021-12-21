@@ -8,10 +8,8 @@
 #include <stdint.h>
 #include <zephyr.h>
 #include <modem/pdn.h>
-#include <modem/at_cmd.h>
-#include <modem/at_notif.h>
 #include <modem/lte_lc.h>
-#include <modem/nrf_modem_lib.h>
+#include <nrf_modem_at.h>
 
 extern const char *esm_strerr(int reason);
 
@@ -51,13 +49,13 @@ void main(void)
 	printk("PDN sample started\n");
 
 	/* Register to the necessary packet domain AT notifications */
-	err = at_cmd_write("AT+CNEC=16", NULL, 0, NULL);
+	err = nrf_modem_at_printf("AT+CNEC=16");
 	if (err) {
 		printk("AT+CNEC=16 failed, err %d\n", err);
 		return;
 	}
 
-	err = at_cmd_write("AT+CGEREP=1", NULL, 0, NULL);
+	err = nrf_modem_at_printf("AT+CGEREP=1");
 	if (err) {
 		printk("AT+CGEREP=1 failed, err %d\n", err);
 		return;
@@ -111,7 +109,7 @@ void main(void)
 	       cid, apn, fam_str[PDN_FAM_IPV4V6]);
 
 	/* Activate a PDN connection */
-	err = pdn_activate(cid, &esm);
+	err = pdn_activate(cid, &esm, NULL);
 	if (err) {
 		printk("pdn_activate() failed, err %d esm %d %s\n",
 			err, esm, esm_strerr(esm));
@@ -121,5 +119,6 @@ void main(void)
 	printk("PDP Context %d, PDN ID %d\n", 0, pdn_id_get(0));
 	printk("PDP Context %d, PDN ID %d\n", cid, pdn_id_get(cid));
 
+	lte_lc_power_off();
 	printk("Bye\n");
 }

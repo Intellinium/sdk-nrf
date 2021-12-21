@@ -38,6 +38,10 @@ bool zigbee_is_stack_started(void);
 void zigbee_enable(void);
 
 #ifdef CONFIG_ZIGBEE_DEBUG_FUNCTIONS
+/**@brief Function for checking if the ZBOSS thread has been created.
+ */
+bool zigbee_debug_zboss_thread_is_created(void);
+
 /**@brief Function for suspending the ZBOSS thread.
  */
 void zigbee_debug_suspend_zboss_thread(void);
@@ -82,5 +86,12 @@ void zigbee_event_notify(zigbee_event_t event);
  * @returns The amount of microseconds that the ZBOSS task was blocked.
  */
 uint32_t zigbee_event_poll(uint32_t timeout_us);
+
+/**@brief Function for checking if the Zigbee NVRAM has been initialised.
+ *
+ * @retval ZB_TRUE  Zigbee NVRAM is initialised.
+ * @retval ZB_FALSE Zigbee NVRAM is not initialised
+ */
+zb_bool_t zigbee_is_nvram_initialised(void);
 
 #endif /* ZB_NRF_PLATFORM_H__ */

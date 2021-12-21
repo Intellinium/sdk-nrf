@@ -60,14 +60,14 @@ struct nrf_cloud_rest_context {
 	 */
 	int connect_socket;
 	/** If the connection should remain after API call.
-	 * @note: A failed API call could result in the socket
+	 * @note A failed API call could result in the socket
 	 * being closed.
 	 */
 	bool keep_alive;
 	/** Timeout value, in milliseconds, for receiving response data.
 	 * Minimum timeout value specified by NRF_CLOUD_REST_TIMEOUT_MINIMUM.
 	 * For no timeout, set to NRF_CLOUD_REST_TIMEOUT_NONE.
-	 * @note: This parameter is currently not used; set
+	 * @note This parameter is currently not used; set
 	 * CONFIG_NRF_CLOUD_REST_RECV_TIMEOUT instead.
 	 */
 	int32_t timeout_ms;
@@ -115,7 +115,7 @@ struct nrf_cloud_rest_cell_pos_request {
 struct nrf_cloud_rest_agps_request {
 	enum nrf_cloud_rest_agps_req_type type;
 	/** Required for custom request type */
-	struct gps_agps_request *agps_req;
+	struct nrf_modem_gnss_agps_data_frame *agps_req;
 	/** Optional; provide network info or set to NULL. The cloud cannot
 	 * provide location assistance data if network info is NULL.
 	 */
@@ -245,6 +245,32 @@ void nrf_cloud_rest_fota_job_free(struct nrf_cloud_fota_job_info *const job);
 int nrf_cloud_rest_fota_job_update(struct nrf_cloud_rest_context *const rest_ctx,
 	const char *const device_id, const char *const job_id,
 	const enum nrf_cloud_fota_status status, const char * const details);
+
+/**
+ * @brief Updates the device's "state" in the shadow via the UpdateDeviceState endpoint.
+ *
+ * @param[in,out] rest_ctx Context for communicating with nRF Cloud's REST API.
+ * @param[in]     device_id Null-terminated, unique device ID registered with nRF Cloud.
+ * @param[in]     shadow_json Null-terminated JSON string to be written to the device's shadow.
+ *
+ * @retval 0 If successful.
+ *          Otherwise, a (negative) error code is returned.
+ */
+int nrf_cloud_rest_shadow_state_update(struct nrf_cloud_rest_context *const rest_ctx,
+	const char *const device_id, const char * const shadow_json);
+
+/**
+ * @brief Updates the device's "ServiceInfo" in the shadow.
+ *
+ * @param[in,out] rest_ctx Context for communicating with nRF Cloud's REST API.
+ * @param[in]     device_id Null-terminated, unique device ID registered with nRF Cloud.
+ * @param[in]     svc_inf Service info items to be updated in the shadow.
+ *
+ * @retval 0 If successful.
+ *          Otherwise, a (negative) error code is returned.
+ */
+int nrf_cloud_rest_shadow_service_info_update(struct nrf_cloud_rest_context *const rest_ctx,
+	const char *const device_id, const struct nrf_cloud_svc_info * const svc_inf);
 
 /**
  * @brief Closes the connection to the server.

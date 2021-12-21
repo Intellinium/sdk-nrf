@@ -1,7 +1,7 @@
 # https://github.com/actions/labeler/blob/main/README.md
 
 # When extending this, remember that in the PR, the labeler will run against
-# the labeler.yml in master, more info:
+# the labeler.yml in main, more info:
 # https://github.com/actions/labeler/issues/12
 # This means your changes won't be tested. To test your branch, make a second
 # branch with dummy changes, and open a PR on your own fork, against the
@@ -14,9 +14,56 @@
   - "doc/**/*"
   - "**/*.rst"
 
-"CI-libmodem-test":
-  - "samples/nrf9160/**/*"
-  - "lib/nrf_modem_lib/*"
+"CI-iot-samples-test":
+  - "include/modem/at_cmd*.h"
+  - "include/modem/at_monitor.h"
+  - "include/modem/at_notif.h"
+  - "include/modem/at_params.h"
+  - "include/modem/lte_lc*.h"
+  - "include/modem/modem_key_mgmt.h"
+  - "include/modem/nrf_modem_lib.h"
+  - "include/modem/sms.h"
+  - "include/net/download_client.h"
+  - "include/net/multicell_location.h"
+  - "include/secure_services.h"
+  - "lib/at_cmd_*/**/*"
+  - "lib/at_host/**/*"
+  - "lib/at_monitor/**/*"
+  - "lib/at_notif/**/*"
+  - "lib/lte_link_control/**/*"
+  - "lib/modem_key_mgmt/**/*"
+  - "lib/multicell_location/**/*"
+  - "lib/nrf_modem_lib/**/*"
+  - "lib/sms/**/*"
+  - "samples/nrf9160/at_client/**/*"
+  - "samples/nrf9160/coap_client/**/*"
+  - "samples/nrf9160/download/**/*"
+  - "samples/nrf9160/http_update/**/*"
+  - "samples/nrf9160/https_client/**/*"
+  - "samples/nrf9160/modem_shell/**/*"
+  - "samples/nrf9160/mqtt_simple/**/*"
+  - "samples/nrf9160/multicell_location/**/*"
+  - "samples/nrf9160/secure_services/**/*"
+  - "samples/nrf9160/sms/**/*"
+  - "subsys/net/lib/download_client/**/*"
+
+"CI-iot-libraries-test":
+  - "include/modem/at_monitor.h"
+  - "include/modem/lte_lc*.h"
+  - "include/modem/modem_key_mgmt.h"
+  - "include/modem/pdn.h"
+  - "lib/at_monitor/**/*"
+  - "lib/lte_link_control/**/*"
+  - "lib/modem_key_mgmt/**/*"
+  - "lib/pdn/**/*"
+
+"CI-lwm2m-test":
+  - "include/modem/lte_lc*.h"
+  - "include/modem/nrf_modem_lib.h"
+  - "lib/bin/**/*"
+  - "lib/lte_link_control/**/*"
+  - "lib/nrf_modem_lib/**/*"
+  - "samples/nrf9160/lwm2m_carrier/**/*"
 
 "CI-boot-dfu-test":
   - "include/bl*"
@@ -27,6 +74,7 @@
   - "include/dfu/**/*"
   - "include/net/**/*"
   - "cmake/*"
+  - "lib/lte_link_control/**/*"
   - "modules/mcuboot/**/*"
   - "samples/nrf9160/*fota/**/*"
   - "samples/nrf9160/fmfu_smp_svr/**/*"
@@ -55,6 +103,7 @@
 
 "CI-tfm-test":
   - "cmake/*"
+  - "include/tfm/**/*"
   - "modules/nrfxlib/**/*"
   - "modules/tfm/**/*"
   - "samples/tfm/**/*"
@@ -153,16 +202,15 @@
   - "samples/CMakeLists.txt"
 
 "CI-homekit-test":
-  - any:
-    - "subsys/mpsl/**/*"
-    - "subsys/ieee802154/**/*"
-    - "drivers/mpsl/**/*"
-    - "dts/bindings/radio_fem/**/*"
-    - "modules/nrfxlib/nrf_802154/**/*"
-    - "drivers/hw_cc310/*"
-    - "subsys/bootloader/**/*"
-    - "subsys/partition_manager/**/*"
-    - "modules/mcuboot/**/*"
+  - "subsys/mpsl/**/*"
+  - "subsys/ieee802154/**/*"
+  - "drivers/mpsl/**/*"
+  - "dts/bindings/radio_fem/**/*"
+  - "modules/nrfxlib/nrf_802154/**/*"
+  - "drivers/hw_cc310/*"
+  - "subsys/bootloader/**/*"
+  - "subsys/partition_manager/**/*"
+  - "modules/mcuboot/**/*"
   - any:
     - "subsys/bluetooth/**/*"
     - "!subsys/bluetooth/mesh/**/*"
@@ -204,26 +252,32 @@
   - "modules/nrfxlib/nrf_802154/**/*"
   - "modules/mcuboot/**/*"
   - "samples/matter/**/*"
+  - "applications/matter_weather_station/**/*"
+  - "samples/nrf5340/multiprotocol_rpmsg/**/*"
 
 "CI-find-my-test":
-  - any:
-    - "include/dfu/**/*"
-    - "include/nfc/**/*"
-    - "include/dk_buttons_and_leds.h"
-    - "include/event_manager.h"
-    - "lib/dk_buttons_and_leds/**/*"
-    - "subsys/bootloader/**/*"
-    - "subsys/dfu/dfu_target/**/*"
-    - "subsys/event_manager/**/*"
-    - "subsys/nfc/**/*"
-    - "subsys/partition_manager/**/*"
-    - "modules/mcuboot/**/*"
+  - "include/dfu/**/*"
+  - "include/nfc/**/*"
+  - "include/dk_buttons_and_leds.h"
+  - "include/event_manager.h"
+  - "lib/dk_buttons_and_leds/**/*"
+  - "subsys/bootloader/**/*"
+  - "subsys/dfu/dfu_target/**/*"
+  - "subsys/event_manager/**/*"
+  - "subsys/nfc/**/*"
+  - "subsys/partition_manager/**/*"
+  - "modules/mcuboot/**/*"
   - any:
     - "include/bluetooth/**/*"
     - "!include/bluetooth/mesh/**/*"
   - any:
     - "subsys/bluetooth/**/*"
     - "!subsys/bluetooth/mesh/**/*"
+
+"CI-gazell-test":
+  - "include/gz*.h"
+  - "samples/gazell/**/*"
+  - "subsys/gazell/*"
 
 "CI-rpc-test":
   - "subsys/nrf_rpc/**/*"

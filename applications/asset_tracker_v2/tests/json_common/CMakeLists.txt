@@ -13,7 +13,8 @@ FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE ${app_sources})
 
 target_include_directories(app PRIVATE
-  	${CMAKE_CURRENT_SOURCE_DIR} ../../src/cloud/cloud_codec/)
+	${CMAKE_CURRENT_SOURCE_DIR} ../../src/cloud/cloud_codec/
+	${CMAKE_CURRENT_SOURCE_DIR} ../../../../../nrfxlib/nrf_modem/include/)
 
 target_sources(app PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR} mock/date_time_mock.c
@@ -21,5 +22,4 @@ target_sources(app PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR} ../../src/cloud/cloud_codec/json_helpers.c)
 
 target_compile_options(app PRIVATE
-  	-DCONFIG_CLOUD_CODEC_LOG_LEVEL=0
   	-DCONFIG_ASSET_TRACKER_V2_APP_VERSION_MAX_LEN=20)

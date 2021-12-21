@@ -11,8 +11,12 @@
 #include <modem/modem_info.h>
 #include <modem/lte_lc.h>
 #include <net/nrf_cloud.h>
+#if defined(CONFIG_NRF_CLOUD_PGPS)
 #include <net/nrf_cloud_pgps.h>
+#endif
+#if defined(CONFIG_NRF_CLOUD_AGPS) || defined(CONFIG_NRF_CLOUD_PGPS)
 #include <net/nrf_cloud_agps.h>
+#endif
 #include <net/nrf_cloud_cell_pos.h>
 #include "cJSON.h"
 #include "nrf_cloud_fsm.h"
@@ -89,6 +93,7 @@ int nrf_cloud_decode_requested_state(const struct nrf_cloud_data *payload,
 int nrf_cloud_decode_data_endpoint(const struct nrf_cloud_data *input,
 				   struct nrf_cloud_data *tx_endpoint,
 				   struct nrf_cloud_data *rx_endpoint,
+				   struct nrf_cloud_data *bulk_endpoint,
 				   struct nrf_cloud_data *m_endpoint);
 
 /** @brief Encodes state information. */
@@ -99,9 +104,13 @@ int nrf_cloud_encode_config_response(struct nrf_cloud_data const *const input,
 				     struct nrf_cloud_data *const output,
 				     bool *const has_config);
 
-/** @brief Encode the device status data into a JSON formatted buffer */
+/** @brief Encode the device status data into a JSON formatted buffer.
+ * The include_state flag controls if the "state" JSON key is included in the output.
+ * When calling this function to encode data for use with the UpdateDeviceState nRF Cloud
+ * REST endpoint, the "state" key should not be included.
+ */
 int nrf_cloud_device_status_encode(const struct nrf_cloud_device_status * const dev_status,
-				   struct nrf_cloud_data * const output);
+				   struct nrf_cloud_data * const output, const bool include_state);
 
 /** @brief Free memory allocated by @ref nrf_cloud_device_status_encode. */
 void nrf_cloud_device_status_free(struct nrf_cloud_data *status);
@@ -116,9 +125,11 @@ void nrf_cloud_fota_job_free(struct nrf_cloud_fota_job_info *const job);
 int nrf_cloud_rest_fota_execution_parse(const char *const response,
 					struct nrf_cloud_fota_job_info *const job);
 
+#if defined(CONFIG_NRF_CLOUD_PGPS)
 /** @brief Parses the PGPS response (REST and MQTT) from nRF Cloud */
 int nrf_cloud_parse_pgps_response(const char *const response,
 				  struct nrf_cloud_pgps_result *const result);
+#endif
 
 /** @brief Adds common [network] modem info to the provided cJSON object */
 int nrf_cloud_json_add_modem_info(cJSON * const data_obj);

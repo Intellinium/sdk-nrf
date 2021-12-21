@@ -146,30 +146,30 @@ function(add_child_image_from_source)
   #
   # <child-sample> DIRECTORY
   # | - prj.conf (A)
-  # | - prj_<desc>.conf (B)
+  # | - prj_<buildtype>.conf (B)
   # | - boards DIRECTORY
   # | | - <board>.conf (C)
-  # | | - <board>_<desc>.conf (D)
+  # | | - <board>_<buildtype>.conf (D)
 
 
   # <current-sample> DIRECTORY
   # | - prj.conf
-  # | - prj_<desc>.conf
+  # | - prj_<buildtype>.conf
   # | - child_image DIRECTORY
   #     |-- <ACI_NAME>.conf (I)                 Fragment, used together with (A) and (C)
-  #     |-- <ACI_NAME>_<desc>.conf (J)          Fragment, used together with (B) and (D)
+  #     |-- <ACI_NAME>_<buildtype>.conf (J)     Fragment, used together with (B) and (D)
   #     |-- <ACI_NAME>.overlay                  If present, will be merged with BOARD.dts
   #     |-- <ACI_NAME> DIRECTORY
   #         |-- boards DIRECTORY
   #         |   |-- <board>.conf (E)            If present, use instead of (C), requires (G).
-  #         |   |-- <board>_<desc>.conf (F)     If present, use instead of (D), requires (H).
+  #         |   |-- <board>_<buildtype>.conf (F)     If present, use instead of (D), requires (H).
   #         |   |-- <board>.overlay             If present, will be merged with BOARD.dts
   #         |   |-- <board>_<revision>.overlay  If present, will be merged with BOARD.dts
   #         |-- prj.conf (G)                    If present, use instead of (A)
   #         |                                   Note that (C) is ignored if this is present.
   #         |                                   Use (E) instead.
-  #         |-- prj_<desc>.conf (H)             If present, used instead of (B) when user
-  #         |                                   specify `-DCONF_FILE=prj_<desc>.conf for
+  #         |-- prj_<buildtype>.conf (H)        If present, used instead of (B) when user
+  #         |                                   specify `-DCONF_FILE=prj_<buildtype>.conf for
   #         |                                   parent image. Note that any (C) is ignored
   #         |                                   if this is present. Use (F) instead.
   #         |-- <board>.overlay                 If present, will be merged with BOARD.dts
@@ -179,8 +179,8 @@ function(add_child_image_from_source)
   #       files must be used instead of the child image default configs.
   #       The append a child image default config, place the addetional settings
   #       in `child_image/<ACI_NAME>.conf`.
-  set(ACI_CONF_DIR ${APPLICATION_SOURCE_DIR}/child_image)
-  set(ACI_NAME_CONF_DIR ${APPLICATION_SOURCE_DIR}/child_image/${ACI_NAME})
+  set(ACI_CONF_DIR ${APPLICATION_CONFIG_DIR}/child_image)
+  set(ACI_NAME_CONF_DIR ${APPLICATION_CONFIG_DIR}/child_image/${ACI_NAME})
   if (NOT ${ACI_NAME}_CONF_FILE)
     ncs_file(CONF_FILES ${ACI_NAME_CONF_DIR}
              BOARD ${ACI_BOARD}
@@ -207,6 +207,11 @@ function(add_child_image_from_source)
     set(child_image_dts_overlay ${ACI_CONF_DIR}/${ACI_NAME}.overlay)
     if (EXISTS ${child_image_dts_overlay})
       add_overlay_dts(${ACI_NAME} ${child_image_dts_overlay})
+    endif()
+    if(DEFINED ${ACI_NAME}_CONF_FILE)
+      set(${ACI_NAME}_CONF_FILE ${${ACI_NAME}_CONF_FILE} CACHE STRING
+          "Default ${ACI_NAME} configuration file"
+      )
     endif()
   endif()
   # Construct a list of variables that, when present in the root

@@ -77,7 +77,7 @@
 /* Defines how long to wait, in seconds, for mgmt_leave response. */
 #define ZIGBEE_CLI_MGMT_LEAVE_RESP_TIMEOUT 5
 
-LOG_MODULE_DECLARE(cli, CONFIG_ZIGBEE_SHELL_LOG_LEVEL);
+LOG_MODULE_DECLARE(zigbee_shell, CONFIG_ZIGBEE_SHELL_LOG_LEVEL);
 
 
 /* Forward declarations. */
@@ -182,7 +182,7 @@ static void cmd_zb_match_desc_cb(zb_bufid_t bufid)
 				 * response header.
 				 */
 				shell_print(ctx_entry->shell,
-					    "src_addr=%0hx ep=%d",
+					    "src_addr=%04hx ep=%d",
 					    data_ind->src_addr, *matched_ep);
 
 				matched_ep += 1;
@@ -218,7 +218,7 @@ static void cmd_zb_active_ep_cb(zb_bufid_t bufid)
 	if (active_ep_resp->status == ZB_ZDP_STATUS_SUCCESS) {
 		char text_buffer[150] = "";
 
-		sprintf(text_buffer, "src_addr=%0hx ",
+		sprintf(text_buffer, "src_addr=%04hx ",
 			active_ep_resp->nwk_addr);
 
 		PRINT_LIST(text_buffer, "ep=", "%d", zb_uint8_t,
@@ -263,7 +263,9 @@ static void cmd_zb_simple_desc_req_cb(zb_bufid_t bufid)
 	if (simple_desc_resp->hdr.status == ZB_ZDP_STATUS_SUCCESS) {
 		char text_buffer[150] = "";
 
-		sprintf(text_buffer, "src_addr=0x%0hx ep=%d profile_id=0x%04hx app_dev_id=0x%0hx app_dev_ver=0x%0hx ",
+		sprintf(text_buffer,
+			"src_addr=0x%04hx ep=%d profile_id=0x%04hx"
+			" app_dev_id=0x%0hx app_dev_ver=0x%0hx ",
 			simple_desc_resp->hdr.nwk_addr,
 			simple_desc_resp->simple_desc.endpoint,
 			simple_desc_resp->simple_desc.app_profile_id,
@@ -392,7 +394,7 @@ void cmd_zb_nwk_addr_cb(zb_bufid_t bufid)
 		zb_uint16_t nwk_addr;
 
 		ZB_LETOH16(&nwk_addr, &(nwk_addr_resp->nwk_addr));
-		shell_print(ctx_entry->shell, "%hx", nwk_addr);
+		shell_print(ctx_entry->shell, "%04hx", nwk_addr);
 		zb_cli_print_done(ctx_entry->shell, ZB_FALSE);
 	} else {
 		shell_error(ctx_entry->shell, "Error: Unable to resolve EUI64 source address. Status: %d",
@@ -1365,7 +1367,32 @@ static int cmd_zb_eui64(const struct shell *shell, size_t argc, char **argv)
 {
 	zb_ieee_addr_t addr;
 
-	if (argc == 2) {
+	if (argc == 1) {
+		zb_get_long_address(addr);
+	} else {
+		if (zigbee_is_stack_started()) {
+			zb_cli_print_error(shell,
+					   "Stack already started",
+					   ZB_FALSE);
+			return -ENOEXEC;
+		}
+
+		if (zigbee_is_nvram_initialised()
+#ifdef CONFIG_ZIGBEE_SHELL_DEBUG_CMD
+		    && zb_cli_nvram_enabled()
+#endif /* CONFIG_ZIGBEE_SHELL_DEBUG_CMD */
+		    ) {
+			shell_warn(
+				shell,
+				"Zigbee stack has been configured in the past.\r\n"
+				"Please disable NVRAM to change the EUI64.");
+
+			zb_cli_print_error(shell,
+					   "Can't change EUI64 - NVRAM not empty",
+					   ZB_FALSE);
+			return -ENOEXEC;
+		}
+
 		if (parse_long_address(argv[1], addr)) {
 			zb_set_long_address(addr);
 		} else {
@@ -1374,8 +1401,6 @@ static int cmd_zb_eui64(const struct shell *shell, size_t argc, char **argv)
 					   ZB_FALSE);
 			return -EINVAL;
 		}
-	} else {
-		zb_get_long_address(addr);
 	}
 
 	zb_cli_print_eui64(shell, addr);
@@ -2272,11 +2297,11 @@ SHELL_STATIC_SUBCMD_SET_CREATE(sub_zdo,
 	SHELL_CMD_ARG(short, NULL, "Get the short address of the node.",
 		      cmd_zb_short, 1, 0),
 	SHELL_CMD(bind, &sub_bind,
-		  "Create/remove the binding entry in the remote node", NULL),
+		  "Create/remove the binding entry in the remote node.", NULL),
 	SHELL_CMD_ARG(mgmt_bind, NULL, MGMT_BIND_HELP, cmd_zb_mgmt_bind, 2, 1),
 	SHELL_CMD_ARG(mgmt_leave, NULL, MGMT_LEAVE_HELP, cmd_zb_mgmt_leave,
 		      2, 3),
 	SHELL_CMD_ARG(mgmt_lqi, NULL, MGMT_LQI_HELP, cmd_zb_mgmt_lqi, 2, 1),
 	SHELL_SUBCMD_SET_END);
 
-SHELL_CMD_REGISTER(zdo, &sub_zdo, "ZDO manipulation", NULL);
+SHELL_CMD_REGISTER(zdo, &sub_zdo, "ZDO manipulation.", NULL);

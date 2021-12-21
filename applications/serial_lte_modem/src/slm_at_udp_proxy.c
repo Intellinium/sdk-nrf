@@ -56,7 +56,7 @@ static struct udp_proxy {
 
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
-extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
+extern char rsp_buf[SLM_AT_CMD_RESPONSE_MAX_LEN];
 
 /** forward declaration of thread function **/
 static void udp_thread_func(void *p1, void *p2, void *p3);
@@ -195,32 +195,23 @@ static int do_udp_client_connect(const char *url, uint16_t port)
 	}
 
 	/* Connect to remote host */
-	struct addrinfo *res;
-	struct addrinfo hints = {
-		.ai_family = proxy.family,
-		.ai_socktype = SOCK_DGRAM
+	struct sockaddr sa = {
+		.sa_family = AF_UNSPEC
 	};
 
-	ret = getaddrinfo(url, NULL, &hints, &res);
+	ret = util_resolve_host(0, url, port, proxy.family, &sa);
 	if (ret) {
-		LOG_ERR("getaddrinfo() failed: %d", ret);
+		LOG_ERR("getaddrinfo() error: %s", log_strdup(gai_strerror(ret)));
 		goto cli_exit;
 	}
-	if (proxy.family == AF_INET) {
-		struct sockaddr_in *host = (struct sockaddr_in *)res->ai_addr;
-
-		host->sin_port = htons(port);
-		ret = connect(proxy.sock, (struct sockaddr *)host, sizeof(struct sockaddr_in));
+	if (sa.sa_family == AF_INET) {
+		ret = connect(proxy.sock, &sa, sizeof(struct sockaddr_in));
 	} else {
-		struct sockaddr_in6 *host = (struct sockaddr_in6 *)res->ai_addr;
-
-		host->sin6_port = htons(port);
-		ret = connect(proxy.sock, (struct sockaddr *)host, sizeof(struct sockaddr_in6));
+		ret = connect(proxy.sock, &sa, sizeof(struct sockaddr_in6));
 	}
 	if (ret < 0) {
 		LOG_ERR("connect() failed: %d", -errno);
 		ret = -errno;
-		freeaddrinfo(res);
 		goto cli_exit;
 	}
 
@@ -232,7 +223,6 @@ static int do_udp_client_connect(const char *url, uint16_t port)
 	proxy.role = UDP_ROLE_CLIENT;
 	sprintf(rsp_buf, "\r\n#XUDPCLI: %d,\"connected\"\r\n", proxy.sock);
 	rsp_send(rsp_buf, strlen(rsp_buf));
-	freeaddrinfo(res);
 
 	return 0;
 

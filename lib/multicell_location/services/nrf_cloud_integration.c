@@ -6,14 +6,26 @@
 
 #include <zephyr.h>
 #include <modem/modem_jwt.h>
+#if defined(CONFIG_NRF_CLOUD_MQTT)
+#include <net/nrf_cloud_cell_pos.h>
+#else
 #include <net/nrf_cloud_rest.h>
+#endif
+#include <net/multicell_location.h>
 #include "location_service.h"
 
 #include <logging/log.h>
 
 LOG_MODULE_REGISTER(multicell_location_nrf_cloud, CONFIG_MULTICELL_LOCATION_LOG_LEVEL);
 
-#define HOSTNAME CONFIG_NRF_CLOUD_REST_HOST_NAME
+#if defined(CONFIG_NRF_CLOUD_MQTT)
+static struct multicell_location nrf_cloud_location;
+static K_SEM_DEFINE(location_ready, 0, 1);
+#else
+#define NRF_CLOUD_INTEGRATION_JWT_VALID_TIME (5 * 60)
+
+static char jwt_buf[600];
+#endif
 
 /* TLS certificate:
  *	CN=Starfield Services Root Certificate Authority - G2
@@ -52,35 +64,73 @@ static const char tls_certificate[] =
 	"VsyuLAOQ1xk4meTKCRlb/weWsKh/NEnfVqn3sF/tM+2MR7cwA130A4w=\n"
 	"-----END CERTIFICATE-----\n";
 
-const char *location_service_get_hostname(void)
-{
-	return HOSTNAME;
-}
-
-const char *location_service_get_certificate(void)
+const char *location_service_get_certificate_nrf_cloud(void)
 {
 	return tls_certificate;
 }
 
-int location_service_get_cell_location(const struct lte_lc_cells_info *cell_data,
-				       const char * const device_id,
-				       char * const rcv_buf, const size_t rcv_buf_len,
-				       struct multicell_location *const location)
+#if defined(CONFIG_NRF_CLOUD_MQTT)
+static void location_service_location_ready_cb(const struct nrf_cloud_cell_pos_result *const result)
+{
+	if (result != NULL) {
+		nrf_cloud_location.latitude = result->lat;
+		nrf_cloud_location.longitude = result->lon;
+		nrf_cloud_location.accuracy = (double)result->unc;
+
+		k_sem_give(&location_ready);
+	} else {
+		/* Reset the semaphore to unblock location_service_get_cell_location_nrf_cloud()
+		 * and make it return an error.
+		 */
+		k_sem_reset(&location_ready);
+	}
+}
+
+int location_service_get_cell_location_nrf_cloud(
+	const struct lte_lc_cells_info *cell_data,
+	char * const rcv_buf,
+	const size_t rcv_buf_len,
+	struct multicell_location *const location)
+{
+	ARG_UNUSED(rcv_buf);
+	ARG_UNUSED(rcv_buf_len);
+
+	int err;
+
+	k_sem_reset(&location_ready);
+
+	err = nrf_cloud_cell_pos_request(cell_data, true, location_service_location_ready_cb);
+	if (err == -EACCES) {
+		LOG_ERR("Cloud connection is not established");
+		return err;
+	} else if (err) {
+		LOG_ERR("Failed to request cellular positioning data, error: %d", err);
+		return err;
+	}
+
+	LOG_INF("Cellular positioning request sent");
+
+	if (k_sem_take(&location_ready, K_SECONDS(20)) == -EAGAIN) {
+		LOG_ERR("Cellular positioning data request timed out or "
+			"cloud did not return a location");
+		return -ETIMEDOUT;
+	}
+
+	*location = nrf_cloud_location;
+
+	return err;
+}
+#else /* defined(CONFIG_NRF_CLOUD_MQTT) */
+int location_service_get_cell_location_nrf_cloud(
+	const struct lte_lc_cells_info *cell_data,
+	char * const rcv_buf,
+	const size_t rcv_buf_len,
+	struct multicell_location *const location)
 {
 	int err;
 	struct nrf_cloud_cell_pos_result result;
-	struct jwt_data jwt = {
-		.subject = device_id,
-		.audience = NULL,
-		.exp_delta_s = (5 * 60),
-		.sec_tag = CONFIG_MULTICELL_LOCATION_NRF_CLOUD_JWT_SEC_TAG,
-		.key = JWT_KEY_TYPE_CLIENT_PRIV,
-		.alg = JWT_ALG_TYPE_ES256,
-		/* Set to NULL so a properly sized buffer is allocated */
-		.jwt_buf = NULL,
-		.jwt_sz = 0
-	};
 	struct nrf_cloud_rest_context rest_ctx = {
+		.auth = jwt_buf,
 		.connect_socket = -1,
 		.keep_alive = false,
 		.timeout_ms = CONFIG_NRF_CLOUD_REST_RECV_TIMEOUT * MSEC_PER_SEC,
@@ -88,24 +138,20 @@ int location_service_get_cell_location(const struct lte_lc_cells_info *cell_data
 		.rx_buf_len = rcv_buf_len,
 		.fragment_size = 0
 	};
-
 	const struct nrf_cloud_rest_cell_pos_request loc_req = {
 		.net_info = (struct lte_lc_cells_info *)cell_data
 	};
 
-	err = modem_jwt_generate(&jwt);
+	err = nrf_cloud_jwt_generate(
+		NRF_CLOUD_INTEGRATION_JWT_VALID_TIME,
+		jwt_buf,
+		sizeof(jwt_buf));
 	if (err) {
 		LOG_ERR("Failed to generate JWT, error: %d", err);
 		return err;
 	}
 
-	rest_ctx.auth = jwt.jwt_buf;
-
 	err = nrf_cloud_rest_cell_pos_get(&rest_ctx, &loc_req, &result);
-
-	modem_jwt_free(jwt.jwt_buf);
-	jwt.jwt_buf = NULL;
-
 	if (!err) {
 		location->accuracy = (double)result.unc;
 		location->latitude = result.lat;
@@ -114,3 +160,4 @@ int location_service_get_cell_location(const struct lte_lc_cells_info *cell_data
 
 	return err;
 }
+#endif /* defined(CONFIG_NRF_CLOUD_MQTT) */

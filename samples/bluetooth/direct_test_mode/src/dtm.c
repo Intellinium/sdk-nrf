@@ -35,6 +35,21 @@
 #error "No PPI or DPPI"
 #endif
 
+#if DT_NODE_HAS_PROP(DT_NODELABEL(uart0), current_speed)
+/* UART Baudrate used to communicate with the DTM library. */
+#define DTM_UART_BAUDRATE DT_PROP(DT_NODELABEL(uart0), current_speed)
+
+/* The UART poll cycle in micro seconds.
+ * A baud rate of e.g. 19200 bits / second, and 8 data bits, 1 start/stop bit,
+ * no flow control, give the time to transmit a byte:
+ * 10 bits * 1/19200 = approx: 520 us. To ensure no loss of bytes,
+ * the UART should be polled every 260 us.
+ */
+#define DTM_UART_POLL_CYCLE ((uint32_t) (10 * 1e6 / DTM_UART_BAUDRATE / 2))
+#else
+#error "DTM UART node not found"
+#endif /* DT_NODE_HAS_PROP(DT_NODELABEL(uart0), currrent_speed) */
+
 /* Default timer used for timing. */
 #define DEFAULT_TIMER_INSTANCE     0
 #define DEFAULT_TIMER_IRQ          NRFX_CONCAT_3(TIMER,			 \
@@ -43,24 +58,38 @@
 #define DEFAULT_TIMER_IRQ_HANDLER  NRFX_CONCAT_3(nrfx_timer_,		 \
 						 DEFAULT_TIMER_INSTANCE, \
 						 _irq_handler)
+/* Timer used for measuring UART poll cycle wait time. */
+#define WAIT_TIMER_INSTANCE        1
+#define WAIT_TIMER_IRQ             NRFX_CONCAT_3(TIMER,			 \
+						 WAIT_TIMER_INSTANCE,    \
+						 _IRQn)
+#define WAIT_TIMER_IRQ_HANDLER     NRFX_CONCAT_3(nrfx_timer_,		 \
+						 WAIT_TIMER_INSTANCE,    \
+						 _irq_handler)
+/* Note that the timer instance 2 is used in the FEM driver. */
+
+#ifdef NRF52840_XXAA
 /* Timer used for the workaround for errata 172 on affected nRF5 devices. */
-#define ANOMALY_172_TIMER_INSTANCE     1
+#define ANOMALY_172_TIMER_INSTANCE     3
 #define ANOMALY_172_TIMER_IRQ          NRFX_CONCAT_3(TIMER,		    \
 						ANOMALY_172_TIMER_INSTANCE, \
 						_IRQn)
 #define ANOMALY_172_TIMER_IRQ_HANDLER  NRFX_CONCAT_3(nrfx_timer_,	    \
 						ANOMALY_172_TIMER_INSTANCE, \
 						_irq_handler)
-
+#endif
 
 /* Helper macro for labeling timer instances. */
 #define NRFX_TIMER_CONFIG_LABEL(_num) NRFX_CONCAT_3(CONFIG_, NRFX_TIMER, _num)
 
 BUILD_ASSERT(NRFX_TIMER_CONFIG_LABEL(DEFAULT_TIMER_INSTANCE) == 1,
 	     "Core DTM timer needs additional KConfig configuration");
+BUILD_ASSERT(NRFX_TIMER_CONFIG_LABEL(WAIT_TIMER_INSTANCE) == 1,
+	     "Wait DTM timer needs additional KConfig configuration");
+#ifdef NRF52840_XXAA
 BUILD_ASSERT(NRFX_TIMER_CONFIG_LABEL(ANOMALY_172_TIMER_INSTANCE) == 1,
 	     "Anomaly DTM timer needs additional KConfig configuration");
-
+#endif
 
 /* Values that for now are "constants" - they could be configured by a function
  * setting them, but most of these are set by the BLE DTM standard, so changing
@@ -322,11 +351,19 @@ static struct dtm_instance {
 	/* Timer to be used for scheduling TX packets. */
 	const nrfx_timer_t timer;
 
+	/* Timer to be used for measuring UART poll cycle wait time. */
+	const nrfx_timer_t wait_timer;
+
+	/* Semaphore for synchronizing UART poll cycle wait time.*/
+	struct k_sem wait_sem;
+
+#ifdef NRF52840_XXAA
 	/* Timer to be used to handle Anomaly 172. */
 	const nrfx_timer_t anomaly_timer;
 
 	/* Enable or disable the workaround for Errata 172. */
 	bool anomaly_172_wa_enabled;
+#endif
 
 	/* Enable or disable strict mode to workaround Errata 172. */
 	bool strict_mode;
@@ -350,7 +387,11 @@ static struct dtm_instance {
 	.packet_hdr_plen = NRF_RADIO_PREAMBLE_LENGTH_8BIT,
 	.address = DTM_RADIO_ADDRESS,
 	.timer = NRFX_TIMER_INSTANCE(DEFAULT_TIMER_INSTANCE),
+	.wait_timer = NRFX_TIMER_INSTANCE(WAIT_TIMER_INSTANCE),
+	.wait_sem = Z_SEM_INITIALIZER(dtm_inst.wait_sem, 0, 1),
+#ifdef NRF52840_XXAA
 	.anomaly_timer = NRFX_TIMER_INSTANCE(ANOMALY_172_TIMER_INSTANCE),
+#endif
 	.radio_mode = NRF_RADIO_MODE_BLE_1MBIT,
 	.txpower = NRF_RADIO_TXPOWER_0DBM,
 	.nrf21540.gain = NRF21540_USE_DEFAULT_GAIN,
@@ -490,7 +531,11 @@ static void radio_cte_prepare(bool rx)
 }
 #endif /* DIRECTION_FINDING_SUPPORTED */
 
+#ifdef NRF52840_XXAA
 static void anomaly_timer_handler(nrf_timer_event_t event_type, void *context);
+#endif
+
+static void wait_timer_handler(nrf_timer_event_t event_type, void *context);
 static void dtm_timer_handler(nrf_timer_event_t event_type, void *context);
 static void radio_handler(const void *context);
 
@@ -555,6 +600,33 @@ static int timer_init(void)
 	return 0;
 }
 
+static int wait_timer_init(void)
+{
+	nrfx_err_t err;
+	nrfx_timer_config_t timer_cfg = {
+		.frequency = NRF_TIMER_FREQ_1MHz,
+		.mode = NRF_TIMER_MODE_TIMER,
+		.bit_width = NRF_TIMER_BIT_WIDTH_16,
+	};
+
+	err = nrfx_timer_init(&dtm_inst.wait_timer, &timer_cfg, wait_timer_handler);
+	if (err != NRFX_SUCCESS) {
+		printk("nrfx_timer_init failed with: %d\n", err);
+		return -EAGAIN;
+	}
+
+	IRQ_CONNECT(WAIT_TIMER_IRQ, CONFIG_DTM_TIMER_IRQ_PRIORITY,
+		    WAIT_TIMER_IRQ_HANDLER, NULL, 0);
+
+	nrfx_timer_compare(&dtm_inst.wait_timer,
+		NRF_TIMER_CC_CHANNEL0,
+		nrfx_timer_us_to_ticks(&dtm_inst.wait_timer, DTM_UART_POLL_CYCLE),
+		true);
+
+	return 0;
+}
+
+#ifdef NRF52840_XXAA
 static int anomaly_timer_init(void)
 {
 	nrfx_err_t err;
@@ -584,6 +656,7 @@ static int anomaly_timer_init(void)
 
 	return 0;
 }
+#endif
 
 static int gppi_init(void)
 {
@@ -692,6 +765,12 @@ int dtm_init(void)
 		return err;
 	}
 
+	err = wait_timer_init();
+	if (err) {
+		return err;
+	}
+
+#ifdef NRF52840_XXAA
 	/* Enable the timer used by nRF52840 anomaly 172 if running on an
 	 * affected device.
 	 */
@@ -699,6 +778,7 @@ int dtm_init(void)
 	if (err) {
 		return err;
 	}
+#endif
 
 	err = gppi_init();
 	if (err) {
@@ -726,6 +806,18 @@ int dtm_init(void)
 	dtm_inst.packet_len = 0;
 
 	return 0;
+}
+
+void dtm_wait(void)
+{
+	int err;
+
+	nrfx_timer_enable(&dtm_inst.wait_timer);
+
+	err = k_sem_take(&dtm_inst.wait_sem, K_FOREVER);
+	if (err) {
+		printk("DTM wait error: %d\n", err);
+	}
 }
 
 /* Function for verifying that a received PDU has the expected structure and
@@ -828,6 +920,7 @@ static bool check_pdu(const struct dtm_pdu *pdu)
 	return true;
 }
 
+#ifdef NRF52840_XXAA
 /* Radio configuration used as a workaround for nRF52840 anomaly 172 */
 static void anomaly_172_radio_operation(void)
 {
@@ -878,6 +971,7 @@ static void anomaly_172_strict_mode_set(bool enable)
 
 	dtm_inst.strict_mode = enable;
 }
+#endif
 
 static void dtm_test_done(void)
 {
@@ -891,7 +985,9 @@ static void dtm_test_done(void)
 			nrf_radio_task_address_get(NRF_RADIO,
 				NRF_RADIO_TASK_TXEN));
 
+#ifdef NRF52840_XXAA
 	nrfx_timer_disable(&dtm_inst.anomaly_timer);
+#endif
 
 	radio_reset();
 #if CONFIG_NRF21540_FEM
@@ -951,10 +1047,12 @@ static void radio_prepare(bool rx)
 			NRF_RADIO_INT_END_MASK);
 
 	if (rx) {
+#ifdef NRF52840_XXAA
 		/* Enable strict mode for anomaly 172 */
 		if (dtm_inst.anomaly_172_wa_enabled) {
 			anomaly_172_strict_mode_set(true);
 		}
+#endif
 
 		nrf_radio_event_clear(NRF_RADIO, NRF_RADIO_EVENT_END);
 
@@ -972,6 +1070,7 @@ static void radio_prepare(bool rx)
 	} else { /* tx */
 		nrf_radio_txpower_set(NRF_RADIO, dtm_inst.txpower);
 
+#ifdef NRF52840_XXAA
 		/* Stop the timer used by anomaly 172 */
 		if (dtm_inst.anomaly_172_wa_enabled) {
 			nrfx_timer_disable(&dtm_inst.anomaly_timer);
@@ -982,6 +1081,7 @@ static void radio_prepare(bool rx)
 			nrf_timer_event_clear(dtm_inst.anomaly_timer.p_reg,
 					      NRF_TIMER_EVENT_COMPARE1);
 		}
+#endif
 	}
 }
 
@@ -1921,6 +2021,7 @@ static void on_radio_end_event(void)
 	nrf_radio_task_trigger(NRF_RADIO, NRF_RADIO_TASK_RXEN);
 #endif /* CONFIG_NRF21540_FEM */
 
+#ifdef NRF52840_XXAA
 	if (dtm_inst.anomaly_172_wa_enabled) {
 		nrfx_timer_compare(&dtm_inst.anomaly_timer,
 			NRF_TIMER_CC_CHANNEL0,
@@ -1941,6 +2042,7 @@ static void on_radio_end_event(void)
 		nrfx_timer_clear(&dtm_inst.anomaly_timer);
 		nrfx_timer_enable(&dtm_inst.anomaly_timer);
 	}
+#endif
 
 	if (nrf_radio_crc_status_check(NRF_RADIO) &&
 	    check_pdu(received_pdu)) {
@@ -1962,10 +2064,12 @@ static void radio_handler(const void *context)
 {
 	if (nrf_radio_event_check(NRF_RADIO, NRF_RADIO_EVENT_ADDRESS)) {
 		nrf_radio_event_clear(NRF_RADIO, NRF_RADIO_EVENT_ADDRESS);
+#ifdef NRF52840_XXAA
 		if (dtm_inst.state == STATE_RECEIVER_TEST &&
 		    dtm_inst.anomaly_172_wa_enabled) {
 			nrfx_timer_disable(&dtm_inst.anomaly_timer);
 		}
+#endif
 	}
 
 	if (nrf_radio_event_check(NRF_RADIO, NRF_RADIO_EVENT_END)) {
@@ -1979,6 +2083,7 @@ static void radio_handler(const void *context)
 	if (nrf_radio_event_check(NRF_RADIO, NRF_RADIO_EVENT_READY)) {
 		nrf_radio_event_clear(NRF_RADIO, NRF_RADIO_EVENT_READY);
 
+#ifdef NRF52840_XXAA
 		if (dtm_inst.state == STATE_RECEIVER_TEST &&
 		    dtm_inst.anomaly_172_wa_enabled) {
 			nrfx_timer_clear(&dtm_inst.anomaly_timer);
@@ -1986,6 +2091,7 @@ static void radio_handler(const void *context)
 				nrfx_timer_enable(&dtm_inst.anomaly_timer);
 			}
 		}
+#endif
 	}
 }
 
@@ -1994,6 +2100,15 @@ static void dtm_timer_handler(nrf_timer_event_t event_type, void *context)
 	// Do nothing
 }
 
+static void wait_timer_handler(nrf_timer_event_t event_type, void *context)
+{
+	nrfx_timer_disable(&dtm_inst.wait_timer);
+	nrfx_timer_clear(&dtm_inst.wait_timer);
+
+	k_sem_give(&dtm_inst.wait_sem);
+}
+
+#ifdef NRF52840_XXAA
 static void anomaly_timer_handler(nrf_timer_event_t event_type, void *context)
 {
 	switch (event_type) {
@@ -2073,3 +2188,4 @@ static void anomaly_timer_handler(nrf_timer_event_t event_type, void *context)
 		break;
 	}
 }
+#endif

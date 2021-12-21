@@ -53,19 +53,26 @@ For FOTA DFU related documentation, see :ref:`aws_fota_sample`.
 
 .. _configure_options:
 
-Configuration
-*************
+Configuration options
+*********************
 
-The configurations used in the sample are listed below.
-They are located in :file:`aws_iot/src/prj.conf`.
+The application specific configurations used in the sample are listed below.
+They are located in :file:`samples/nrf9160/aws_iot/Kconfig`.
 
-.. option:: CONFIG_APP_VERSION
+.. _CONFIG_APP_VERSION:
 
-Publishes the application version number to the AWS IoT message broker.
+CONFIG_APP_VERSION
+   Publishes the application version number to the AWS IoT message broker.
 
-.. option:: CONFIG_PUBLICATION_INTERVAL_SECONDS
+.. _CONFIG_PUBLICATION_INTERVAL_SECONDS:
 
-Configures the time interval between each publishing of the message.
+CONFIG_PUBLICATION_INTERVAL_SECONDS
+   Configures the time interval between each publishing of the message.
+
+.. _CONFIG_CONNECTION_RETRY_TIMEOUT_SECONDS:
+
+CONFIG_CONNECTION_RETRY_TIMEOUT_SECONDS
+   Configures the number of seconds between each AWS IoT connection retry.
 
 .. note::
 

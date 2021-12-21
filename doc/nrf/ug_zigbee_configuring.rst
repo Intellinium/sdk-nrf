@@ -55,13 +55,11 @@ This allows the stack to enter the sleep state during these periods, which also 
 When the Zigbee stack thread goes to sleep, the Zigbee thread can enter the suspend state for the same amount of time as the stack's sleep.
 The thread will be automatically resumed after the sleep period is over or on an event.
 
-In the Zigbee samples in the |NCS|, the sleepy behavior can be triggered by pressing a predefined button when the device is booting.
-This action results in calling the ZBOSS API that activates this feature.
-See the :ref:`light switch sample <zigbee_light_switch_sample>` for a demonstration.
+For this feature to work, make sure to call the :c:func:`zb_set_rx_on_when_idle` ZBOSS API, as described in `Configuring sleepy behavior for end devices`_ in the ZBOSS documentation.
+This feature does not require enabling any additional options in Kconfig.
 
-.. note::
-    For this feature to work, make sure to poll the :c:func:`zb_set_rx_on_when_idle` ZBOSS API, as described in `Configuring sleepy behavior for end devices`_ in the ZBOSS documentation.
-    This feature does not require enabling any additional options in Kconfig.
+In the :ref:`Zigbee light switch sample <zigbee_light_switch_sample>` in the |NCS|, after you enable the SED behavior extension, the sleepy behavior can be triggered by pressing a predefined button when the device is booting.
+This action results in calling the ZBOSS API that activates this feature.
 
 Power saving during sleep
 -------------------------
@@ -99,7 +97,7 @@ IEEE 802.15.4 EUI-64 configuration
 The Zigbee stack uses the EUI-64 address that is configured in the IEEE 802.15.4 shim layer.
 By default, it uses an address from Nordic Semiconductor's pool.
 
-If your devices should use different address, you can change the address according to your company's addressing scheme.
+If your devices should use a different address, you can change the address according to your company's addressing scheme.
 
 .. include:: /includes/ieee802154_eui64_conf.txt
 
@@ -137,6 +135,14 @@ Custom logging per module
 Logging is handled with the :kconfig:`CONFIG_LOG` option.
 This option enables logging for both the stack and Zephyr's :ref:`zephyr:logging_api` API.
 
+.. _zigbee_ug_logging_application_logs:
+
+Default Zigbee application logging
+----------------------------------
+
+The Zigbee application uses the ``INF`` logging level by default.
+This level can be changed only by modifying the sample code.
+
 .. _zigbee_ug_logging_stack_logs:
 
 Stack logs
@@ -166,9 +172,11 @@ The stack logs are provided in a binary format and you can configure how they ar
   * ``CDC_ACM_0`` if :kconfig:`CONFIG_ZBOSS_TRACE_USB_CDC_LOGGING` is selected.
 
   .. note::
-      When you select :kconfig:`CONFIG_ZBOSS_TRACE_USB_CDC_LOGGING`, the USB peripheral is enabled and the USB CDC serial is configured as a part of the :c:func:`zb_osif_serial_logger_init` function.
-      The application does not wait for the connection to be established and unreceived data is lost.
-      For this reason, start collecting the data as soon as you need to.
+     When you select :kconfig:`CONFIG_ZBOSS_TRACE_USB_CDC_LOGGING`, the USB peripheral is enabled and the USB CDC serial is configured as a part of the :c:func:`zb_osif_serial_logger_init` function.
+     The application does not wait for the connection to be established and unreceived data is lost.
+     For this reason, start collecting the data as soon as you need to.
+
+     See :ref:`zephyr:usb_device_cdc_acm` for more information about how to configure USB CDC ACM instance for logging ZBOSS trace messages.
 
 * :kconfig:`CONFIG_ZBOSS_TRACE_BINARY_NCP_TRANSPORT_LOGGING` - Stack logs are printed in the binary format using the NCP transport channel.
 
@@ -181,9 +189,6 @@ If NCP transport channel is used, stack logs are stored in the buffer used for N
 
 Zephyr's logger options
 -----------------------
-
-Zephyr's :ref:`zephyr:logging_api` starts with the default ``ERR`` logging level (only errors reported).
-This level is used by default by the application.
 
 You can configure custom logger options for each Zigbee and ZBOSS module.
 To do this, configure the related Kconfig option for one or more modules:

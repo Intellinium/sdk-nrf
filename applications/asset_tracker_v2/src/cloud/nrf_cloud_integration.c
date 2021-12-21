@@ -12,30 +12,12 @@
 #include <logging/log.h>
 LOG_MODULE_REGISTER(MODULE, CONFIG_CLOUD_INTEGRATION_LOG_LEVEL);
 
-#define NRF_CLOUD_SERVICE_INFO "{"								\
-					"\"state\":{"						\
-						"\"reported\":{"				\
-							"\"device\":{"				\
-								"\"serviceInfo\":{"		\
-									"\"ui\":["		\
-										"\"GPS\","	\
-										"\"HUMID\","	\
-										"\"RSRP\","	\
-										"\"BUTTON\","	\
-										"\"TEMP\""	\
-									"],"			\
-									"\"fota_v2\":["		\
-										"\"APP\","	\
-										"\"MODEM\","	\
-										"\"BOOT\""	\
-									"]"			\
-								"}"				\
-							"}"					\
-						"}"						\
-					"}"							\
-				"}"
-
 #define REQUEST_DEVICE_STATE_STRING ""
+
+/* String used to filter out responses to
+ * cellular position requests (neighbor cell measurements).
+ */
+#define CELL_POS_FILTER_STRING "CELL_POS"
 
 static cloud_wrap_evt_handler_t wrapper_evt_handler;
 
@@ -51,20 +33,47 @@ static void cloud_wrapper_notify_event(const struct cloud_wrap_event *evt)
 static int send_service_info(void)
 {
 	int err;
-	struct nrf_cloud_tx_data msg = {
-		.data.ptr = NRF_CLOUD_SERVICE_INFO,
-		.data.len = sizeof(NRF_CLOUD_SERVICE_INFO) - 1,
-		.qos = MQTT_QOS_0_AT_MOST_ONCE,
-		.topic_type = NRF_CLOUD_TOPIC_STATE,
+	struct nrf_cloud_svc_info_fota fota_info = {
+		.application = true,
+		.bootloader = true,
+		.modem = true
+	};
+	struct nrf_cloud_svc_info_ui ui_info = {
+		.gps = true,
+		.humidity = true,
+		.rsrp = true,
+		.temperature = true,
+		.button = true
+	};
+	struct nrf_cloud_svc_info service_info = {
+		.fota = &fota_info,
+		.ui = &ui_info
+	};
+	struct nrf_cloud_device_status device_status = {
+		.modem = NULL,
+		.svc = &service_info
+
 	};
 
-	err = nrf_cloud_send(&msg);
+	err = nrf_cloud_shadow_device_status_update(&device_status);
 	if (err) {
-		LOG_ERR("nrf_cloud_send, error: %d", err);
+		LOG_ERR("nrf_cloud_shadow_device_status_update, error: %d", err);
 		return err;
 	}
 
-	LOG_DBG("nRF Cloud service info sent: %s", NRF_CLOUD_SERVICE_INFO);
+	LOG_DBG("nRF Cloud service info sent");
+
+	return 0;
+}
+
+/* Function used to filter out responses to cellular position requests. */
+static int cell_pos_response_filter(char *response, size_t len)
+{
+	ARG_UNUSED(len);
+
+	if (strstr(response, CELL_POS_FILTER_STRING) != NULL) {
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -73,6 +82,7 @@ static void nrf_cloud_event_handler(const struct nrf_cloud_evt *evt)
 {
 	struct cloud_wrap_event cloud_wrap_evt = { 0 };
 	bool notify = false;
+	int err;
 
 	switch (evt->type) {
 	case NRF_CLOUD_EVT_TRANSPORT_CONNECTING:
@@ -86,8 +96,7 @@ static void nrf_cloud_event_handler(const struct nrf_cloud_evt *evt)
 		cloud_wrap_evt.type = CLOUD_WRAP_EVT_CONNECTED;
 		notify = true;
 
-		int err = send_service_info();
-
+		err = send_service_info();
 		if (err) {
 			LOG_ERR("Failed to send nRF Cloud service information");
 			cloud_wrap_evt.type = CLOUD_WRAP_EVT_ERROR;
@@ -113,6 +122,17 @@ static void nrf_cloud_event_handler(const struct nrf_cloud_evt *evt)
 		break;
 	case NRF_CLOUD_EVT_RX_DATA:
 		LOG_DBG("NRF_CLOUD_EVT_RX_DATA");
+
+		/* Filter out responses to cellular position requests. The application does not care
+		 * about getting its location back after neighbor cell measurements have been
+		 * sent to cloud.
+		 */
+		err = cell_pos_response_filter((char *)evt->data.ptr, evt->data.len);
+		if (err) {
+			LOG_DBG("Cellular position response received, aborting");
+			return;
+		}
+
 		cloud_wrap_evt.type = CLOUD_WRAP_EVT_DATA_RECEIVED;
 		cloud_wrap_evt.data.buf = (char *)evt->data.ptr;
 		cloud_wrap_evt.data.len = evt->data.len;
@@ -121,6 +141,26 @@ static void nrf_cloud_event_handler(const struct nrf_cloud_evt *evt)
 	case NRF_CLOUD_EVT_USER_ASSOCIATION_REQUEST:
 		LOG_WRN("NRF_CLOUD_EVT_USER_ASSOCIATION_REQUEST");
 		LOG_WRN("Add the device to nRF Cloud and wait for it to reconnect");
+
+		/* It is expected that the application will disconnect and reconnect to nRF Cloud
+		 * several times during device association.
+		 */
+
+		/* Explicitly disconnect the nRF Cloud transport library to clear its
+		 * internal state. This is needed by the library to allow subsequent calls to
+		 * nrf_cloud_connect(), which is necessary to complete device association.
+		 */
+		err = nrf_cloud_disconnect();
+		if (err) {
+			LOG_ERR("nrf_cloud_disconnect failed, error: %d", err);
+
+			/* If disconnection from nRF Cloud fails, the cloud module is notified with
+			 * an error. The application is expected to perform a reboot in order
+			 * to reconnect to nRF Cloud and complete device association.
+			 */
+			cloud_wrap_evt.type = CLOUD_WRAP_EVT_ERROR;
+			notify = true;
+		}
 		break;
 	case NRF_CLOUD_EVT_USER_ASSOCIATED:
 		LOG_DBG("NRF_CLOUD_EVT_USER_ASSOCIATED");
@@ -314,7 +354,7 @@ int cloud_wrap_batch_send(char *buf, size_t len)
 		.data.ptr = buf,
 		.data.len = len,
 		.qos = MQTT_QOS_0_AT_MOST_ONCE,
-		.topic_type = NRF_CLOUD_TOPIC_MESSAGE,
+		.topic_type = NRF_CLOUD_TOPIC_BULK,
 	};
 
 	err = nrf_cloud_send(&msg);
@@ -347,8 +387,21 @@ int cloud_wrap_ui_send(char *buf, size_t len)
 
 int cloud_wrap_neighbor_cells_send(char *buf, size_t len)
 {
-	/* Not supported */
-	return -ENOTSUP;
+	int err;
+	struct nrf_cloud_tx_data msg = {
+		.data.ptr = buf,
+		.data.len = len,
+		.qos = MQTT_QOS_0_AT_MOST_ONCE,
+		.topic_type = NRF_CLOUD_TOPIC_MESSAGE,
+	};
+
+	err = nrf_cloud_send(&msg);
+	if (err) {
+		LOG_ERR("nrf_cloud_send, error: %d", err);
+		return err;
+	}
+
+	return 0;
 }
 
 int cloud_wrap_agps_request_send(char *buf, size_t len)

@@ -33,6 +33,7 @@ For more information on the various services, see the following documentation:
 
 1. :ref:`lib_nrf_cloud_agps`
 #. :ref:`lib_nrf_cloud_cell_pos`
+#. :ref:`lib_nrf_cloud_fota`
 #. :ref:`lib_nrf_cloud_pgps`
 
 Applications and samples
@@ -45,7 +46,7 @@ The following applications use the :ref:`lib_nrf_cloud` for services in |NCS|:
 
 The following samples demonstrate specific nRF Cloud functionality:
 
-* :ref:`agps_sample`
 * :ref:`cloud_client`
+* :ref:`gnss_sample`
 * :ref:`lte_sensor_gateway`
 * :ref:`multicell_location`

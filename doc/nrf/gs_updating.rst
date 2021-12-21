@@ -14,6 +14,24 @@ You might also want to switch to a newer release or check out the latest state o
 However, if you work with a specific release of the |NCS|, you do not need to update your repositories, because the release will not change.
 For an overview of changes in the latest releases, see :ref:`release_notes`.
 
+.. _gs_updating_vsc:
+
+Updating |VSC|
+**************
+
+Visual Studio Code checks for extension updates and automatically installs them when they are available.
+After an extension is updated, VS Code prompts you to reload the application.
+
+If you disabled automatic updates:
+
+1. Open the :guilabel:`Extensions` tab and locate the |VSC| extension.
+
+#. The :guilabel:`Update` button appears when an update is available.
+   Click on the button to install the update.
+
+The |VSC| extension lets you update west and the associated |NCS| repositories within its :guilabel:`Source Control` panel.
+For detailed instructions, see the `West integration`_ section of the extension's documentation.
+
 .. _west_update:
 
 Updating west
@@ -83,7 +101,7 @@ To update to a particular revision (SHA), make sure that you have that particula
 To switch to the latest state of development, enter the following commands::
 
    git fetch origin
-   git checkout origin/master
+   git checkout origin/main
    west update
 
 .. note::
@@ -122,6 +140,20 @@ Whenever you update to a newer release of the |NCS|, check the :ref:`gs_recommen
       To update to the latest version of the SES Nordic Edition, install it manually as described in :ref:`installing_ses`.
       Then, :ref:`set up the build environment in SES <setting_up_SES>` again.
 ..
+
+.. _gs_updating_ses_packages:
+
+Updating SES packages
+=====================
+
+Updating SES Nordic Edition will not update already installed packages.
+You might need to manually update the CPU support package when you cannot select a CPU as :guilabel:`Target Processor` when configuring a new project.
+
+To update the nRF CPU Support Package after a SES update:
+
+1. In SES, select :guilabel:`Tools` > :guilabel:`Package Manager...`.
+#. Search for "nRF CPU Support Package".
+#. Update the package to the latest version.
 
 .. _repo_move:
 

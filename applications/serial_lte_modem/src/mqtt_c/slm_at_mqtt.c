@@ -61,7 +61,7 @@ static uint8_t pub_msg[MQTT_MESSAGE_BUFFER_LEN];
 
 /* global variable defined in different files */
 extern struct at_param_list at_param_list;
-extern char rsp_buf[CONFIG_AT_CMD_RESPONSE_MAX_LEN];
+extern char rsp_buf[SLM_AT_CMD_RESPONSE_MAX_LEN];
 
 #define THREAD_STACK_SIZE	KB(2)
 #define THREAD_PRIORITY		K_LOWEST_APPLICATION_THREAD_PRIO
@@ -188,6 +188,18 @@ void mqtt_evt_handler(struct mqtt_client *const c, const struct mqtt_evt *evt)
 		}
 		break;
 
+	case MQTT_EVT_UNSUBACK:
+		if (evt->result == 0) {
+			LOG_DBG("UNSUBACK packet id: %u", evt->param.unsuback.message_id);
+		}
+		break;
+
+	case MQTT_EVT_PINGRESP:
+		if (evt->result == 0) {
+			LOG_DBG("PINGRESP packet");
+		}
+		break;
+
 	default:
 		LOG_DBG("default: %d", evt->type);
 		break;
@@ -261,28 +273,21 @@ static void mqtt_thread_fn(void *arg1, void *arg2, void *arg3)
 static int broker_init(void)
 {
 	int err;
-	struct addrinfo *result;
-	struct addrinfo hints = {
-		.ai_family = ctx.family,
-		.ai_socktype = SOCK_STREAM
+	struct sockaddr sa = {
+		.sa_family = AF_UNSPEC
 	};
 
-	err = getaddrinfo(mqtt_broker_url, NULL, &hints, &result);
+	err = util_resolve_host(0, mqtt_broker_url, mqtt_broker_port, ctx.family, &sa);
 	if (err) {
-		LOG_ERR("ERROR: getaddrinfo failed %d", err);
-		return err;
+		LOG_ERR("getaddrinfo() error: %s", log_strdup(gai_strerror(err)));
+		return -EAGAIN;
 	}
-
-	if (ctx.family == AF_INET) {
-		ctx.broker = *(struct sockaddr_in *)result->ai_addr;
-		ctx.broker.sin_port = htons(mqtt_broker_port);
+	if (sa.sa_family == AF_INET) {
+		ctx.broker = *(struct sockaddr_in *)&sa;
 	} else {
-		ctx.broker6 = *(struct sockaddr_in6 *)result->ai_addr;
-		ctx.broker6.sin6_port = htons(mqtt_broker_port);
+		ctx.broker6 = *(struct sockaddr_in6 *)&sa;
 	}
 
-	/* Free the address. */
-	freeaddrinfo(result);
 	return 0;
 }
 
@@ -567,30 +572,30 @@ int handle_at_mqtt_publish(enum at_cmd_type cmd_type)
 			return err;
 		}
 		pub_msg[0] = '\0';
-		if (at_params_type_get(&at_param_list, 3) == AT_PARAM_TYPE_STRING) {
-			err = util_string_get(&at_param_list, 3, pub_msg, &msg_sz);
+		if (at_params_type_get(&at_param_list, 2) == AT_PARAM_TYPE_STRING) {
+			err = util_string_get(&at_param_list, 2, pub_msg, &msg_sz);
 			if (err) {
 				return err;
 			}
-			if (param_count > 4) {
-				err = at_params_unsigned_short_get(&at_param_list, 4, &qos);
+			if (param_count > 3) {
+				err = at_params_unsigned_short_get(&at_param_list, 3, &qos);
 				if (err) {
 					return err;
 				}
-			}
-			if (param_count > 5) {
-				err = at_params_unsigned_short_get(&at_param_list, 5, &retain);
-				if (err) {
-					return err;
-				}
-			}
-		} else if (at_params_type_get(&at_param_list, 3) == AT_PARAM_TYPE_NUM_INT) {
-			err = at_params_unsigned_short_get(&at_param_list, 3, &qos);
-			if (err) {
-				return err;
 			}
 			if (param_count > 4) {
 				err = at_params_unsigned_short_get(&at_param_list, 4, &retain);
+				if (err) {
+					return err;
+				}
+			}
+		} else if (at_params_type_get(&at_param_list, 2) == AT_PARAM_TYPE_NUM_INT) {
+			err = at_params_unsigned_short_get(&at_param_list, 2, &qos);
+			if (err) {
+				return err;
+			}
+			if (param_count > 3) {
+				err = at_params_unsigned_short_get(&at_param_list, 3, &retain);
 				if (err) {
 					return err;
 				}

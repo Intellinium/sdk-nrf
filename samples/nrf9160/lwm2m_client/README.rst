@@ -28,13 +28,13 @@ Overview
 
 LwM2M is an application layer protocol based on CoAP over UDP.
 It is designed to expose various resources for reading, writing, and executing through an LwM2M server in a very lightweight environment.
-The client sends data such as button and switch states, accelerometer data, temperature, and GPS position to the LwM2M server.
+The client sends data such as button and switch states, accelerometer data, temperature, and GNSS position to the LwM2M server.
 It can also receive activation commands such as buzzer activation and light control.
 
 .. note::
-   The GPS module interferes with the LTE connection.
-   If GPS is not needed or if the device is in an area with poor connection, disable the GPS module.
-   You can disable the GPS module by setting the configuration option :kconfig:`CONFIG_APP_GPS` to ``n``.
+   The GNSS module interferes with the LTE connection.
+   If GNSS is not needed or if the device is in an area with poor connection, disable the GNSS module.
+   You can disable the GNSS module by setting the configuration option :ref:`CONFIG_APP_GPS <CONFIG_APP_GPS>` to ``n``.
 
 
 The following LwM2M objects are implemented in this sample:
@@ -43,59 +43,72 @@ The following LwM2M objects are implemented in this sample:
    :header-rows: 1
 
    *  - LwM2M objects
+      - Object ID
       - Thingy:91
       - nRF9160 DK
    *  - LwM2M Server
+      - 1
       - Yes
       - Yes
    *  - Device
+      - 3
       - Yes
       - Yes
    *  - Connectivity Monitoring
+      - 4
       - Yes
       - Yes
    *  - FOTA
+      - 5
       - Yes
       - Yes
    *  - Location
+      - 6
       - Yes
       - Yes
    *  - Accelerometer
+      - 3313
       - Yes
       - Simulated
    *  - Color
+      - 3335
       - Yes
       - Simulated
    *  - Temperature
+      - 3303
       - Yes
       - Simulated
    *  - Pressure
+      - 3323
       - Yes
       - Simulated
    *  - Humidity
+      - 3304
       - Yes
       - Simulated
    *  - Generic Sensor
+      - 3300
       - Yes
       - Simulated
    *  - Light Control
+      - 3311
       - Yes
       - Yes
    *  - Push Button
+      - 3347
       - Yes
       - Yes
    *  - Buzzer
+      - 3338
       - Yes
       - No
    *  - On/Off Switch
+      - 3342
       - No
       - Yes
 
 
-.. note::
-
-   The level resource on the Buzzer object does not work properly.
-   This is due to an error in Zephyr’s float handling, which will be fixed soon.
+.. _dtls_support:
 
 DTLS Support
 ============
@@ -115,7 +128,7 @@ Sensor simulation
 You can use the sample for obtaining actual sensor measurements or simulated sensor data for all sensors (including the accelerometer).
 If the sample is running on the nRF9160 DK, only simulated sensor data is available, as it does not have any of the external sensors needed for actual measurements.
 
-For example, you can enable the :kconfig:`CONFIG_ENV_SENSOR_USE_SIM` configuration option if you require simulated data from the temperature, humidity, pressure or gas resistance sensors.
+For example, you can enable the :ref:`CONFIG_ENV_SENSOR_USE_SIM <CONFIG_ENV_SENSOR_USE_SIM>` configuration option if you require simulated data from the temperature, humidity, pressure or gas resistance sensors.
 
 .. _notifications_lwm2m:
 
@@ -196,7 +209,7 @@ The following instructions describe how to register your device to `Leshan Demo 
          #. Enter the following data and click :guilabel:`Add device`:
 
             * Endpoint - urn\:imei\:*your Device IMEI*
-            * Friendly Name - *recognisable name*
+            * Friendly Name - *recognizable name*
             * Security mode - psk (Pre-Shared Key)
             * Key - 000102030405060708090a0b0c0d0e0f
 
@@ -208,18 +221,32 @@ The following instructions describe how to register your device to `Leshan Demo 
 
       .. tab:: Leshan Demo Server
 
-         1. Open the `public Leshan Bootstrap Server Demo`_.
-         #. Click on :guilabel:`Bootstrap` in the top right corner.
+         1. Open the `Leshan Boostrap Server Demo web UI <public Leshan Bootstrap Server Demo_>`_.
+         #. Click on :guilabel:`BOOTSTRAP` in the top right corner.
+         #. In the :guilabel:`BOOTSTRAP` tab, click on :guilabel:`ADD CLIENTS CONFIGURATION`.
          #. Click on :guilabel:`Add clients configuration`.
-         #. Enter the client endpoint - urn\:imei\:*your device IMEI* and click on :guilabel:`Next`.
-         #. In the :guilabel:`LwM2M Server` section, choose the desired configuration (``No security`` or ``Pre-Shared Key``).
+         #. Enter your Client Endpoint name - urn\:imei\:*your device IMEI*.
+         #. Click :guilabel:`NEXT` and in the :guilabel:`LWM2M Server Configuration` section, enter the following data:
+
+            * Server URL - ``coaps://leshan.eclipseprojects.io:5684``
+            * Select :guilabel:`Pre-shared Key` as the :guilabel:`Security Mode`
+            * Identity - urn\:imei\:*your device IMEI*
+            * Key - ``000102030405060708090a0b0c0d0e0f``
+         #. Click :guilabel:`NEXT` and in the :guilabel:`LWM2M Bootstrap Server Configuration` section enter the following data:
+
+            * Server URL - ``coaps://leshan.eclipseprojects.io:5784``
+            * Select :guilabel:`Pre-shared Key` as the :guilabel:`Security Mode`
+            * Identity - urn\:imei\:*your device IMEI*
+            * Key - ``000102030405060708090a0b0c0d0e0f``
+
+            This information is used when your client connects to the server.
             If you choose :guilabel:`Pre-shared Key`, add the values for :guilabel:`Identity` and :guilabel:`Key` fields (the configured Identity or Key need not match the Bootstrap Server configuration).
-            The same credentials will be provided in the :guilabel:`Leshan Demo Server Security configuration` page.
+            The same credentials will be provided in the :guilabel:`Leshan Demo Server Security configuration` page (see :ref:`dtls_support` for instructions).
             If :guilabel:`No Security` is chosen, no further configuration is needed.
             In this mode, no DTLS will be used for the communication with the LwM2M server.
 
-         #. In the :guilabel:`LwM2M Bootstrap Server` tab, similarly, fill the information for the bootstrap server. Note that this information is used when your client connects to the server.
-         #. After adding values for the fields under both the :guilabel:`LwM2M Bootstrap Server` and :guilabel:`LwM2M Server` tabs, click :guilabel:`Add`.
+         #. After adding values for the fields under both the :guilabel:`LwM2M Server Configuration` and :guilabel:`LwM2M Bootstrap Server Configuration` tabs, click :guilabel:`Add`.
+
 
 
       .. tab:: Coiote Device Management
@@ -237,11 +264,16 @@ The following instructions describe how to register your device to `Leshan Demo 
 
          #. Click :guilabel:`Add device`.
 
+.. note::
+
+   The :guilabel:`Client Configuration` page of the LWM2M Bootstrap server and the :guilabel:`Registered Clients` page of the LWM2M server display only a limited number of devices by default.
+   You can increase the number of displayed devices from the drop-down menu associated with :guilabel:`Rows per page`.
+   In both cases, the menu is displayed at the bottom-right corner of the :guilabel:`Client Configuration` pages.
 
 2. Set the server address in the client:
 
    a. Open :file:`src/prj.conf`.
-   #. Set :kconfig:`CONFIG_APP_LWM2M_SERVER` to the correct server URL:
+   #. Set :ref:`CONFIG_APP_LWM2M_SERVER <CONFIG_APP_LWM2M_SERVER>` to the correct server URL:
 
       * For `Leshan Demo Server`_ - ``leshan.eclipseprojects.io`` (`public Leshan Demo Server`_).
       * For `Coiote Device Management`_ - ``eu.iot.avsystem.cloud`` (`Coiote Device Management server`_).
@@ -249,7 +281,7 @@ The following instructions describe how to register your device to `Leshan Demo 
    #. Set :kconfig:`CONFIG_LWM2M_PEER_PORT` to the port number used by the server you have chosen.
       Remember to set it to the port number used by the bootstrap server if bootstrap is enabled.
 
-#. Set :kconfig:`CONFIG_APP_LWM2M_PSK` to the hexadecimal representation of the PSK used when registering the device with the server.
+#. Set :ref:`CONFIG_APP_LWM2M_PSK <CONFIG_APP_LWM2M_PSK>` to the hexadecimal representation of the PSK used when registering the device with the server.
 
 
 
@@ -302,78 +334,94 @@ Check and configure the following configuration options for the sample:
 Server options
 --------------
 
-.. option:: CONFIG_APP_LWM2M_SERVER - Configuration for LwM2M server URL
+.. _CONFIG_APP_LWM2M_SERVER:
 
+CONFIG_APP_LWM2M_SERVER - Configuration for LwM2M server URL
    The sample configuration sets the URL of the LwM2M server to be used. The URL must not be prefixed with the application protocol.
 
-.. option:: CONFIG_APP_LWM2M_PSK - Configuration for Pre-Shared Key
+.. _CONFIG_APP_LWM2M_PSK:
 
+CONFIG_APP_LWM2M_PSK - Configuration for Pre-Shared Key
    The sample configuration is used to set the hexadecimal representation of the PSK used when registering the device with the server.
 
-.. option:: CONFIG_APP_ENDPOINT_PREFIX - Configuration for setting prefix for endpoint name
+.. _CONFIG_APP_ENDPOINT_PREFIX:
 
+CONFIG_APP_ENDPOINT_PREFIX - Configuration for setting prefix for endpoint name
    This configuration option changes the prefix of the endpoint name.
 
 LwM2M objects options
 ---------------------
 
-.. option:: CONFIG_APP_TEMP_SENSOR - Configuration for enabling an LwM2M Temperature sensor object
+.. _CONFIG_APP_TEMP_SENSOR:
 
+CONFIG_APP_TEMP_SENSOR - Configuration for enabling an LwM2M Temperature sensor object
    The sample configuration is used to enable an LwM2M Temperature sensor object.
    All compatible objects are enabled by default.
    Disabled objects will not be visible in the server.
    This configuration option can be used for other LwM2M objects also by modifying the option accordingly.
 
-.. option:: CONFIG_APP_GPS - Configuration for enabling GPS functionality
+.. _CONFIG_APP_GPS:
 
-   The sample configuration is used to enable the GPS.
-   This configuration might interfere with LTE if the GPS conditions are not optimal.
-   Disable this option if GPS is not needed.
+CONFIG_APP_GPS - Configuration for enabling GNSS functionality
+   This configuration might interfere with LTE if the GNSS conditions are not optimal.
+   Disable this option if GNSS is not needed.
 
-.. option::  CONFIG_GPS_PRIORITY_ON_FIRST_FIX - Configuration for prioritizing GPS
+.. _CONFIG_GPS_PRIORITY_ON_FIRST_FIX:
 
-   The configuration is used to prioritize GPS over LTE during the search for first fix.
-   Enabling this option makes it significantly easier for the GPS module to find a position but will also affect performance for the rest of the application during the search for first fix.
+CONFIG_GPS_PRIORITY_ON_FIRST_FIX - Configuration for prioritizing GNSS over LTE during the search for first fix.
+   Enabling this option makes it significantly easier for the GNSS module to find a position but will also affect performance for the rest of the application during the search for first fix.
 
-.. option:: CONFIG_ENV_SENSOR_USE_SIM - Configuration to enable simulated sensor data
+.. _CONFIG_ENV_SENSOR_USE_SIM:
 
+CONFIG_ENV_SENSOR_USE_SIM - Configuration to enable simulated sensor data
    The configuration when enabled, makes the sensor returns simulated data and not actual measurements.
    This option is available for all sensors, including the accelerometer.
 
-.. option:: CONFIG_LWM2M_IPSO_APP_COLOUR_SENSOR_VERSION_1_0 - Configuration for selecting the IPSO Color sensor object version
+.. _CONFIG_LWM2M_IPSO_APP_COLOUR_SENSOR_VERSION_1_0:
 
+CONFIG_LWM2M_IPSO_APP_COLOUR_SENSOR_VERSION_1_0 - Configuration for selecting the IPSO Color sensor object version
    The configuration option sets the version of the OMA IPSO object specification that is to be used by the user defined Color sensor IPSO object to 1.0.
 
-.. option:: CONFIG_LWM2M_IPSO_APP_COLOUR_SENSOR_VERSION_1_1 - Configuration for selecting the IPSO Color sensor object version
+.. _CONFIG_LWM2M_IPSO_APP_COLOUR_SENSOR_VERSION_1_1:
 
+CONFIG_LWM2M_IPSO_APP_COLOUR_SENSOR_VERSION_1_1 - Configuration for selecting the IPSO Color sensor object version
    The configuration option sets the version of the OMA IPSO object specification that is to be used by the user defined Color sensor IPSO object to 1.1.
 
+.. _CONFIG_APP_CUSTOM_VERSION:
+
+CONFIG_APP_CUSTOM_VERSION - Configuration to set custom application version reported in the Device object
+   The configuration option allows to specify custom application version reported to the LwM2M server. By default, the current |NCS| version is used.
 
 .. _sensor_module_options:
 
 Sensor module options
 ---------------------
 
-.. option:: CONFIG_SENSOR_MODULE - Configuration for periodic sensor reading
+.. _CONFIG_SENSOR_MODULE:
 
+CONFIG_SENSOR_MODULE - Configuration for periodic sensor reading
    This configuration option enables periodic reading of sensors and updating the resource values when
    the change is sufficiently large.
    The server is notified if a change in one or more resources is observed.
 
-.. option:: CONFIG_SENSOR_MODULE_TEMP - Configuration to enable Temperature sensor
+.. _CONFIG_SENSOR_MODULE_TEMP:
 
+CONFIG_SENSOR_MODULE_TEMP - Configuration to enable Temperature sensor
    This configuration option enables the Temperature sensor in the Sensor Module.
 
-.. option:: CONFIG_SENSOR_MODULE_TEMP_PERIOD - Configuration for interval between sensor readings
+.. _CONFIG_SENSOR_MODULE_TEMP_PERIOD:
 
+CONFIG_SENSOR_MODULE_TEMP_PERIOD - Configuration for interval between sensor readings
    This configuration option sets the time interval (in seconds) between sensor readings from the Temperature sensor.
 
-.. option:: CONFIG_SENSOR_MODULE_TEMP_DELTA_INT - Configuration for setting required change
+.. _CONFIG_SENSOR_MODULE_TEMP_DELTA_INT:
 
+CONFIG_SENSOR_MODULE_TEMP_DELTA_INT - Configuration for setting required change
    This configuration option sets the required change (integer part) in sensor value before the corresponding resource value is updated.
 
-.. option:: CONFIG_SENSOR_MODULE_TEMP_DELTA_DEC - Configuration for setting required change
+.. _CONFIG_SENSOR_MODULE_TEMP_DELTA_DEC:
 
+CONFIG_SENSOR_MODULE_TEMP_DELTA_DEC - Configuration for setting required change
    This configuration option sets the required change (decimal part) in sensor value before the corresponding resource value is updated.
 
 .. note::
@@ -441,11 +489,11 @@ After building and running the sample, you can locate your device in the server:
 Queue Mode support
 ==================
 
-To use the LwM2M Client with LwM2M Queue Mode support, build it with the ``-DOVERLAY_CONFIG=overlay-queue.conf`` option.
+To use the LwM2M Client with LwM2M Queue Mode support, build it with the ``-DOVERLAY_CONFIG=overlay-queue.conf`` option:
 
 .. code-block:: console
 
-   west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG=-DOVERLAY_CONFIG=overlay-queue.conf
+   west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG=overlay-queue.conf
 
 Bootstrap support
 =================
@@ -453,7 +501,12 @@ Bootstrap support
 To successfully run the bootstrap procedure, the device must first be registered in the LwM2M bootstrap server.
 See :ref:`Registering your device to an LwM2M boot strap server <bootstrap_server_reg>` for instructions.
 
-To build the LwM2M Client with LwM2M bootstrap support, build it with the ``-DOVERLAY_CONFIG=overlay-bootstrap.conf`` option.
+To build the LwM2M Client with LwM2M bootstrap support, build it with the ``-DOVERLAY_CONFIG=overlay-bootstrap.conf`` option:
+
+.. code-block:: console
+
+   west build -b nrf9160dk_nrf9160_ns -- -DOVERLAY_CONFIG=overlay-bootstrap.conf
+
 See :ref:`cmake_options` for instructions on how to add this option.
 Keep in mind that the used bootstrap port is set in the aforementioned configuration file.
 
@@ -467,13 +520,13 @@ Testing
    #. Observe that the sample starts in the terminal window.
    #. Check that the device is connected to the chosen LwM2M server.
    #. Press **Button 1** on nRF9160 DK or **SW3** on Thingy:91 and confirm that the button event appears in the terminal.
-   #. Check that the button press has been registered on the LwM2M server by confirming that the press count has been updated.
+   #. Check that the button press event has been registered on the LwM2M server by confirming that the press count has been updated.
    #. Retrieve sensor data from various sensors and check if values are reasonable.
-   #. Test GPS module:
+   #. Test GNSS module:
 
-      a. Ensure that :kconfig:`CONFIG_GPS_PRIORITY_ON_FIRST_FIX` is enabled.
-      #. Ensure that you are in a location with good GPS signal, preferably outside.
-      #. Wait for the GPS to receive a fix, which will be displayed in the terminal.
+      a. Ensure that :ref:`CONFIG_GPS_PRIORITY_ON_FIRST_FIX <CONFIG_GPS_PRIORITY_ON_FIRST_FIX>` is enabled.
+      #. Ensure that you are in a location with good GNSS signal, preferably outside.
+      #. Wait for the GNSS to receive a fix, which will be displayed in the terminal.
          It might take several minutes for the first fix.
 
    #. Try to enable or disable some sensors in menuconfig and check if the sensors
@@ -482,11 +535,8 @@ Testing
 Firmware Over-the-Air (FOTA)
 ============================
 
-You can update the firmware of the device if you are using Coiote Device Management server as the LwM2M server.
-Application firmware updates and delta modem firmware updates are supported.
-
-.. note::
-   Full modem firmware update is not supported when using Coiote Device Management server.
+You can update the firmware of the device if you are using Coiote Device Management server or Leshan server.
+Application firmware updates and modem firmware (both full and delta) updates are supported.
 
 To update the firmware, complete the following steps:
 
@@ -513,6 +563,10 @@ This application uses the following |NCS| libraries and drivers:
 * :ref:`dk_buttons_and_leds_readme`
 * :ref:`lte_lc_readme`
 * :ref:`lib_date_time`
+* :ref:`lib_dfu_target`
+* :ref:`lib_fmfu_fdev`
+* :ref:`lib_fota_download`
+* :ref:`lib_download_client`
 
 It uses the following `sdk-nrfxlib`_ library:
 

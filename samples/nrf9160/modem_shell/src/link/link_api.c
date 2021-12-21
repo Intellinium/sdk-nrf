@@ -19,15 +19,14 @@
 #include <net/net_ip.h>
 
 #include "utils/net_utils.h"
+#include "mosh_print.h"
 
 #include "link_shell.h"
 #include "link_shell_print.h"
 #include "link_shell_pdn.h"
 #include "link_api.h"
 
-#if defined(CONFIG_AT_CMD)
-
-#include <modem/at_cmd.h>
+#include <nrf_modem_at.h>
 #include <modem/at_cmd_parser.h>
 #include <modem/at_params.h>
 
@@ -49,9 +48,7 @@
 
 #define AT_CMD_PDP_CONTEXT_READ_RSP_DELIM "\r\n"
 
-extern const struct shell *shell_global;
-
-#define AT_CMD_PDP_CONTEXTS_ACT_READ "AT+CGACT?"
+/* ****************************************************************************/
 
 static void link_api_context_info_fill_activation_status(
 	struct pdp_context_info_array *pdp_info)
@@ -63,13 +60,9 @@ static void link_api_context_info_fill_activation_status(
 	int ctx_cnt = pdp_info->size;
 	struct pdp_context_info *ctx_tbl = pdp_info->array;
 
-	ret = at_cmd_write(AT_CMD_PDP_CONTEXTS_ACT_READ, at_response_str,
-			   sizeof(at_response_str), NULL);
+	ret = nrf_modem_at_cmd(at_response_str, sizeof(at_response_str), "AT+CGACT?");
 	if (ret) {
-		shell_error(
-			shell_global,
-			"Cannot get PDP contexts activation states, err: %d",
-			ret);
+		mosh_error("Cannot get PDP contexts activation states, err: %d", ret);
 		return;
 	}
 
@@ -86,39 +79,6 @@ static void link_api_context_info_fill_activation_status(
 
 /* ****************************************************************************/
 
-static int link_api_pdn_id_get(uint8_t cid)
-{
-	int ret;
-	char *p;
-	char resp[32];
-	static char at_buf[32];
-
-	errno = 0;
-
-	ret = snprintf(at_buf, sizeof(at_buf), "AT%%XGETPDNID=%u", cid);
-	if (ret < 0 || ret >= sizeof(at_buf)) {
-		return -ENOBUFS;
-	}
-
-	ret = at_cmd_write(at_buf, resp, sizeof(resp), NULL);
-	if (ret) {
-		return ret;
-	}
-
-	p = strchr(resp, ':');
-	if (!p) {
-		return -EBADMSG;
-	}
-	ret = strtoul(p + 1, NULL, 10);
-	if (errno) {
-		ret = -errno;
-	}
-
-	return ret;
-}
-
-/* ****************************************************************************/
-
 struct pdp_context_info *link_api_get_pdp_context_info_by_pdn_cid(int pdn_cid)
 {
 	int ret;
@@ -127,7 +87,7 @@ struct pdp_context_info *link_api_get_pdp_context_info_by_pdn_cid(int pdn_cid)
 
 	ret = link_api_pdp_contexts_read(&pdp_context_info_tbl);
 	if (ret) {
-		shell_error(shell_global, "cannot read current connection info: %d", ret);
+		mosh_error("cannot read current connection info: %d", ret);
 		return NULL;
 	}
 
@@ -171,11 +131,10 @@ int link_api_pdp_context_dynamic_params_get(struct pdp_context_info *populated_i
 
 	sprintf(at_cmd_pdp_context_read_info_cmd_str,
 		AT_CMD_PDP_CONTEXT_READ_INFO, populated_info->cid);
-	ret = at_cmd_write(at_cmd_pdp_context_read_info_cmd_str,
-			   at_response_str, sizeof(at_response_str), NULL);
+	ret = nrf_modem_at_cmd(at_response_str, sizeof(at_response_str), "%s",
+			       at_cmd_pdp_context_read_info_cmd_str);
 	if (ret) {
-		shell_error(
-			shell_global,
+		mosh_error(
 			"at_cmd_write returned err: %d for %s",
 			ret,
 			at_cmd_pdp_context_read_info_cmd_str);
@@ -183,31 +142,30 @@ int link_api_pdp_context_dynamic_params_get(struct pdp_context_info *populated_i
 	}
 
 	/* Check how many rows of info do we have: */
-	while ((tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
-		++tmp_ptr;
-		++lines;
+	while (strncmp(tmp_ptr, "OK", 2) &&
+	       (tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
+		tmp_ptr += 2;
+		lines++;
 	}
 
 	/* Parse the response */
 	ret = at_params_list_init(&param_list, AT_CMD_PDP_CONTEXT_READ_INFO_PARAM_COUNT);
 	if (ret) {
-		shell_error(
-			shell_global,
-			"Could not init AT params list, error: %d\n",
-			ret);
+		mosh_error("Could not init AT params list, error: %d\n", ret);
 		return ret;
 	}
 
 parse:
 	resp_continues = false;
-	ret = at_parser_max_params_from_str(at_ptr, &next_param_str, &param_list, 13);
+	ret = at_parser_max_params_from_str(at_ptr, &next_param_str, &param_list,
+					    AT_CMD_PDP_CONTEXT_READ_INFO_PARAM_COUNT);
 	if (ret == -EAGAIN) {
 		resp_continues = true;
 	} else if (ret == -E2BIG) {
-		shell_error(shell_global, "E2BIG, error: %d\n", ret);
+		mosh_error("E2BIG, error: %d\n", ret);
 	} else if (ret != 0) {
-		shell_error(
-			shell_global, "Could not parse AT response for %s, error: %d\n",
+		mosh_error(
+			"Could not parse AT response for %s, error: %d\n",
 			at_cmd_pdp_context_read_info_cmd_str,
 			ret);
 		goto clean_exit;
@@ -220,8 +178,8 @@ parse:
 		AT_CMD_PDP_CONTEXT_READ_INFO_DNS_ADDR_PRIMARY_INDEX,
 		dns_addr_str, &param_str_len);
 	if (ret) {
-		shell_error(
-			shell_global, "Could not parse dns str for cid %d, err: %d",
+		mosh_error(
+			"Could not parse dns str for cid %d, err: %d",
 			populated_info->cid, ret);
 		goto clean_exit;
 	}
@@ -247,7 +205,7 @@ parse:
 		AT_CMD_PDP_CONTEXT_READ_INFO_DNS_ADDR_SECONDARY_INDEX,
 		dns_addr_str, &param_str_len);
 	if (ret) {
-		shell_error(shell_global, "Could not parse dns str, err: %d", ret);
+		mosh_error("Could not parse dns str, err: %d", ret);
 		goto clean_exit;
 	}
 	dns_addr_str[param_str_len] = '\0';
@@ -264,21 +222,36 @@ parse:
 		}
 	}
 
-	/* Read link MTU if exists: */
-	ret = at_params_int_get(&param_list,
-				AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
-				&(populated_info->mtu));
-	if (ret) {
-		/* Don't care if it fails: */
-		ret = 0;
-		populated_info->mtu = 0;
+	/* Read link MTU if exists:
+	 * AT command spec:
+	 * Note: If the PDN connection has dual stack capabilities, at least one pair of
+	 * lines with information is returned per <cid>: First one line with the IPv4
+	 * parameters followed by one line with the IPv6 parameters.
+	 */
+	if (iterator == 1) {
+		ret = at_params_int_get(&param_list, AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
+					&(populated_info->ipv6_mtu));
+		if (ret) {
+			/* Don't care if it fails: */
+			ret = 0;
+			populated_info->ipv6_mtu = 0;
+		}
+	} else {
+		ret = at_params_int_get(&param_list, AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
+					&(populated_info->ipv4_mtu));
+		if (ret) {
+			/* Don't care if it fails: */
+			ret = 0;
+			populated_info->ipv4_mtu = 0;
+		}
 	}
 
 	if (resp_continues) {
 		at_ptr = next_param_str;
 		iterator++;
-		assert(iterator < lines);
-		goto parse;
+		if (iterator < lines && strncmp(next_param_str, "OK", 2)) {
+			goto parse;
+		}
 	}
 
 clean_exit:
@@ -289,10 +262,7 @@ clean_exit:
 
 /* ****************************************************************************/
 
-/** SNR offset value that is used when mapping to dBs  */
-#define link_API_SNR_OFFSET_VALUE 25
-
-void link_api_coneval_read_for_shell(const struct shell *shell)
+void link_api_coneval_read_for_shell(void)
 {
 	static const char * const coneval_result_strs[] = {
 		"0: Connection evaluation successful",
@@ -353,252 +323,169 @@ void link_api_coneval_read_for_shell(const struct shell *shell)
 	ret = lte_lc_conn_eval_params_get(&params);
 
 	if (ret > 0) {
-		shell_error(
-			shell,
+		mosh_error(
 			"Cannot evaluate connection parameters, result: %s, ret %d",
 			((ret <= 7) ? coneval_result_strs[ret] : "unknown"),
 			ret);
 		return;
 	} else if (ret < 0) {
-		shell_error(shell,
-			    "lte_lc_conn_eval_params_get() API failed %d", ret);
+		mosh_error("lte_lc_conn_eval_params_get() API failed %d", ret);
 		return;
 	}
 
-	shell_print(shell, "Evaluated connection parameters:");
-	shell_print(shell, "  result:          %s",
-		    ((ret <= 8) ? coneval_result_strs[ret] : "unknown"));
-	shell_print(shell, "  rrc_state:       %s",
-		    link_shell_map_to_string(coneval_rrc_state_strs,
-					      params.rrc_state, snum));
-	shell_print(shell, "  energy estimate: %s",
-		    link_shell_map_to_string(coneval_energy_est_strs,
-					      params.energy_estimate, snum));
-	shell_print(shell, "  rsrp:            %d: %ddBm", params.rsrp,
-		    (params.rsrp - MODEM_INFO_RSRP_OFFSET_VAL));
-	shell_print(shell, "  rsrq:            %d", params.rsrq);
+	mosh_print("Evaluated connection parameters:");
+	mosh_print("  result:          %s",
+			((ret <= 8) ? coneval_result_strs[ret] : "unknown"));
+	mosh_print("  rrc_state:       %s",
+			link_shell_map_to_string(coneval_rrc_state_strs, params.rrc_state, snum));
+	mosh_print("  energy estimate: %s",
+			link_shell_map_to_string(coneval_energy_est_strs,
+				params.energy_estimate, snum));
+	mosh_print("  rsrp:            %d: %ddBm", params.rsrp,
+			(params.rsrp - MODEM_INFO_RSRP_OFFSET_VAL));
+	mosh_print("  rsrq:            %d", params.rsrq);
 
-	shell_print(shell, "  snr:             %d: %ddB", params.snr,
-		    (params.snr - link_API_SNR_OFFSET_VALUE));
-	shell_print(shell, "  cell_id:         %d", params.cell_id);
+	mosh_print("  snr:             %d: %ddB", params.snr,
+			(params.snr - LINK_SNR_OFFSET_VALUE));
+	mosh_print("  cell_id:         %d", params.cell_id);
 
-	shell_print(shell, "  mcc/mnc:         %d/%d", params.mcc, params.mnc);
-	shell_print(shell, "  phy_cell_id:     %d", params.phy_cid);
-	shell_print(shell, "  earfcn:          %d", params.earfcn);
-	shell_print(shell, "  band:            %d", params.band);
-	shell_print(shell, "  tau_triggered:   %s",
-		    link_shell_map_to_string(coneval_tau_strs, params.tau_trig,
-					      snum));
-	shell_print(shell, "  ce_level:        %s",
-		    link_shell_map_to_string(coneval_ce_level_strs,
-					      params.ce_level, snum));
-	shell_print(shell, "  tx_power:        %d", params.tx_power);
-	shell_print(shell, "  tx_repetitions:  %d", params.tx_rep);
-	shell_print(shell, "  rx_repetitions:  %d", params.rx_rep);
-	shell_print(shell, "  dl_pathloss:     %d", params.dl_pathloss);
+	mosh_print("  mcc/mnc:         %d/%d", params.mcc, params.mnc);
+	mosh_print("  phy_cell_id:     %d", params.phy_cid);
+	mosh_print("  earfcn:          %d", params.earfcn);
+	mosh_print("  band:            %d", params.band);
+	mosh_print("  tau_triggered:   %s",
+			link_shell_map_to_string(coneval_tau_strs, params.tau_trig, snum));
+	mosh_print("  ce_level:        %s",
+			link_shell_map_to_string(coneval_ce_level_strs, params.ce_level, snum));
+	mosh_print("  tx_power:        %d", params.tx_power);
+	mosh_print("  tx_repetitions:  %d", params.tx_rep);
+	mosh_print("  rx_repetitions:  %d", params.rx_rep);
+	mosh_print("  dl_pathloss:     %d", params.dl_pathloss);
 }
 
 /* ****************************************************************************/
-#define XMONITOR_RESP_REG_STATUS_VALID 1
-#define XMONITOR_RESP_FULL_NAME_VALID 2
-#define XMONITOR_RESP_SHORT_NAME_VALID 4
-#define XMONITOR_RESP_PLMN_VALID 8
-#define XMONITOR_RESP_BAND_VALID 16
-#define XMONITOR_RESP_CELL_ID_VALID 32
-#define XMONITOR_RESP_RSRP_VALID 64
-#define XMONITOR_RESP_SNR_VALID 128
 
-#define OPERATOR_FULL_NAME_STR_MAX_LEN 124
-#define OPERATOR_SHORT_NAME_STR_MAX_LEN 64
-#define OPERATOR_CELL_ID_STR_MAX_LEN 32
-#define OPERATOR_PLMN_STR_MAX_LEN 32
+/* For having a numeric constant in scanf string length */
+#define L(x) STRINGIFY(x)
 
-/* Note: not all stored / parsed from xmonitor response */
-struct lte_xmonitor_resp_t {
-	uint8_t reg_status;
-	uint8_t band;
-	int16_t rsrp;
-	char validity_bits;
-	int8_t snr;
-	char full_name_str[OPERATOR_FULL_NAME_STR_MAX_LEN + 1];
-	char short_name_str[OPERATOR_SHORT_NAME_STR_MAX_LEN + 1];
-	char plmn_str[OPERATOR_PLMN_STR_MAX_LEN + 1];
-	char cell_id_str[OPERATOR_CELL_ID_STR_MAX_LEN + 1];
-};
-
-#define AT_CMD_XMONITOR "AT%XMONITOR"
-#define AT_CMD_XMONITOR_RESP_PARAM_COUNT 17
-
-#define AT_CMD_XMONITOR_RESP_REG_STATUS_INDEX 1
-#define AT_CMD_XMONITOR_RESP_FULL_NAME_INDEX 2
-#define AT_CMD_XMONITOR_RESP_SHORT_NAME_INDEX 3
-#define AT_CMD_XMONITOR_RESP_PLMN_INDEX 4
-#define AT_CMD_XMONITOR_RESP_BAND_INDEX 7
-#define AT_CMD_XMONITOR_RESP_CELL_ID_INDEX 8
-#define AT_CMD_XMONITOR_RESP_RSRP_INDEX 11
-#define AT_CMD_XMONITOR_RESP_SNR_INDEX 12
-
-#define AT_CMD_X_MONITOR_MAX_HANDLED_INDEX AT_CMD_XMONITOR_RESP_SNR_INDEX
-#define AT_CMD_XMONITOR_RESP_MAX_STR_LEN OPERATOR_FULL_NAME_STR_MAX_LEN
-
-static int link_api_xmonitor_read(struct lte_xmonitor_resp_t *resp)
+int link_api_xmonitor_read(struct lte_xmonitor_resp_t *resp)
 {
 	int ret = 0;
-	int i;
-	int value;
-	struct at_param_list param_list = { 0 };
-	char at_response_str[512] = { 0 };
-	char str_buf[OPERATOR_FULL_NAME_STR_MAX_LEN + 1];
-	int len = sizeof(str_buf);
+	int len;
+	char tmp_cell_id_str[OP_CELL_ID_STR_MAX_LEN + 1] = { 0 };
+	char tmp_tac_str[OP_TAC_STR_MAX_LEN + 1] = { 0 };
 
 	memset(resp, 0, sizeof(struct lte_xmonitor_resp_t));
 
-	ret = at_cmd_write(AT_CMD_XMONITOR, at_response_str,
-			   sizeof(at_response_str), NULL);
-	if (ret) {
-		shell_error(
-			shell_global, "at_cmd_write for \"%s\" returned err: %d",
-			AT_CMD_XMONITOR, ret);
+	/* All might not be included in a response if not camping on a cell,
+	 * thus marking these specifically
+	 */
+	resp->rsrp = -1;
+	resp->snr = -1;
+	resp->pci = -1;
+	resp->cell_id = -1;
+	resp->tac = -1;
+
+	ret = nrf_modem_at_scanf("AT%XMONITOR",
+				 "%%XMONITOR: "
+				 "%*u,"                                /* <reg_status>: ignored */
+				 "%"L(OP_FULL_NAME_STR_MAX_LEN)"[^,]," /* <full_name> with quotes */
+				 "%"L(OP_SHORT_NAME_STR_MAX_LEN)"[^,],"/* <short_name> with quotes*/
+				 "%"L(OP_PLMN_STR_MAX_LEN)"[^,],"      /* <plmn> */
+				 "%"L(OP_TAC_STR_MAX_LEN)"[^,],"       /* <tac> with quotes */
+				 "%*d,"                                /* <AcT>: ignored */
+				 "%u,"                                 /* <band> */
+				 "%"L(OP_CELL_ID_STR_MAX_LEN)"[^,],"   /* <cell_id> with quotes */
+				 "%u,"                                 /* <phys_cell_id> */
+				 "%*u,"                                /* <EARFCN>: ignored */
+				 "%d,"                                 /* <rsrp> */
+				 "%d",                                 /* <snr> */
+					resp->full_name_str,
+					resp->short_name_str,
+					resp->plmn_str,
+					tmp_tac_str,
+					&resp->band,
+					tmp_cell_id_str,
+					&resp->pci,
+					&resp->rsrp,
+					&resp->snr);
+	if (ret < 0) {
+		/* We don't want to print shell error from here, that should
+		 * be done in a caller.
+		 */
 		return ret;
 	}
 
-	ret = at_params_list_init(&param_list,
-				  AT_CMD_XMONITOR_RESP_PARAM_COUNT);
-	if (ret) {
-		shell_error(
-			shell_global, "Could not init AT params list for \"%s\", error: %d",
-			AT_CMD_XMONITOR, ret);
-		return ret;
+	/* Strip out the quotes and convert to decimal */
+	len = strlen(tmp_cell_id_str);
+	if (len > 2 && len <= OP_CELL_ID_STR_MAX_LEN) {
+		strncpy(resp->cell_id_str, tmp_cell_id_str + 1, len - 2);
+		resp->cell_id = strtol(resp->cell_id_str, NULL, 16);
 	}
 
-	ret = at_parser_params_from_str(at_response_str, NULL, &param_list);
-	if (ret) {
-		shell_error(
-			shell_global, "Could not parse %s response, error: %d",
-			AT_CMD_XMONITOR, ret);
-		goto clean_exit;
+	len = strlen(tmp_tac_str);
+	if (len > 2 && len <= OP_TAC_STR_MAX_LEN) {
+		strncpy(resp->tac_str, tmp_tac_str + 1, len - 2);
+		resp->tac = strtol(resp->tac_str, NULL, 16);
 	}
 
-	for (i = 1; i <= AT_CMD_X_MONITOR_MAX_HANDLED_INDEX; i++) {
-		if (i == AT_CMD_XMONITOR_RESP_FULL_NAME_INDEX ||
-		    i == AT_CMD_XMONITOR_RESP_SHORT_NAME_INDEX ||
-		    i == AT_CMD_XMONITOR_RESP_PLMN_INDEX ||
-		    i == AT_CMD_XMONITOR_RESP_CELL_ID_INDEX) {
-
-			len = sizeof(str_buf);
-			ret = at_params_string_get(&param_list, i, str_buf, &len);
-			if (ret) {
-				/* Invalid AT string resp parameter at given index */
-				continue;
-			}
-			assert(len <= AT_CMD_XMONITOR_RESP_MAX_STR_LEN);
-			str_buf[len] = '\0';
-
-			if (i == AT_CMD_XMONITOR_RESP_CELL_ID_INDEX) {
-				strcpy(resp->cell_id_str, str_buf);
-				if (strlen(resp->cell_id_str)) {
-					resp->validity_bits |= XMONITOR_RESP_CELL_ID_VALID;
-				}
-			} else if (i == AT_CMD_XMONITOR_RESP_PLMN_INDEX) {
-				strcpy(resp->plmn_str, str_buf);
-				if (strlen(resp->plmn_str)) {
-					resp->validity_bits |= XMONITOR_RESP_PLMN_VALID;
-				}
-			} else if (i == AT_CMD_XMONITOR_RESP_FULL_NAME_INDEX) {
-				strcpy(resp->full_name_str, str_buf);
-				if (strlen(resp->full_name_str)) {
-					resp->validity_bits |= XMONITOR_RESP_FULL_NAME_VALID;
-				}
-			} else {
-				assert(i == AT_CMD_XMONITOR_RESP_SHORT_NAME_INDEX);
-				strcpy(resp->short_name_str, str_buf);
-				if (strlen(resp->short_name_str)) {
-					resp->validity_bits |= XMONITOR_RESP_SHORT_NAME_VALID;
-				}
-			}
-		} else if (i == AT_CMD_XMONITOR_RESP_REG_STATUS_INDEX ||
-			   i == AT_CMD_XMONITOR_RESP_BAND_INDEX ||
-			   i == AT_CMD_XMONITOR_RESP_RSRP_INDEX ||
-			   i == AT_CMD_XMONITOR_RESP_SNR_INDEX) {
-			ret = at_params_int_get(&param_list, i, &value);
-			if (ret) {
-				/* Invalid AT int resp parameter at given index */
-				continue;
-			}
-
-			switch (i) {
-			case AT_CMD_XMONITOR_RESP_REG_STATUS_INDEX:
-				resp->reg_status = value;
-				resp->validity_bits |= XMONITOR_RESP_REG_STATUS_VALID;
-				break;
-			case AT_CMD_XMONITOR_RESP_BAND_INDEX:
-				resp->band = value;
-				resp->validity_bits |= XMONITOR_RESP_BAND_VALID;
-				break;
-			case AT_CMD_XMONITOR_RESP_RSRP_INDEX:
-				resp->rsrp = value;
-				resp->validity_bits |= XMONITOR_RESP_RSRP_VALID;
-				break;
-			case AT_CMD_XMONITOR_RESP_SNR_INDEX:
-				resp->snr = value;
-				resp->validity_bits |= XMONITOR_RESP_SNR_VALID;
-				break;
-			}
-		}
-	}
-
-clean_exit:
-	at_params_list_free(&param_list);
 	return 0;
 }
 
-static void link_api_modem_operator_info_read_for_shell(const struct shell *shell)
+/* ****************************************************************************/
+
+static void link_api_modem_operator_info_read_for_shell(void)
 {
 	struct lte_xmonitor_resp_t xmonitor_resp;
 	int ret = link_api_xmonitor_read(&xmonitor_resp);
-	int cell_id;
 
 	if (ret) {
-		shell_error(shell, "Operation failed, result: ret %d", ret);
+		mosh_error("link_api_xmonitor_read failed, result: ret %d", ret);
 		return;
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_FULL_NAME_VALID) {
-		shell_print(shell, "Operator full name:   \"%s\"",
-			    xmonitor_resp.full_name_str);
+	if (strlen(xmonitor_resp.full_name_str)) {
+		mosh_print("Operator full name:   %s", xmonitor_resp.full_name_str);
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_SHORT_NAME_VALID) {
-		shell_print(shell, "Operator short name:  \"%s\"",
-			    xmonitor_resp.short_name_str);
+	if (strlen(xmonitor_resp.short_name_str)) {
+		mosh_print("Operator short name:  %s", xmonitor_resp.short_name_str);
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_PLMN_VALID) {
-		shell_print(shell, "Operator PLMN:        \"%s\"",
-			    xmonitor_resp.plmn_str);
+	if (strlen(xmonitor_resp.plmn_str)) {
+		mosh_print("Operator PLMN:        %s", xmonitor_resp.plmn_str);
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_CELL_ID_VALID) {
-		cell_id = strtol(xmonitor_resp.cell_id_str, NULL, 16);
-		shell_print(shell, "Current cell id:       %d (0x%s)", cell_id,
-			    xmonitor_resp.cell_id_str);
+	if (xmonitor_resp.cell_id >= 0) {
+		mosh_print("Current cell id:       %d (0x%s)", xmonitor_resp.cell_id,
+			   xmonitor_resp.cell_id_str);
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_BAND_VALID) {
-		shell_print(shell, "Current band:          %d",
-			    xmonitor_resp.band);
+	if (xmonitor_resp.pci >= 0) {
+		mosh_print("Current phy cell id:   %d", xmonitor_resp.pci);
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_RSRP_VALID) {
-		shell_print(shell, "Current rsrp:          %d: %ddBm",
-			    xmonitor_resp.rsrp,
-			    (xmonitor_resp.rsrp - MODEM_INFO_RSRP_OFFSET_VAL));
+	if (xmonitor_resp.band) {
+		mosh_print("Current band:          %d", xmonitor_resp.band);
 	}
 
-	if (xmonitor_resp.validity_bits & XMONITOR_RESP_SNR_VALID) {
-		shell_print(shell, "Current snr:           %d: %ddB",
-			    xmonitor_resp.snr,
-			    (xmonitor_resp.snr - link_API_SNR_OFFSET_VALUE));
+	if (xmonitor_resp.tac >= 0) {
+		mosh_print("Current TAC:           %d (0x%s)", xmonitor_resp.tac,
+			   xmonitor_resp.tac_str);
+	}
+
+	if (xmonitor_resp.rsrp >= 0) {
+		mosh_print(
+			"Current rsrp:          %d: %ddBm",
+			xmonitor_resp.rsrp,
+			(xmonitor_resp.rsrp - MODEM_INFO_RSRP_OFFSET_VAL));
+	}
+
+	if (xmonitor_resp.snr >= 0) {
+		mosh_print(
+			"Current snr:           %d: %ddB",
+			xmonitor_resp.snr,
+			(xmonitor_resp.snr - LINK_SNR_OFFSET_VALUE));
 	}
 }
 
@@ -627,17 +514,17 @@ int link_api_pdp_contexts_read(struct pdp_context_info_array *pdp_info)
 
 	memset(pdp_info, 0, sizeof(struct pdp_context_info_array));
 
-	ret = at_cmd_write(AT_CMD_PDP_CONTEXTS_READ, at_response_str,
-			   sizeof(at_response_str), NULL);
+	ret = nrf_modem_at_cmd(at_response_str, sizeof(at_response_str), AT_CMD_PDP_CONTEXTS_READ);
 	if (ret) {
-		shell_error(shell_global, "at_cmd_write returned err: %d", ret);
+		mosh_error("at_cmd_write returned err: %d", ret);
 		return ret;
 	}
 
 	/* Check how many rows/context do we have: */
-	while ((tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
-		++tmp_ptr;
-		++pdp_cnt;
+	while (strncmp(tmp_ptr, "OK", 2) &&
+	       (tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
+		tmp_ptr += 2;
+		pdp_cnt++;
 	}
 
 	/* Allocate array of PDP info accordingly: */
@@ -647,7 +534,7 @@ int link_api_pdp_contexts_read(struct pdp_context_info_array *pdp_info)
 	/* Parse the response */
 	ret = at_params_list_init(&param_list, AT_CMD_PDP_CONTEXTS_READ_PARAM_COUNT);
 	if (ret) {
-		shell_error(shell_global, "Could not init AT params list, error: %d\n", ret);
+		mosh_error("Could not init AT params list, error: %d\n", ret);
 		return ret;
 	}
 	populated_info = pdp_info->array;
@@ -660,7 +547,7 @@ parse:
 	if (ret == -EAGAIN) {
 		resp_continues = true;
 	} else if (ret != 0 && ret != -EAGAIN) {
-		shell_error(shell_global, "Could not parse AT response, error: %d", ret);
+		mosh_error("Could not parse AT response, error: %d", ret);
 		goto clean_exit;
 	}
 
@@ -668,13 +555,13 @@ parse:
 				AT_CMD_PDP_CONTEXTS_READ_CID_INDEX,
 				&populated_info[iterator].cid);
 	if (ret) {
-		shell_error(shell_global, "Could not parse CID, err: %d", ret);
+		mosh_error("Could not parse CID, err: %d", ret);
 		goto clean_exit;
 	}
-	ret = link_api_pdn_id_get(populated_info[iterator].cid);
+	ret = pdn_id_get(populated_info[iterator].cid);
 	if (ret < 0) {
-		shell_error(
-			shell_global, "Could not get PDN for CID %d, err: %d\n",
+		mosh_error(
+			"Could not get PDN for CID %d, err: %d\n",
 			populated_info[iterator].cid, ret);
 	} else {
 		populated_info[iterator].pdn_id_valid = true;
@@ -686,7 +573,7 @@ parse:
 		&param_list, AT_CMD_PDP_CONTEXTS_READ_PDP_TYPE_INDEX,
 		populated_info[iterator].pdp_type_str, &param_str_len);
 	if (ret) {
-		shell_error(shell_global, "Could not parse pdp type, err: %d", ret);
+		mosh_error("Could not parse pdp type, err: %d", ret);
 		goto clean_exit;
 	}
 	populated_info[iterator].pdp_type_str[param_str_len] = '\0';
@@ -709,7 +596,7 @@ parse:
 		populated_info[iterator].apn_str,
 		&param_str_len);
 	if (ret) {
-		shell_error(shell_global, "Could not parse apn str, err: %d", ret);
+		mosh_error("Could not parse apn str, err: %d", ret);
 		goto clean_exit;
 	}
 	populated_info[iterator].apn_str[param_str_len] = '\0';
@@ -719,7 +606,7 @@ parse:
 		&param_list, AT_CMD_PDP_CONTEXTS_READ_PDP_ADDR_INDEX,
 		ip_addr_str, &param_str_len);
 	if (ret) {
-		shell_error(shell_global, "Could not parse apn str, err: %d", ret);
+		mosh_error("Could not parse apn str, err: %d", ret);
 		goto clean_exit;
 	}
 	ip_addr_str[param_str_len] = '\0';
@@ -765,8 +652,9 @@ parse:
 	if (resp_continues) {
 		at_ptr = next_param_str;
 		iterator++;
-		assert(iterator < pdp_cnt);
-		goto parse;
+		if (iterator < pdp_cnt && strncmp(next_param_str, "OK", 2)) {
+			goto parse;
+		}
 	}
 
 	/* ...and finally, fill PDP context activation status for each: */
@@ -778,11 +666,10 @@ clean_exit:
 
 	return ret;
 }
-#endif /* CONFIG_AT_CMD */
 
 /* *****************************************************************************/
 
-void link_api_modem_info_get_for_shell(const struct shell *shell, bool connected)
+void link_api_modem_info_get_for_shell(bool connected)
 {
 	struct pdp_context_info_array pdp_context_info_tbl;
 	enum lte_lc_system_mode sys_mode_current;
@@ -792,25 +679,23 @@ void link_api_modem_info_get_for_shell(const struct shell *shell, bool connected
 	int ret;
 
 	(void)link_shell_get_and_print_current_system_modes(
-		shell, &sys_mode_current, &sys_mode_preferred,
-		&currently_active_mode);
+		&sys_mode_current, &sys_mode_preferred, &currently_active_mode);
 
 	ret = modem_info_string_get(MODEM_INFO_FW_VERSION, info_str, sizeof(info_str));
 	if (ret >= 0) {
-		shell_print(shell, "Modem FW version:      %s", info_str);
+		mosh_print("Modem FW version:      %s", info_str);
 	} else {
-		shell_error(shell, "Unable to obtain modem FW version (%d)", ret);
+		mosh_error("Unable to obtain modem FW version (%d)", ret);
 	}
 
 	if (connected) {
-		link_api_modem_operator_info_read_for_shell(shell);
+		link_api_modem_operator_info_read_for_shell();
 
 		ret = modem_info_string_get(MODEM_INFO_DATE_TIME, info_str, sizeof(info_str));
 		if (ret >= 0) {
-			shell_print(shell, "Mobile network time and date: %s", info_str);
+			mosh_print("Mobile network time and date: %s", info_str);
 		}
 
-#if defined(CONFIG_AT_CMD)
 		ret = link_api_pdp_contexts_read(&pdp_context_info_tbl);
 		if (ret >= 0) {
 			char ipv4_addr[NET_IPV4_ADDR_LEN];
@@ -850,101 +735,57 @@ void link_api_modem_info_get_for_shell(const struct shell *shell, bool connected
 					  sizeof(ipv6_dns_addr_secondary));
 
 				if (info_tbl[i].pdn_id_valid) {
-					sprintf(tmp_str, "%d",
-						info_tbl[i].pdn_id);
+					sprintf(tmp_str, "%d", info_tbl[i].pdn_id);
 				}
 
 				/* Parsed PDP context info: */
-				shell_print(shell,
-					    "PDP context info %d:\n"
-					    "  CID:                    %d\n"
-					    "  PDN ID:                 %s\n"
-					    "  PDP context active:     %s\n"
-					    "  PDP type:               %s\n"
-					    "  APN:                    %s\n"
-					    "  IPv4 MTU:               %d\n"
-					    "  IPv4 address:           %s\n"
-					    "  IPv6 address:           %s\n"
-					    "  IPv4 DNS address:       %s, %s\n"
-					    "  IPv6 DNS address:       %s, %s",
-					    (i + 1), info_tbl[i].cid,
-					    (info_tbl[i].pdn_id_valid) ?
-					    tmp_str :
-					    "Not known",
-					    (info_tbl[i].ctx_active) ? "yes" :
-					    "no",
-					    info_tbl[i].pdp_type_str,
-					    info_tbl[i].apn_str,
-					    info_tbl[i].mtu, ipv4_addr,
-					    ipv6_addr, ipv4_dns_addr_primary,
-					    ipv4_dns_addr_secondary,
-					    ipv6_dns_addr_primary,
-					    ipv6_dns_addr_secondary);
+				mosh_print("PDP context info %d:", (i + 1));
+				mosh_print("  CID:                %d", info_tbl[i].cid);
+				mosh_print("  PDN ID:             %s",
+						(info_tbl[i].pdn_id_valid) ? tmp_str : "Not known");
+				mosh_print("  PDP context active: %s",
+						(info_tbl[i].ctx_active) ? "yes" : "no");
+				mosh_print("  PDP type:           %s", info_tbl[i].pdp_type_str);
+				mosh_print("  APN:                %s", info_tbl[i].apn_str);
+				if (info_tbl[i].ipv4_mtu) {
+					mosh_print("  IPv4 MTU:           %d",
+						info_tbl[i].ipv4_mtu);
+				}
+				if (info_tbl[i].ipv6_mtu) {
+					mosh_print("  IPv6 MTU:           %d",
+						info_tbl[i].ipv6_mtu);
+				}
+				mosh_print("  IPv4 address:       %s", ipv4_addr);
+				mosh_print("  IPv6 address:       %s", ipv6_addr);
+				mosh_print("  IPv4 DNS address:   %s, %s",
+						ipv4_dns_addr_primary, ipv4_dns_addr_secondary);
+				mosh_print("  IPv6 DNS address:   %s, %s",
+						ipv6_dns_addr_primary, ipv6_dns_addr_secondary);
 			}
 		} else {
-			shell_error(shell, "Unable to obtain pdp context info (%d)", ret);
+			mosh_error("Unable to obtain pdp context info (%d)", ret);
 		}
 		if (pdp_context_info_tbl.array != NULL) {
 			free(pdp_context_info_tbl.array);
 		}
-#endif /* CONFIG_AT_CMD */
 	}
 }
 
-#define AT_CMD_RAI "AT%RAI?"
-#define AT_CMD_RAI_RESP_PARAM_COUNT 2
-#define AT_CMD_RAI_RESP_ENABLE_INDEX 1
-
 int link_api_rai_status(bool *rai_status)
 {
-	enum at_cmd_state state = AT_CMD_ERROR;
-	struct at_param_list param_list = { 0 };
-	char at_response_str[20];
-	int err;
+	int ret;
 	int status;
 
-	if (rai_status == NULL) {
-		return -EINVAL;
-	}
 	*rai_status = false;
 
-	err = at_cmd_write(AT_CMD_RAI, at_response_str, sizeof(at_response_str), &state);
-	if (state != AT_CMD_OK) {
-		shell_error(shell_global, "Error state=%d, error=%d", state, err);
+	ret = nrf_modem_at_scanf("AT%RAI?", "%%RAI: %u", &status);
+	if (ret < 0) {
+		mosh_error("RAI AT command failed, error: %d", ret);
 		return -EFAULT;
+	} else if (ret < 1) {
+		mosh_error("Could not parse RAI status, err %d", ret);
+		return -EBADMSG;
 	}
-
-	err = at_params_list_init(&param_list, AT_CMD_RAI_RESP_PARAM_COUNT);
-	if (err) {
-		shell_error(
-			shell_global,
-			"Could not init AT params list for \"%s\", error: %d",
-			AT_CMD_RAI, err);
-		return err;
-	}
-
-	err = at_parser_params_from_str(at_response_str, NULL, &param_list);
-	if (err) {
-		shell_error(
-			shell_global,
-			"Could not parse %s response, error: %d",
-			AT_CMD_RAI, err);
-		goto clean_exit;
-	}
-
-	err = at_params_int_get(&param_list, AT_CMD_RAI_RESP_ENABLE_INDEX, &status);
-	if (err) {
-		/* Invalid AT int resp parameter at given index */
-		shell_error(
-			shell_global,
-			"Could not find int parameter index=%d from response=%s, error: %d",
-			AT_CMD_RAI_RESP_ENABLE_INDEX, at_response_str, err);
-		goto clean_exit;
-	}
-
 	*rai_status = (bool)status;
-
-clean_exit:
-	at_params_list_free(&param_list);
-	return err;
+	return 0;
 }

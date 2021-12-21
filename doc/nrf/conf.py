@@ -19,7 +19,7 @@ ZEPHYR_BASE = utils.get_projdir("zephyr")
 project = "nRF Connect SDK"
 copyright = "2019-2021, Nordic Semiconductor"
 author = "Nordic Semiconductor"
-version = release = "1.7.99"
+version = release = "1.8.0"
 
 sys.path.insert(0, str(ZEPHYR_BASE / "doc" / "_extensions"))
 sys.path.insert(0, str(NRF_BASE / "doc" / "_extensions"))
@@ -109,6 +109,10 @@ matter_mapping = utils.get_intersphinx_mapping("matter")
 if matter_mapping:
     intersphinx_mapping["matter"] = matter_mapping
 
+tfm_mapping = utils.get_intersphinx_mapping("tfm")
+if tfm_mapping:
+    intersphinx_mapping["tfm"] = tfm_mapping
+
 # -- Options for doxyrunner plugin ---------------------------------------------
 
 doxyrunner_doxygen = os.environ.get("DOXYGEN_EXECUTABLE", "doxygen")
@@ -147,7 +151,6 @@ html_redirect_pages = [
 # -- Options for zephyr.warnings_filter ----------------------------------------
 
 warnings_filter_config = str(NRF_BASE / "doc" / "nrf" / "known-warnings.txt")
-warnings_filter_silent = False
 
 # Options for external_content -------------------------------------------------
 
@@ -181,3 +184,5 @@ ncs_cache_manifest = NRF_BASE / "west.yml"
 def setup(app):
     app.add_css_file("css/common.css")
     app.add_css_file("css/nrf.css")
+
+    utils.add_google_analytics(app)

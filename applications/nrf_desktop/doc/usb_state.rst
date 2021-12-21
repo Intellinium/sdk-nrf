@@ -46,7 +46,10 @@ Boot protocol configuration
 If the device is meant to support the boot protocol, set the following options:
 
 #. Enable :kconfig:`CONFIG_USB_HID_BOOT_PROTOCOL`.
-#. Make sure :kconfig:`CONFIG_USB_HID_PROTOCOL_CODE` is set to either the mouse or the keyboard code.
+#. Set the :kconfig:`CONFIG_USB_HID_PROTOCOL_CODE` Kconfig option to one of the following values to use the device for forwarding either the HID boot keyboard or the HID boot mouse reports, respectively:
+
+* If you want to forward HID boot keyboard reports, set the option to ``1``.
+* If you want to forward HID boot mouse reports, set the option to ``2``.
 
 USB device instance configuration
 =================================
@@ -61,19 +64,19 @@ On the Bluetooth Central device, if only one instance is used, reports from all 
 In other cases, reports from each of the bonded peripherals will be forwarded to a dedicated HID-class USB device instance.
 The same instance is used after reconnection.
 
-USB wake-up configuration
-=========================
+USB wakeup configuration
+========================
 
-The nRF Desktop device can work as a source of wake-up events for the host device if connected through the USB.
+The nRF Desktop device can work as a source of wakeup events for the host device if connected through the USB.
 
 To use the feature, select :kconfig:`CONFIG_USB_DEVICE_REMOTE_WAKEUP`.
 
 When host enters the suspended state, the USB will be suspended as well.
 With this feature enabled, this state change is used to suspend the nRF Desktop device (see :ref:`nrf_desktop_power_manager`).
-When the nRF Desktop device wakes up from standby, the |usb_state| will issue a wake-up request on the USB.
+When the nRF Desktop device wakes up from standby, the |usb_state| will issue a wakeup request on the USB.
 
 .. note::
-    The USB wake-up request is transmitted to the host only if the host enables this request before suspending the USB.
+    The USB wakeup request is transmitted to the host only if the host enables this request before suspending the USB.
 
 
 Implementation details
@@ -84,19 +87,19 @@ The |usb_state| registers the :kconfig:`CONFIG_USB_HID_DEVICE_COUNT` instances o
 The necessary callbacks are connected to the module to ensure that the state of the USB connection is tracked.
 From the application's viewpoint, USB can be in the following states:
 
-* USB_STATE_DISCONNECTED - USB cable is not connected.
-* USB_STATE_POWERED - The device is powered from USB but is not configured for the communication.
-* USB_STATE_ACTIVE - The device is ready to exchange data with the host.
-* USB_STATE_SUSPENDED - The host has requested the device to enter the suspended state.
+* :c:enum:`USB_STATE_DISCONNECTED` - USB cable is not connected.
+* :c:enum:`USB_STATE_POWERED` - The device is powered from USB but is not configured for the communication.
+* :c:enum:`USB_STATE_ACTIVE` - The device is ready to exchange data with the host.
+* :c:enum:`USB_STATE_SUSPENDED` - The host has requested the device to enter the suspended state.
 
-These states are broadcast by the |usb_state| with a ``usb_state_event``.
-When the device is connected to the host and configured for the communication, the module will broadcast the ``USB_STATE_ACTIVE`` state.
+These states are broadcast by the |usb_state| with a :c:struct:`usb_state_event`.
+When the device is connected to the host and configured for the communication, the module will broadcast the :c:enum:`USB_STATE_ACTIVE` state.
 The module will also subscribe to all HID reports available in the application for the selected protocol.
 
 When the device is disconnected from the host, the module will unsubscribe from receiving the HID reports.
 
-When the HID report data is transmitted through ``hid_report_event``, the module will pass it to the associated endpoint.
-Upon data delivery, ``hid_report_sent_event`` is submitted by the module.
+When the HID report data is transmitted through :c:struct:`hid_report_event`, the module will pass it to the associated endpoint.
+Upon data delivery, :c:struct:`hid_report_sent_event` is submitted by the module.
 
 .. note::
     Only one report can be transmitted by the module to a single instance of HID-class USB device at any given time.

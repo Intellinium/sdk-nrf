@@ -9,6 +9,45 @@ MQTT AT commands
 
 The following commands list contains the AT commands used to operate the MQTT client.
 
+MQTT event #XMQTTEVT
+====================
+
+The ``#XMQTTEVT`` is an unsolicited notification that indicates the event of the MQTT client.
+
+Unsolicited notification
+------------------------
+
+It indicates the event of the MQTT client.
+
+Syntax
+~~~~~~
+
+::
+
+   #XMQTTEVT=<evt_type>,<result>
+
+* The ``<evt_type>`` value is an integer indicating the type of the event.
+  It can assume the following values:
+
+  * ``0`` - Connection request.
+  * ``1`` - Disconnection.
+    The MQTT client is disconnected from the MQTT broker once this event is notified.
+  * ``2`` - Message received on a topic the client is subscribed to.
+  * ``3`` - Acknowledgment for the published message with QoS 1.
+  * ``4`` - Confirmation of the reception for the published message with QoS 2.
+  * ``5`` - Release of the published message with QoS 2.
+  * ``6`` - Confirmation to a publish release message with QoS 2.
+  * ``7`` - Reception of the subscribe request.
+  * ``8`` - Reception of the unsubscription request.
+  * ``9`` - Ping response from the MQTT broker.
+
+* The ``<result>`` value is an integer indicating the result of the event.
+  It can assume the following values:
+
+  * ``0`` - Success.
+  * *Negative value* - Failure.
+    It is the error code indicating the reason for the failure.
+
 MQTT connect #XMQTTCON
 ======================
 
@@ -299,6 +338,7 @@ Syntax
 * The ``<msg>`` parameter is a string.
   It contains the payload on the topic being published.
   The max ``NET_IPV4_MTU`` is 576 bytes.
+  When this parameter is not specified, SLM enters ``slm_data_mode``.
 * The ``<qos>`` parameter is an integer.
   It indicates the MQTT Quality of Service types.
   It can accept the following values:
@@ -348,6 +388,17 @@ Examples
    nrf91/slm/mqtt/topic0
    Test message with QoS 0
    #XMQTTEVT: 2,0
+
+::
+
+   AT#XMQTTPUB="nrf91/slm/mqtt/topic0"
+   {"msg":"Test Json publish"}
+   #XMQTTMSG: 21,27
+   nrf91/slm/mqtt/topic0
+   {"msg":"Test Json publish"}
+   #XMQTTEVT: 2,0
+   +++
+   OK
 
 ::
 

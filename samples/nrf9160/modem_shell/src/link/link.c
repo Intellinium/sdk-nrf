@@ -13,7 +13,6 @@
 #include <shell/shell.h>
 #include <shell/shell_uart.h>
 
-#include <modem/at_cmd.h>
 #include <modem/modem_info.h>
 #include <modem/lte_lc.h>
 #include <modem/pdn.h>
@@ -29,17 +28,17 @@
 #include "link.h"
 
 #include "uart/uart_shell.h"
+#include "mosh_print.h"
 
 #if defined(CONFIG_MOSH_SMS)
 #include "sms.h"
 #endif
 
+#include <nrf_modem_at.h>
 #include <modem/at_cmd_parser.h>
 #include <modem/at_params.h>
 
 static bool link_subscribe_for_rsrp;
-
-extern const struct shell *shell_global;
 
 extern bool uart_disable_during_sleep_requested;
 
@@ -51,6 +50,20 @@ struct pdn_activation_status_info {
 /* Work for getting the modem info that ain't in lte connection ind: */
 static struct k_work registered_work;
 
+/* Work for getting the data needed to be shown after the cell change: */
+struct cell_change_data {
+	struct k_work work;
+
+	/* Data from LTE_LC_EVT_CELL_UPDATE: */
+
+	/* E-UTRAN cell ID, range 0 - LTE_LC_CELL_EUTRAN_ID_MAX */
+	uint32_t cell_id;
+
+	/* Tracking area code. */
+	uint32_t tac;
+};
+static struct cell_change_data cell_change_work_data;
+
 /* Work for a signal info: */
 static struct k_work modem_info_signal_work;
 
@@ -60,12 +73,16 @@ static int32_t modem_rsrp = LINK_RSRP_VALUE_NOT_KNOWN;
 /* Work for continuous neighbor cell measurements: */
 static struct k_work continuous_ncellmeas_work;
 
-enum link_ncellmeas_modes ncellmeas_mode = LINK_NCELLMEAS_MODE_NONE;
+static enum link_ncellmeas_modes ncellmeas_mode = LINK_NCELLMEAS_MODE_NONE;
+static enum lte_lc_neighbor_search_type ncellmeas_search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT;
 
-static void link_continuous_ncellmeas(struct k_work *work)
+static void link_continuous_ncellmeas(struct k_work *unused)
 {
+	ARG_UNUSED(unused);
 	if (ncellmeas_mode == LINK_NCELLMEAS_MODE_CONTINUOUS) {
-		link_ncellmeas_start(true, LINK_NCELLMEAS_MODE_CONTINUOUS);
+		link_ncellmeas_start(true,
+				     LINK_NCELLMEAS_MODE_CONTINUOUS,
+				     ncellmeas_search_type);
 	}
 }
 
@@ -74,7 +91,7 @@ static void link_continuous_ncellmeas(struct k_work *work)
 static void link_api_activate_mosh_contexts(
 	struct pdn_activation_status_info pdn_act_status_arr[], int size)
 {
-	int i, esm;
+	int i, esm, ret;
 
 	/* Check that all context created by mosh link connect are active and if not,
 	 * then activate:
@@ -82,13 +99,19 @@ static void link_api_activate_mosh_contexts(
 	for (i = 0; i < size; i++) {
 		if (pdn_act_status_arr[i].activated == false &&
 		    link_shell_pdn_info_is_in_list(pdn_act_status_arr[i].cid)) {
-			(void)pdn_activate(pdn_act_status_arr[i].cid, &esm);
+			ret = pdn_activate(pdn_act_status_arr[i].cid, &esm, NULL);
+			if (ret) {
+				mosh_warn(
+					"Cannot reactivate ctx with CID #%d, err: %d, removing from the list",
+						pdn_act_status_arr[i].cid,
+						ret);
+				link_shell_pdn_info_list_remove(pdn_act_status_arr[i].cid);
+			}
 		}
 	}
 }
 
 /* ****************************************************************************/
-#define AT_CMD_PDP_CONTEXTS_ACT_READ "AT+CGACT?"
 
 static void link_api_get_pdn_activation_status(
 	struct pdn_activation_status_info pdn_act_status_arr[], int size)
@@ -98,13 +121,9 @@ static void link_api_get_pdn_activation_status(
 	char at_response_str[256];
 	int ret;
 
-	ret = at_cmd_write(AT_CMD_PDP_CONTEXTS_ACT_READ, at_response_str,
-			   sizeof(at_response_str), NULL);
+	ret = nrf_modem_at_cmd(at_response_str, sizeof(at_response_str), "AT+CGACT?");
 	if (ret) {
-		shell_error(
-			shell_global,
-			"Cannot get PDP contexts activation states, err: %d",
-			ret);
+		mosh_error("Cannot get PDP contexts activation states, err: %d", ret);
 		return;
 	}
 
@@ -124,27 +143,45 @@ static void link_api_get_pdn_activation_status(
 
 static void link_registered_work(struct k_work *unused)
 {
-	struct pdn_activation_status_info
-		pdn_act_status_arr[CONFIG_PDN_CONTEXTS_MAX];
+	struct pdn_activation_status_info pdn_act_status_arr[CONFIG_PDN_CONTEXTS_MAX];
 
 	ARG_UNUSED(unused);
 
 	memset(pdn_act_status_arr, 0,
-	       CONFIG_PDN_CONTEXTS_MAX *
-		       sizeof(struct pdn_activation_status_info));
+	       CONFIG_PDN_CONTEXTS_MAX * sizeof(struct pdn_activation_status_info));
 
-	/* Get PDN activation status for each: */
-	link_api_get_pdn_activation_status(pdn_act_status_arr,
-					   CONFIG_PDN_CONTEXTS_MAX);
+	/* Get PDN activation status for each */
+	link_api_get_pdn_activation_status(pdn_act_status_arr, CONFIG_PDN_CONTEXTS_MAX);
 
-	/* Activate the deactive ones that have been connected by us: */
-	link_api_activate_mosh_contexts(pdn_act_status_arr,
-					CONFIG_PDN_CONTEXTS_MAX);
+	/* Activate the deactive ones that have been connected by us */
+	link_api_activate_mosh_contexts(pdn_act_status_arr, CONFIG_PDN_CONTEXTS_MAX);
 
-	/* Seems that 1st info read fails without this. Thus, let modem have some time: */
+	/* Seems that 1st info read fails without this. Thus, let modem have some time */
 	k_sleep(K_MSEC(1500));
 
-	link_api_modem_info_get_for_shell(shell_global, true);
+	link_api_modem_info_get_for_shell(true);
+}
+
+/******************************************************************************/
+
+static void link_cell_change_work(struct k_work *work_item)
+{
+	struct cell_change_data *data = CONTAINER_OF(work_item, struct cell_change_data, work);
+	struct lte_xmonitor_resp_t xmonitor_resp;
+	int ret = link_api_xmonitor_read(&xmonitor_resp);
+
+	if (ret) {
+		mosh_print(
+			"LTE cell changed: ID: %d, Tracking area: %d",
+			data->cell_id, data->tac);
+		return;
+	}
+	mosh_print(
+		"LTE cell changed: ID: %d (0x%s), PCI %d, Tracking area: %d (0x%s), Band: %d, RSRP: %d (%ddBm), SNR: %d (%ddB)",
+		xmonitor_resp.cell_id, xmonitor_resp.cell_id_str, xmonitor_resp.pci,
+		xmonitor_resp.tac, xmonitor_resp.tac_str, xmonitor_resp.band,
+		xmonitor_resp.rsrp, (xmonitor_resp.rsrp - MODEM_INFO_RSRP_OFFSET_VAL),
+		xmonitor_resp.snr, (xmonitor_resp.snr - LINK_SNR_OFFSET_VALUE));
 }
 
 /******************************************************************************/
@@ -158,18 +195,19 @@ static void link_rsrp_signal_handler(char rsrp_value)
 /******************************************************************************/
 
 #define MOSH_RSRP_UPDATE_INTERVAL_IN_SECS 5
-static void link_rsrp_signal_update(struct k_work *work)
+static void link_rsrp_signal_update(struct k_work *unused)
 {
 	static uint32_t timestamp_prev;
 
+	ARG_UNUSED(unused);
 	if ((timestamp_prev != 0) &&
 	    (k_uptime_get_32() - timestamp_prev <
 	     MOSH_RSRP_UPDATE_INTERVAL_IN_SECS * MSEC_PER_SEC)) {
 		return;
 	}
 
-	if (link_subscribe_for_rsrp && shell_global != NULL) {
-		shell_print(shell_global, "RSRP: %d", modem_rsrp);
+	if (link_subscribe_for_rsrp) {
+		mosh_print("RSRP: %d", modem_rsrp);
 	}
 	timestamp_prev = k_uptime_get_32();
 }
@@ -178,18 +216,16 @@ static void link_rsrp_signal_update(struct k_work *work)
 
 void link_init(void)
 {
+	k_work_init(&cell_change_work_data.work, link_cell_change_work);
 	k_work_init(&registered_work, link_registered_work);
 	k_work_init(&modem_info_signal_work, link_rsrp_signal_update);
 	modem_info_rsrp_register(link_rsrp_signal_handler);
 
 	k_work_init(&continuous_ncellmeas_work, link_continuous_ncellmeas);
 
-	/* TODO CHECK THIS */
-	//shell_global = shell_backend_uart_get_ptr();
+	link_sett_init();
 
-	link_sett_init(shell_global);
-
-	link_shell_pdn_init(shell_global);
+	link_shell_pdn_init();
 
 	lte_lc_register_handler(link_ind_handler);
 
@@ -198,7 +234,8 @@ void link_init(void)
  */
 #if !defined(CONFIG_LWM2M_CARRIER)
 	if (link_sett_is_normal_mode_autoconn_enabled() == true) {
-		link_func_mode_set(LTE_LC_FUNC_MODE_NORMAL);
+		link_func_mode_set(LTE_LC_FUNC_MODE_NORMAL,
+				   link_sett_is_normal_mode_autoconn_rel14_used());
 	}
 #endif
 }
@@ -215,51 +252,48 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		 *  over the network before the TAU happens, thus saving power by avoiding
 		 *  sending data and the TAU separately.
 		 */
-		shell_print(shell_global, "TAU pre warning: time %lld",
-			    evt->time);
+		mosh_print("TAU pre warning: time %lld", evt->time);
 		break;
 	case LTE_LC_EVT_NEIGHBOR_CELL_MEAS: {
 		int i;
 		struct lte_lc_cells_info cells = evt->cells_info;
 		struct lte_lc_cell cur_cell = cells.current_cell;
 
-		shell_print(shell_global, "Neighbor cell measurement results:");
+		mosh_print("Neighbor cell measurement results:");
 
 		/* Current cell: */
-		if (cur_cell.id) {
+		if (cur_cell.id != LTE_LC_CELL_EUTRAN_ID_INVALID) {
 			char tmp_ta_str[12];
 
-			if (cur_cell.timing_advance == 65535) {
+			if (cur_cell.timing_advance == LTE_LC_CELL_TIMING_ADVANCE_INVALID) {
 				sprintf(tmp_ta_str, "\"not valid\"");
 			} else {
 				sprintf(tmp_ta_str, "%d", cur_cell.timing_advance);
 			}
 
-			shell_print(shell_global, "  Current cell:");
-			shell_print(
-				shell_global,
-				"    ID %d, phy ID %d, MCC %d MNC %d, RSRP %d : %ddBm, RSRQ %d, TAC %d, earfcn %d, meas time %lld, TA %s",
+			mosh_print("  Current cell:");
+			mosh_print(
+				"    ID %d, phy ID %d, MCC %d MNC %d, RSRP %d : %ddBm, RSRQ %d, TAC %d, earfcn %d, meas time %lld\n"
+				"    TA %s, TA meas time %lld",
 				cur_cell.id, cur_cell.phys_cell_id,
 				cur_cell.mcc, cur_cell.mnc, cur_cell.rsrp,
 				cur_cell.rsrp - MODEM_INFO_RSRP_OFFSET_VAL,
 				cur_cell.rsrq, cur_cell.tac, cur_cell.earfcn,
 				cur_cell.measurement_time,
-				tmp_ta_str);
+				tmp_ta_str,
+				cur_cell.timing_advance_meas_time);
 		} else {
-			shell_print(shell_global,
-				    "  No current cell information from modem.");
+			mosh_print("  No current cell information from modem.");
 		}
 
 		if (!cells.ncells_count) {
-			shell_print(shell_global,
-				    "  No neighbor cell information from modem.");
+			mosh_print("  No neighbor cell information from modem.");
 		}
 
 		for (i = 0; i < cells.ncells_count; i++) {
 			/* Neighbor cells: */
-			shell_print(shell_global, "  Neighbor cell %d", i + 1);
-			shell_print(
-				shell_global,
+			mosh_print("  Neighbor cell %d", i + 1);
+			mosh_print(
 				"    phy ID %d, RSRP %d : %ddBm, RSRQ %d, earfcn %d, timediff %d",
 				cells.neighbor_cells[i].phys_cell_id,
 				cells.neighbor_cells[i].rsrp,
@@ -271,14 +305,14 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		}
 	} break;
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT_PRE_WARNING:
-		link_shell_print_modem_sleep_notif(shell_global, evt);
+		link_shell_print_modem_sleep_notif(evt);
 		break;
 	case LTE_LC_EVT_MODEM_SLEEP_ENTER:
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT:
-		link_shell_print_modem_sleep_notif(shell_global, evt);
+		link_shell_print_modem_sleep_notif(evt);
 
 		if (uart_disable_during_sleep_requested) {
-			uart_toggle_power_state_at_event(shell_global, evt);
+			uart_toggle_power_state_at_event(evt);
 		}
 		break;
 	case LTE_LC_EVT_LTE_MODE_UPDATE:
@@ -288,12 +322,12 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		 *  and network availability. This event will then indicate which
 		 *  LTE mode is currently used by the modem.
 		 */
-		shell_print(shell_global, "Currently active system mode: %s",
-			    link_shell_sysmode_currently_active_to_string(
-				    evt->lte_mode, snum));
+		mosh_print(
+			"Currently active system mode: %s",
+			link_shell_sysmode_currently_active_to_string(evt->lte_mode, snum));
 		break;
 	case LTE_LC_EVT_NW_REG_STATUS:
-		link_shell_print_reg_status(shell_global, evt->nw_reg_status);
+		link_shell_print_reg_status(evt->nw_reg_status);
 
 		if (evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_EMERGENCY ||
 		    evt->nw_reg_status == LTE_LC_NW_REG_REGISTERED_HOME ||
@@ -302,22 +336,22 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		}
 		break;
 	case LTE_LC_EVT_CELL_UPDATE:
-		shell_print(shell_global,
-			    "LTE cell changed: Cell ID: %d, Tracking area: %d",
-			    evt->cell.id, evt->cell.tac);
+		cell_change_work_data.cell_id = evt->cell.id;
+		cell_change_work_data.tac = evt->cell.tac;
+		k_work_submit(&cell_change_work_data.work);
 		if (ncellmeas_mode == LINK_NCELLMEAS_MODE_CONTINUOUS) {
 			k_work_submit(&continuous_ncellmeas_work);
 		}
 		break;
 	case LTE_LC_EVT_RRC_UPDATE:
-		shell_print(shell_global, "RRC mode: %s",
-			    evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED ?
-			    "Connected" :
-			    "Idle");
+		mosh_print(
+			"RRC mode: %s",
+			evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED ?
+			"Connected" :
+			"Idle");
 		break;
 	case LTE_LC_EVT_PSM_UPDATE:
-		shell_print(
-			shell_global,
+		mosh_print(
 			"PSM parameter update: TAU: %d, Active time: %d seconds",
 			evt->psm_cfg.tau, evt->psm_cfg.active_time);
 		break;
@@ -325,11 +359,12 @@ void link_ind_handler(const struct lte_lc_evt *const evt)
 		char log_buf[60];
 		ssize_t len;
 
-		len = snprintf(log_buf, sizeof(log_buf),
-			       "eDRX parameter update: eDRX: %f, PTW: %f",
-			       evt->edrx_cfg.edrx, evt->edrx_cfg.ptw);
+		len = snprintf(
+			log_buf, sizeof(log_buf),
+			"eDRX parameter update: eDRX: %f, PTW: %f",
+			evt->edrx_cfg.edrx, evt->edrx_cfg.ptw);
 		if (len > 0) {
-			shell_print(shell_global, "%s", log_buf);
+			mosh_print("%s", log_buf);
 		}
 		break;
 	}
@@ -349,7 +384,7 @@ static int link_default_pdp_context_set(void)
 					link_sett_defcont_pdn_family_get(),
 					NULL);
 		if (ret) {
-			shell_error(shell_global, "pdn_ctx_configure returned err %d", ret);
+			mosh_error("pdn_ctx_configure returned err %d", ret);
 			return ret;
 		}
 	}
@@ -366,8 +401,7 @@ static int link_default_pdp_context_auth_set(void)
 				       link_sett_defcontauth_password_get());
 
 		if (ret) {
-			shell_error(shell_global,
-				    "pdn_ctx_auth_set returned err  %d", ret);
+			mosh_error("pdn_ctx_auth_set returned err  %d", ret);
 			return ret;
 		}
 	}
@@ -376,15 +410,14 @@ static int link_default_pdp_context_auth_set(void)
 
 static int link_enable_rel14_features(void)
 {
-	static const char rel14feat_at_cmd[] = "AT%REL14FEAT=1,1,1,1,1";
-	enum at_cmd_state state = AT_CMD_OK;
+	int ret;
 
-	at_cmd_write(rel14feat_at_cmd, NULL, 0, &state);
-	if (state != AT_CMD_OK) {
-		shell_warn(
-			shell_global,
-			"Release 14 features AT-command \"%s\" returned: ERROR",
-			rel14feat_at_cmd);
+	ret = nrf_modem_at_printf("AT%%REL14FEAT=1,1,1,1,1");
+	if (ret < 0) {
+		mosh_warn("Release 14 features AT-command failed, err %d", ret);
+	} else if (ret > 0) {
+		mosh_warn("Release 14 features AT-command error, type %d err %d",
+			nrf_modem_at_err_type(ret), nrf_modem_at_err(ret));
 	}
 	return 0;
 }
@@ -402,16 +435,14 @@ static int link_normal_mode_at_cmds_run(void)
 			link_sett_normal_mode_at_cmd_str_get(mem_slot_index);
 		len = strlen(normal_mode_at_cmd);
 		if (len) {
-			if (at_cmd_write(normal_mode_at_cmd, response,
-					 sizeof(response), NULL) != 0) {
-				shell_error(
-					shell_global,
+			if (nrf_modem_at_cmd(response, sizeof(response), "%s",
+					     normal_mode_at_cmd) != 0) {
+				mosh_error(
 					"Normal mode AT-command from memory slot %d \"%s\" returned: ERROR",
 					mem_slot_index, normal_mode_at_cmd);
 			} else {
-				shell_print(
-					shell_global,
-					"Normal mode AT-command from memory slot %d \"%s\" returned:\n\r %s OK",
+				mosh_print(
+					"Normal mode AT-command from memory slot %d \"%s\" returned:\n\r %s",
 					mem_slot_index, normal_mode_at_cmd,
 					response);
 			}
@@ -424,74 +455,51 @@ static int link_normal_mode_at_cmds_run(void)
 void link_rsrp_subscribe(bool subscribe)
 {
 	link_subscribe_for_rsrp = subscribe;
-	if (shell_global != NULL) {
-		if (link_subscribe_for_rsrp) {
-			/* print current value right away: */
-			shell_print(shell_global, "RSRP subscribed");
-			if (modem_rsrp != LINK_RSRP_VALUE_NOT_KNOWN) {
-				shell_print(shell_global, "RSRP: %d", modem_rsrp);
-			}
-		} else {
-			shell_print(shell_global, "RSRP unsubscribed");
+	if (link_subscribe_for_rsrp) {
+		/* print current value right away: */
+		mosh_print("RSRP subscribed");
+		if (modem_rsrp != LINK_RSRP_VALUE_NOT_KNOWN) {
+			mosh_print("RSRP: %d", modem_rsrp);
 		}
+	} else {
+		mosh_print("RSRP unsubscribed");
 	}
 }
 
-void link_ncellmeas_start(bool start, enum link_ncellmeas_modes mode)
+void link_ncellmeas_start(bool start, enum link_ncellmeas_modes mode,
+			  enum lte_lc_neighbor_search_type search_type)
 {
 	int ret;
 
 	ncellmeas_mode = mode;
+	ncellmeas_search_type = search_type;
 	if (start) {
-		ret = lte_lc_neighbor_cell_measurement();
-		if (shell_global != NULL) {
-			if (ret) {
-				shell_error(
-					shell_global,
-					"lte_lc_neighbor_cell_measurement() returned err %d",
-					ret);
-				shell_error(
-					shell_global,
-					"Cannot start neigbor measurements");
-			}
+		ret = lte_lc_neighbor_cell_measurement(search_type);
+		if (ret) {
+			mosh_error("lte_lc_neighbor_cell_measurement() returned err %d", ret);
+			mosh_error("Cannot start neigbor measurements");
 		}
 	} else {
 		ret = lte_lc_neighbor_cell_measurement_cancel();
-		if (shell_global != NULL) {
-			if (ret) {
-				shell_error(
-					shell_global,
-					"lte_lc_neighbor_cell_measurement_cancel() returned err %d",
-					ret);
-			} else {
-				shell_print(
-					shell_global,
-					"Neighbor cell measurements and reporting stopped");
-			}
+		if (ret) {
+			mosh_error(
+				"lte_lc_neighbor_cell_measurement_cancel() returned err %d", ret);
+		} else {
+			mosh_print("Neighbor cell measurements and reporting stopped");
 		}
 	}
 }
 
-#define AT_MDM_SLEEP_NOTIF_START "AT%%XMODEMSLEEP=1,%d,%d"
-#define AT_MDM_SLEEP_NOTIF_STOP "AT%XMODEMSLEEP=0"
 void link_modem_sleep_notifications_subscribe(uint32_t warn_time_ms,
 					       uint32_t threshold_ms)
 {
-	char buf_sub[48];
 	int err;
 
-	snprintk(buf_sub, sizeof(buf_sub), AT_MDM_SLEEP_NOTIF_START,
-		 warn_time_ms, threshold_ms);
-
-	err = at_cmd_write(buf_sub, NULL, 0, NULL);
+	err = nrf_modem_at_printf("AT%%XMODEMSLEEP=1,%d,%d", warn_time_ms, threshold_ms);
 	if (err) {
-		shell_error(
-			shell_global,
-			"Cannot subscribe to modem sleep notifications, err %d",
-			err);
+		mosh_error("Cannot subscribe to modem sleep notifications, err %d", err);
 	} else {
-		shell_print(shell_global,
-			    "Subscribed to modem sleep notifications");
+		mosh_print("Subscribed to modem sleep notifications");
 	}
 }
 
@@ -499,36 +507,24 @@ void link_modem_sleep_notifications_unsubscribe(void)
 {
 	int err;
 
-	err = at_cmd_write(AT_MDM_SLEEP_NOTIF_STOP, NULL, 0, NULL);
+	err = nrf_modem_at_printf("AT%%XMODEMSLEEP=0");
 	if (err) {
-		shell_error(shell_global,
-			    "Cannot stop modem sleep notifications, err %d",
-			    err);
+		mosh_error("Cannot stop modem sleep notifications, err %d", err);
 	} else {
-		shell_print(shell_global,
-			    "Unsubscribed from modem sleep notifications");
+		mosh_print("Unsubscribed from modem sleep notifications");
 	}
 }
 
-#define AT_TAU_NOTIF_START "AT%%XT3412=1,%d,%d"
-#define AT_TAU_NOTIF_STOP "AT%XT3412=0"
 void link_modem_tau_notifications_subscribe(uint32_t warn_time_ms,
 					     uint32_t threshold_ms)
 {
-	char buf_sub[48];
 	int err;
 
-	snprintk(buf_sub, sizeof(buf_sub), AT_TAU_NOTIF_START, warn_time_ms,
-		 threshold_ms);
-
-	err = at_cmd_write(buf_sub, NULL, 0, NULL);
+	err = nrf_modem_at_printf("AT%%XT3412=1,%d,%d", warn_time_ms, threshold_ms);
 	if (err) {
-		shell_error(shell_global,
-			    "Cannot subscribe to TAU notifications, err %d",
-			    err);
+		mosh_error("Cannot subscribe to TAU notifications, err %d", err);
 	} else {
-		shell_print(shell_global,
-			    "Subscribed to TAU pre-warning notifications");
+		mosh_print("Subscribed to TAU pre-warning notifications");
 	}
 }
 
@@ -536,18 +532,15 @@ void link_modem_tau_notifications_unsubscribe(void)
 {
 	int err;
 
-	err = at_cmd_write(AT_TAU_NOTIF_STOP, NULL, 0, NULL);
+	err = nrf_modem_at_printf("AT%%XT3412=0");
 	if (err) {
-		shell_error(shell_global,
-			    "Cannot stop TAU pre-warning notifications, err %d",
-			    err);
+		mosh_error("Cannot stop TAU pre-warning notifications, err %d", err);
 	} else {
-		shell_print(shell_global,
-			    "Unsubscribed from TAU pre-warning notifications");
+		mosh_print("Unsubscribed from TAU pre-warning notifications");
 	}
 }
 
-int link_func_mode_set(enum lte_lc_func_mode fun)
+int link_func_mode_set(enum lte_lc_func_mode fun, bool rel14_used)
 {
 	int return_value = 0;
 	int sysmode;
@@ -564,8 +557,13 @@ int link_func_mode_set(enum lte_lc_func_mode fun)
 		return_value = lte_lc_offline();
 		break;
 	case LTE_LC_FUNC_MODE_NORMAL:
-		/* Enable Rel14 features before going to normal mode */
-		link_enable_rel14_features();
+		if (rel14_used) {
+			/* Enable Rel14 features before going to normal mode */
+			link_enable_rel14_features();
+		}
+
+		/* (Re)register for PDN lib notifications */
+		link_shell_pdn_events_subscribe();
 
 		/* (Re)register for rsrp notifications: */
 		modem_info_rsrp_register(link_rsrp_signal_handler);
@@ -581,13 +579,9 @@ int link_func_mode_set(enum lte_lc_func_mode fun)
 		sysmode = link_sett_sysmode_get();
 		lte_pref = link_sett_sysmode_lte_preference_get();
 		if (sysmode != LTE_LC_SYSTEM_MODE_NONE) {
-			return_value =
-				lte_lc_system_mode_set(sysmode, lte_pref);
-			if (shell_global != NULL && return_value < 0) {
-				shell_warn(
-					shell_global,
-					"lte_lc_system_mode_set returned error %d",
-					return_value);
+			return_value = lte_lc_system_mode_set(sysmode, lte_pref);
+			if (return_value < 0) {
+				mosh_warn("lte_lc_system_mode_set returned error %d", return_value);
 			}
 		}
 
@@ -597,11 +591,9 @@ int link_func_mode_set(enum lte_lc_func_mode fun)
 			/* TODO: why not just do lte_lc_normal() as notifications are
 			 * subscribed there also nowadays?
 			 */
-			return_value = lte_lc_init_and_connect_async(
-				link_ind_handler);
+			return_value = lte_lc_init_and_connect_async(link_ind_handler);
 			if (return_value == -EALREADY) {
-				return_value =
-					lte_lc_connect_async(link_ind_handler);
+				return_value = lte_lc_connect_async(link_ind_handler);
 			}
 		}
 		break;
@@ -615,9 +607,7 @@ int link_func_mode_set(enum lte_lc_func_mode fun)
 	default:
 		return_value = lte_lc_func_mode_set(fun);
 		if (return_value) {
-			shell_error(shell_global,
-				    "lte_lc_func_mode_set returned, error %d",
-				    return_value);
+			mosh_error("lte_lc_func_mode_set returned, error %d", return_value);
 		}
 		break;
 	}
@@ -632,31 +622,24 @@ void link_rai_read(void)
 
 	err = link_api_rai_status(&rai_status);
 	if (err == 0) {
-		shell_print(
-			shell_global,
-			"Release Assistance Indication status is enabled=%d",
-			rai_status);
+		mosh_print("Release Assistance Indication status is enabled=%d", rai_status);
 	} else {
-		shell_error(shell_global, "Reading RAI failed with error code %d", err);
+		mosh_error("Reading RAI failed with error code %d", err);
 	}
 }
 
 int link_rai_enable(bool enable)
 {
-	enum at_cmd_state state = AT_CMD_ERROR;
-	char command[10];
 	int err;
 
-	sprintf(command, "AT%%RAI=%d", enable);
-	err = at_cmd_write(command, NULL, 0, &state);
-	if (state == AT_CMD_OK) {
-		shell_print(
-			shell_global,
+	err = nrf_modem_at_printf("AT%%RAI=%d", enable);
+	if (!err) {
+		mosh_print(
 			"Release Assistance Indication functionality set to enabled=%d.\n"
 			"The change will be applied when going to normal mode for the next time.",
 			enable);
 	} else {
-		shell_error(shell_global, "Error state=%d, error=%d", state, err);
+		mosh_error("RAI AT command failed, error: %d", err);
 		return -EFAULT;
 	}
 	return 0;

@@ -95,7 +95,7 @@ See :ref:`ug_bootloader` for more information and instructions on how to enable 
 Supported protocols
 *******************
 
-The nRF52 Series multiprotocol radio supports Bluetooth Low Energy, proprietary (including Enhanced Shock Burst), ANT, Thread, Zigbee, and 802.15.4.
+The nRF52 Series multiprotocol radio supports Bluetooth Low Energy, proprietary (including Enhanced ShockBurst and Gazell), ANT, Thread, Zigbee, and 802.15.4.
 Standard interface protocols like NFC and USB are supported on a range of the devices in the series and with supporting software.
 
 .. note::
@@ -122,6 +122,20 @@ In addition, you can run the :ref:`zephyr:bluetooth-samples` that are included f
 
 For available libraries, see :ref:`lib_bluetooth_services` (|NCS|) and :ref:`zephyr:bluetooth_api` (Zephyr).
 
+Bluetooth mesh
+==============
+
+Bluetooth mesh is a mesh networking solution based on Bluetooth Low Energy, developed by the Bluetooth® Special Interest Group (SIG).
+It is optimized for creating large-scale device networks, and implemented according to Bluetooth Mesh Profile Specification v1.0.1 and Bluetooth Mesh Model Specification v1.0.1.
+
+Bluetooth mesh networking allows one-to-one, one-to-many, and many-to-many communication, using the Bluetooth Low Energy protocol to exchange messages between the mesh nodes in the network.
+
+The |NCS| contains a variety of :ref:`Bluetooth mesh samples <ble_samples>` that target nRF52 Series devices.
+In addition, you can run the :ref:`Bluetooth mesh samples <zephyr:bluetooth-samples>` that are included from Zephyr.
+
+For available libraries, see :ref:`bt_mesh` (|NCS|) and :ref:`zephyr:bluetooth_mesh` (Zephyr).
+See the :ref:`ug_bt_mesh` user guide for information about how to utilize the supplied libraries and work with Bluetooth mesh.
+
 Enhanced ShockBurst
 ===================
 
@@ -131,6 +145,16 @@ Enhanced ShockBurst
 
 See the :ref:`ug_esb` user guide for information about how to work with Enhanced ShockBurst.
 To start developing, check out the :ref:`esb_prx_ptx` sample.
+
+Gazell
+======
+
+.. include:: ug_gzll.rst
+   :start-after: gzll_intro_start
+   :end-before: gzll_intro_end
+
+See the :ref:`ug_gzll` user guide and the :ref:`ug_gzp` user guide for information about how to work with Gazell.
+To start developing, check out the :ref:`gazell_samples`.
 
 Matter
 ======
@@ -197,7 +221,7 @@ See the :ref:`ug_multiprotocol_support` user guide for instructions on how to en
 The :ref:`nrfxlib:mpsl` library provides services for multiprotocol applications.
 
 
-.. |note| replace:: There is currently no support for upgrading the bootloader (:doc:`mcuboot:index`) on nRF52 Series devices.
+.. |note| replace:: For posibility of introducing upgradable bootloader, please refer to :ref:`ug_bootloader_adding`.
 
 .. fota_upgrades_start
 
@@ -232,6 +256,10 @@ To perform a FOTA upgrade, complete the following steps:
       The :file:`app_update.bin` file is the file that must be downloaded to the device.
 
 #. Download the new image to a device.
+
+      .. note::
+         When performing FOTA upgrade on a Bluetooth mesh device and if the device's composition data is going to change after the firmware upgrade, unprovision the device before downloading the new image.
+
       Use `nRF Connect for Mobile`_ or `nRF Toolbox`_ to upgrade your device with the new firmware.
 
       To do so, make sure that you can access the :file:`app_update.bin` file from your phone or tablet.

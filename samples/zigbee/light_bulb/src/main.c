@@ -106,7 +106,7 @@
 #error Define ZB_ROUTER_ROLE to compile router source code.
 #endif
 
-LOG_MODULE_REGISTER(app);
+LOG_MODULE_REGISTER(app, LOG_LEVEL_INF);
 
 /* Main application customizable context.
  * Stores all settings and static values.
@@ -487,16 +487,6 @@ void zboss_signal_handler(zb_bufid_t bufid)
 	 */
 	if (bufid) {
 		zb_buf_free(bufid);
-	}
-}
-
-void error(void)
-{
-	dk_set_leds_state(DK_ALL_LEDS_MSK, DK_NO_LEDS_MSK);
-
-	while (true) {
-		/* Spin forever */
-		k_sleep(K_MSEC(1000));
 	}
 }
 

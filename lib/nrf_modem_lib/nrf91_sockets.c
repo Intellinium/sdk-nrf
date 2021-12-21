@@ -18,6 +18,7 @@
 #include <net/socket_offload.h>
 #include <nrf_socket.h>
 #include <nrf_errno.h>
+#include <nrf_gai_errors.h>
 #include <sockets_internal.h>
 #include <sys/fdtable.h>
 #include <zephyr.h>
@@ -48,6 +49,11 @@ static struct nrf_sock_ctx {
 static K_MUTEX_DEFINE(ctx_lock);
 
 static const struct socket_op_vtable nrf91_socket_fd_op_vtable;
+
+/* Offloading disabled in general. */
+static bool offload_disabled;
+/* TLS offloading disabled only. */
+static bool tls_offload_disabled;
 
 static struct nrf_sock_ctx *allocate_ctx(int nrf_fd)
 {
@@ -139,9 +145,6 @@ static int z_to_nrf_level(int z_in_level, int *nrf_out_level)
 		break;
 	case SOL_DFU:
 		*nrf_out_level = NRF_SOL_DFU;
-		break;
-	case SOL_PDN:
-		*nrf_out_level = NRF_SOL_PDN;
 		break;
 	default:
 		retval = -1;
@@ -274,23 +277,6 @@ static int z_to_nrf_optname(int z_in_level, int z_in_optname,
 		}
 		break;
 
-	case SOL_PDN:
-		switch (z_in_optname) {
-		case SO_PDN_AF:
-			*nrf_out_optname = NRF_SO_PDN_AF;
-			break;
-		case SO_PDN_CONTEXT_ID:
-			*nrf_out_optname = NRF_SO_PDN_CONTEXT_ID;
-			break;
-		case SO_PDN_STATE:
-			*nrf_out_optname = NRF_SO_PDN_STATE;
-			break;
-		default:
-			retval = -1;
-			break;
-		}
-		break;
-
 	default:
 		retval = -1;
 		break;
@@ -413,8 +399,6 @@ static int nrf_to_z_protocol(int proto)
 		return IPPROTO_UDP;
 	case NRF_SPROTO_TLS1v2:
 		return IPPROTO_TLS_1_2;
-	case NRF_PROTO_PDN:
-		return NPROTO_PDN;
 	case NRF_PROTO_DFU:
 		return NPROTO_DFU;
 	case NRF_PROTO_AT:
@@ -436,8 +420,6 @@ static int nrf_to_z_protocol(int proto)
 static int z_to_nrf_socktype(int socktype)
 {
 	switch (socktype) {
-	case SOCK_MGMT:
-		return NRF_SOCK_MGMT;
 	case SOCK_RAW:
 		return NRF_SOCK_RAW;
 	default:
@@ -458,8 +440,6 @@ static int z_to_nrf_protocol(int proto)
 		return NRF_PROTO_AT;
 	case NPROTO_DFU:
 		return NRF_PROTO_DFU;
-	case NPROTO_PDN:
-		return NRF_PROTO_PDN;
 	case PROTO_WILDCARD:
 		return 0;
 	/*
@@ -485,21 +465,36 @@ static int z_to_nrf_protocol(int proto)
 	}
 }
 
-static int nrf_to_z_dns_error_code(int nrf_error)
+static int nrf_to_z_dns_error_code(int nrf_gai_err)
 {
-	switch (nrf_error) {
-	case NRF_ENOMEM:
-		return DNS_EAI_MEMORY;
-	case NRF_EAGAIN:
+	switch (nrf_gai_err) {
+	case NRF_EAI_ADDRFAMILY:
+		return DNS_EAI_ADDRFAMILY;
+	case NRF_EAI_AGAIN:
 		return DNS_EAI_AGAIN;
-	case NRF_EAFNOSUPPORT:
+	case NRF_EAI_BADFLAGS:
+		return DNS_EAI_BADFLAGS;
+	case NRF_EAI_FAIL:
+		return DNS_EAI_FAIL;
+	case NRF_EAI_FAMILY:
+		return DNS_EAI_FAMILY;
+	case NRF_EAI_MEMORY:
+		return DNS_EAI_MEMORY;
+	case NRF_EAI_NODATA:
+		return DNS_EAI_NODATA;
+	case NRF_EAI_NONAME:
 		return DNS_EAI_NONAME;
-	case NRF_EINPROGRESS:
+	case NRF_EAI_SERVICE:
+		return DNS_EAI_SERVICE;
+	case NRF_EAI_SOCKTYPE:
+		return DNS_EAI_SOCKTYPE;
+	case NRF_EAI_INPROGRESS:
 		return DNS_EAI_INPROGRESS;
-	case NRF_ENETUNREACH:
-		errno = ENETUNREACH;
-	default:
+	case NRF_EAI_SYSTEM:
 		return DNS_EAI_SYSTEM;
+	default:
+		__ASSERT(false, "Untranslated nrf_getaddrinfo() return value %d", nrf_gai_err);
+		return -1;
 	}
 }
 
@@ -1093,7 +1088,6 @@ static int nrf91_socket_offload_getaddrinfo(const char *node,
 {
 	int error;
 	struct nrf_addrinfo nrf_hints;
-	struct nrf_addrinfo nrf_hints_pdn;
 	struct nrf_addrinfo *nrf_res = NULL;
 	struct nrf_addrinfo *nrf_hints_ptr = NULL;
 	static K_MUTEX_DEFINE(getaddrinfo_lock);
@@ -1106,16 +1100,6 @@ static int nrf91_socket_offload_getaddrinfo(const char *node,
 			return DNS_EAI_SOCKTYPE;
 		} else if (error == -EAFNOSUPPORT) {
 			return DNS_EAI_ADDRFAMILY;
-		}
-
-		if (hints->ai_next != NULL) {
-			z_to_nrf_addrinfo_hints(hints->ai_next, &nrf_hints_pdn);
-			if (error == -EPROTONOSUPPORT) {
-				return DNS_EAI_SOCKTYPE;
-			} else if (error == -EAFNOSUPPORT) {
-				return DNS_EAI_ADDRFAMILY;
-			}
-			nrf_hints.ai_next = &nrf_hints_pdn;
 		}
 		nrf_hints_ptr = &nrf_hints;
 	}
@@ -1297,32 +1281,55 @@ static const struct socket_op_vtable nrf91_socket_fd_op_vtable = {
 	.setsockopt = nrf91_socket_offload_setsockopt,
 };
 
+static inline bool proto_is_secure(int proto)
+{
+	return (proto >= IPPROTO_TLS_1_0 && proto <= IPPROTO_TLS_1_2) ||
+	       (proto >= IPPROTO_DTLS_1_0 && proto <= IPPROTO_DTLS_1_2);
+}
+
 static bool nrf91_socket_is_supported(int family, int type, int proto)
 {
-	if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) &&
-		family == AF_PACKET && type == SOCK_RAW && proto == IPPROTO_RAW) {
-		/* This kind of socket combo is handled by zephyr packet socket: */
+	if (offload_disabled) {
 		return false;
 	}
 
-	if (IS_ENABLED(CONFIG_NET_SOCKETS_OFFLOAD_TLS)) {
-		return true;
-	}
-
-	if ((proto >= IPPROTO_TLS_1_0 && proto <= IPPROTO_TLS_1_2) ||
-	    (proto >= IPPROTO_DTLS_1_0 && proto <= IPPROTO_DTLS_1_2)) {
+	if (tls_offload_disabled && proto_is_secure(proto)) {
 		return false;
 	}
 
 	return true;
 }
 
+static int native_socket(int family, int type, int proto, bool *offload_lock)
+{
+	int sock;
+
+	type = type & ~(SOCK_NATIVE | SOCK_NATIVE_TLS);
+
+	/* Lock the scheduler for the time of a socket creation to prevent
+	 * race condition when offloading is disabled.
+	 */
+	k_sched_lock();
+	*offload_lock = true;
+	sock = zsock_socket(family, type, proto);
+	*offload_lock = false;
+	k_sched_unlock();
+
+	return sock;
+}
+
 static int nrf91_socket_create(int family, int type, int proto)
 {
-	int fd = z_reserve_fd();
-	int sd;
+	int fd, sd;
 	struct nrf_sock_ctx *ctx;
 
+	if (type & SOCK_NATIVE) {
+		return native_socket(family, type, proto, &offload_disabled);
+	} else if (type & SOCK_NATIVE_TLS) {
+		return native_socket(family, type, proto, &tls_offload_disabled);
+	}
+
+	fd = z_reserve_fd();
 	if (fd < 0) {
 		return -1;
 	}
@@ -1347,8 +1354,13 @@ static int nrf91_socket_create(int family, int type, int proto)
 	return fd;
 }
 
-NET_SOCKET_REGISTER(nrf91_socket, AF_UNSPEC, nrf91_socket_is_supported,
-		    nrf91_socket_create);
+#define NRF91_SOCKET_PRIORITY 40
+
+BUILD_ASSERT(NRF91_SOCKET_PRIORITY < CONFIG_NET_SOCKETS_TLS_PRIORITY,
+	     "NRF91_SOCKET_PRIORITY have to be smaller than NET_SOCKETS_TLS_PRIORITY");
+
+NET_SOCKET_REGISTER(nrf91_socket, NRF91_SOCKET_PRIORITY, AF_UNSPEC,
+		    nrf91_socket_is_supported, nrf91_socket_create);
 
 /* Create a network interface for nRF91 */
 

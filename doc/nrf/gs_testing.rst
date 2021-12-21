@@ -19,9 +19,9 @@ See the user interface section of the application's documentation for descriptio
 How to connect with the VS Code extension
 *****************************************
 
-The `nRF Connect for Visual Studio Code`_ extension is a complete IDE for developing applications for nRF91, nRF53 and nRF52 Series devices.
+The |VSC| extension is a complete IDE for developing applications for nRF91, nRF53 and nRF52 Series devices.
 It includes nRF Terminal, which is an integrated serial port and RTT terminal to connect to your board.
-For detailed instructions, see `Testing an application`_ in the extension's README file.
+For detailed instructions, see the `nRF Connect for Visual Studio Code`_ documentation site.
 
 .. _putty:
 
@@ -38,10 +38,10 @@ Connect with the following settings:
  * No parity
  * HW flow control: None
 
-If you want to send commands via UART, make sure to configure the required line endings and turn on local echo and local line editing:
+If you want to send commands through UART, make sure to configure the required line endings and turn on local echo and local line editing:
 
 .. figure:: /images/putty.svg
-   :alt: PuTTY configuration for sending commands via UART
+   :alt: PuTTY configuration for sending commands through UART
 
 UART can also be used for logging purposes as one of the :ref:`logging backends <ug_logging_backends>`.
 
@@ -67,8 +67,8 @@ SEGGER's J-Link RTT can also be used for logging purposes as one of the :ref:`lo
 
 .. _testing_rtt_connect:
 
-Connecting via RTT
-==================
+Connecting using RTT
+====================
 
 To run RTT on your platform, complete the following steps:
 

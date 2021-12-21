@@ -10,6 +10,7 @@ HID forward module
 Use the |hid_forward| to:
 
 * Receive the HID input reports from the peripherals connected over Bluetooth®.
+* Forward the HID input reports in report or boot protocol.
 * Forward the :ref:`nrf_desktop_config_channel` data between the peripherals connected over Bluetooth and the host.
 
 Module events
@@ -28,17 +29,26 @@ Configuration
 Complete the following steps to configure the module:
 
 1. Complete the basic Bluetooth configuration, as described in :ref:`nrf_desktop_bluetooth_guide`.
+#. Make sure that the :kconfig:`CONFIG_DESKTOP_HID_STATE_ENABLE` option is disabled.
+   The nRF Desktop central does not generate its own HID input reports.
+   It only forwards HID input reports that it receives from the peripherals connected over Bluetooth.
 #. Enable and configure the :ref:`hogp_readme` (:kconfig:`CONFIG_BT_HOGP`).
 
    .. note::
        Make sure to define the maximum number of supported HID reports (:kconfig:`CONFIG_BT_HOGP_REPORTS_MAX`).
 
-#. Make sure that the :kconfig:`CONFIG_DESKTOP_HID_STATE_ENABLE` option is disabled.
-   The nRF Desktop central does not generate its own HID input reports.
-   It only forwards HID input reports that it receives from the peripherals connected over Bluetooth.
-#. The |hid_forward| is enabled with the :kconfig:`CONFIG_DESKTOP_HID_FORWARD_ENABLE` option.
-   This option is available only if you enable both the :kconfig:`CONFIG_BT_CENTRAL` and :kconfig:`CONFIG_BT_HOGP` Kconfig options.
+#. Make sure to enable the :kconfig:`CONFIG_BT_CENTRAL` Kconfig option.
+#. Enable |hid_forward| using the :kconfig:`CONFIG_DESKTOP_HID_FORWARD_ENABLE` option.
+   This option is available only if you enable both options from the previous steps.
    The module is used on Bluetooth Central to forward the HID reports that are received by the HID service client.
+#. Depending on your hardware, enable one of the following options:
+
+   * :kconfig:`CONFIG_DESKTOP_HID_BOOT_INTERFACE_KEYBOARD` - This option enables forwarding keyboard boot reports.
+   * :kconfig:`CONFIG_DESKTOP_HID_BOOT_INTERFACE_MOUSE` - This option enables forwarding mouse boot reports.
+
+   Those options affect :ref:`nrf_desktop_usb_state` that subscribes for HID boot reports.
+   The Dongle forwards HID reports from both mouse and keyboard, and so either option works if you want to have the Dongle work as boot mouse or boot keyboard.
+   For more information about the configuration of the HID boot protocol, see the boot protocol configuration section in the :ref:`nrf_desktop_usb_state` documentation.
 
 You can set the queued HID input reports limit using the :kconfig:`CONFIG_DESKTOP_HID_FORWARD_MAX_ENQUEUED_REPORTS` Kconfig option.
 
@@ -72,10 +82,17 @@ The possible cases that impact how the host to which the nRF desktop dongle is c
 When reports are forwarded to the :ref:`nrf_desktop_usb_state`, each HID-class USB device is treated independently.
 This means that the |hid_forward| can concurrently send reports to every available HID-class USB device, if a report from the linked peripheral is available.
 
+When received by the module, the HID boot protocol reports come with the report ID assigned to :c:enum:`REPORT_ID_RESERVED`.
+This ID is later changed by the |hid_forward| to either :c:enum:`REPORT_ID_BOOT_KEYBOARD` or :c:enum:`REPORT_ID_BOOT_MOUSE`.
+The choice depends on fact, if the Bluetooth device is boot mouse or keyboard.
+While receiving a subscription event, the |hid_forward| updates the HID protocol of peripherals connected through Bluetooth that are associated with the given subscriber.
+
 Forwarding HID input reports
 ============================
 
 After :ref:`nrf_desktop_ble_discovery` successfully discovers a connected peripheral, the |hid_forward| automatically subscribes for every HID input report provided by the peripheral.
+The subscriber can use either the HID boot protocol or the HID report protocol, but both protocols cannot be used at the same time.
+In the current implementation, the :ref:`nrf_desktop_usb_state` supports either the HID boot keyboard or the HID boot mouse reports, because the HID boot protocol code is set using a single Kconfig option that is common for all of the instances of the USB HID.
 
 The :c:func:`hidc_read` callback is called when HID input report is received from the connected peripheral.
 The received HID input report data is converted to ``hid_report_event``.
@@ -89,7 +106,7 @@ Enqueuing incoming HID input reports
 The |hid_forward| forwards only one HID input report to the HID-class USB device at a time.
 Another HID input report may be received from a peripheral connected over Bluetooth before the previous one was sent.
 In that case, ``hid_report_event`` is enqueued and submitted later.
-Up to :kconfig:`CONFIG_DESKTOP_HID_FORWARD_MAX_ENQUEUED_REPORTS` reports can be enqueued at a time for each report type and for each connected peripheral.
+Up to the number of reports specified in :kconfig:`CONFIG_DESKTOP_HID_FORWARD_MAX_ENQUEUED_REPORTS` reports can be enqueued at a time for each report type and for each connected peripheral.
 If there is not enough space to enqueue a new event, the module drops the oldest enqueued event that was received from this peripheral (of the same type).
 
 Upon receiving the ``hid_report_sent_event``, the |hid_forward| submits the ``hid_report_event`` enqueued for the peripheral that is associated with the HID-class USB device.
@@ -102,18 +119,18 @@ Forwarding HID output reports
 =============================
 
 When the |hid_forward| receives a ``hid_report_event`` that contains an output report from a :ref:`nrf_desktop_usb_state`, it tries to forward the output report.
-The HID output report is forwarded to all of the Bluetooth connected peripherals that forward the HID data to HID subscriber that is source of the HID output report.
+The HID output report is forwarded to all of the Bluetooth connected peripherals that forward the HID data to the HID subscriber that is source of the HID output report.
 The HID output report is never forwarded to peripheral that does not support it.
 
-If the GATT write without response operation is in progress for given HID output report ID and connected peripheral, the report is placed in a queue and sent later.
+If the GATT write without response operation is in progress for the given HID output report ID and connected peripheral, the report is placed in a queue and sent later.
 The |hid_forward| sends information only about the last received HID output report with given ID.
-If changes of state related to HID output report with given ID are frequent, some intermediate states can be omitted by the |hid_forward|.
+If changes of state related to the HID output report with the given ID are frequent, some intermediate states can be omitted by the |hid_forward|.
 
 Bluetooth Peripheral disconnection
 ==================================
 
 On a peripheral disconnection, nRF Desktop central informs the host that all the pressed keys reported by the peripheral are released.
-This is done to make sure that user will not observe a problem with a key stuck on peripheral disconnection.
+This is done to make sure that the user will not observe a problem with a key stuck on peripheral disconnection.
 
 Configuration channel data forwarding
 =====================================
@@ -122,7 +139,7 @@ The |hid_forward| forwards the :ref:`nrf_desktop_config_channel` data between th
 The data is exchanged with the peripheral connected over Bluetooth using HID feature report or HID output report.
 
 In contrast to :ref:`nrf_desktop_config_channel_script`, the |hid_forward| does not use configuration channel request to get hardware ID (HW ID) of the peripheral.
-The peripheral identification on nRF Desktop central is based on HW ID that is received from :ref:`nrf_desktop_ble_discovery` when peripheral discovery is completed.
+The peripheral identification on nRF Desktop central is based on the HW ID that is received from :ref:`nrf_desktop_ble_discovery` when peripheral discovery is completed.
 The peripheral uses :ref:`nrf_desktop_dev_descr` to provide the HW ID to the nRF Desktop central.
 
 The |hid_forward| only forwards the configuration channel requests that come from the USB connected host, it does not generate its own requests.

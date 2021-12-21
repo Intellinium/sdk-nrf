@@ -8,8 +8,8 @@
 #define DATE_TIME_H__
 
 #include <zephyr/types.h>
-#include <time.h>
 #include <stdbool.h>
+#include <time.h>
 
 /**
  * @defgroup date_time Date Time Library
@@ -49,7 +49,8 @@ typedef void (*date_time_evt_handler_t)(const struct date_time_evt *evt);
 /** @brief Set the current date time.
  *
  *  @note See http://www.cplusplus.com/reference/ctime/tm/ for accepted input
- *        format.
+ *        format. Members wday and yday have no impact on the date time UTC and are thus
+ *        does not need to be set.
  *
  *  @param[in] new_date_time Pointer to a tm structure.
  *
@@ -61,7 +62,8 @@ int date_time_set(const struct tm *new_date_time);
 
 /** @brief Get the date time UTC when the passing variable uptime was set.
  *         This function requires that k_uptime_get() has been called on the
- *         passing variable uptime prior to the function call.
+ *         passing variable uptime prior to the function call. In that case the uptime
+ *         will not be too large or negative.
  *
  *  @warning If the function fails, the passed in variable retains its
  *           old value.
@@ -71,7 +73,7 @@ int date_time_set(const struct tm *new_date_time);
  *  @return 0        If the operation was successful.
  *  @return -ENODATA If the library does not have a valid date time UTC.
  *  @return -EINVAL  If the passed in pointer is NULL, dereferenced value is too large,
- *		     or already converted.
+ *		     already converted or if uptime is negative.
  */
 int date_time_uptime_to_unix_time_ms(int64_t *uptime);
 

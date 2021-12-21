@@ -9,6 +9,7 @@
 
 #include <zephyr.h>
 #include <event_manager.h>
+#include <event_manager_profiler_tracer.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -8,8 +8,8 @@
 
 #include <logging/log.h>
 
+#include <lib/support/CHIPMem.h>
 #include <platform/CHIPDeviceLayer.h>
-#include <support/CHIPMem.h>
 
 LOG_MODULE_REGISTER(app);
 
@@ -47,7 +47,11 @@ int main()
 		goto exit;
 	}
 
+#ifdef CONFIG_OPENTHREAD_MTD_SED
+	err = ConnectivityMgr().SetThreadDeviceType(ConnectivityManager::kThreadDeviceType_SleepyEndDevice);
+#else
 	err = ConnectivityMgr().SetThreadDeviceType(ConnectivityManager::kThreadDeviceType_MinimalEndDevice);
+#endif
 	if (err != CHIP_NO_ERROR) {
 		LOG_ERR("ConnectivityMgr().SetThreadDeviceType() failed");
 		goto exit;

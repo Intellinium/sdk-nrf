@@ -7,9 +7,10 @@ Event Manager
    :local:
    :depth: 2
 
-The Event Manager is a piece of software that supports development of consistent, modular, event-based application.
+The Event Manager is a piece of software that supports development of consistent, modular, event-based applications.
 In an event-based application, parts of the application functionality are separated into isolated modules that communicate with each other using events.
 Events are submitted by modules and other modules can subscribe and react to them.
+The Event Manager acts as coordinator of the event-based communication.
 
 .. figure:: images/em_overview.svg
    :alt: Architecture of an application based on Event Manager
@@ -30,20 +31,17 @@ As part of this communication, listeners can process events differently based on
 The Event Manager provides API for defining, creating, and subscribing events.
 See `Implementing an event type`_ for details about how to create custom event types.
 
-.. note::
-   Currently, up to 32 event types can be used in an application.
-
 Modules
 *******
 
 Modules are separate source files that can subscribe to every defined event.
 You can use events for communication between modules.
 
-There is no limitation as to how many modules each module can subscribe to.
+There is no limitation as to how many events each module can subscribe to.
 An application can have as many modules as required.
 
-The Event Manager provides API for subscribing modules to a specific events defined in the application.
-When a module is subscribing to a specific event, it is called a listener module.
+The Event Manager provides an API for subscribing modules to specific events defined in the application.
+When a module subscribes to a specific event, it is called a listener module.
 Every listener is identified by a unique name.
 
 .. _event_manager_configuration:
@@ -61,12 +59,14 @@ Initializing the Event Manager
 ==============================
 
 You must initialize the Event Manager in your :file:`main.c` file.
-Initializing the Event Manger allows it to handle submitted events and deliver them to modules that subscribe to the specified event type.
+Initializing the Event Manager allows it to handle submitted events and deliver them to modules that subscribe to the specified event type.
 
 To initialize the Event Manager, complete the following steps:
 
 1. Include :file:`event_manager.h` in your :file:`main.c` file.
 #. Call :c:func:`event_manager_init()`.
+
+.. _event_manager_implementing_events:
 
 Implementing events and modules
 *******************************
@@ -92,17 +92,17 @@ To create a header file for the event type you want to define:
 
    .. code-block:: c
 
-	   #include event_manager.h
+	   #include <event_manager.h>
 
-#. Define the new event type by creating a structure that contains :c:struct:`event_header` ``header`` as the first field.
+#. Define the new event type by creating a structure that contains an :c:struct:`event_header` named ``header`` as the first field.
 #. Optionally, add additional custom data fields to the structure.
 #. Declare the event type with the :c:macro:`EVENT_TYPE_DECLARE` macro, passing the name of the created structure as an argument.
 
-The following code example shows a header file for the event type ``sample_event``:
+The following code example shows a header file for the event type :c:struct:`sample_event`:
 
 .. code-block:: c
 
-   #include "event_manager.h"
+   #include <event_manager.h>
 
    struct sample_event {
 	   struct event_header header;
@@ -118,11 +118,11 @@ The following code example shows a header file for the event type ``sample_event
 In some use cases, the length of the data associated with an event may vary.
 You can use the :c:macro:`EVENT_TYPE_DYNDATA_DECLARE` macro instead of :c:macro:`EVENT_TYPE_DECLARE` to declare an event type with variable data size.
 In such case, add the data with the variable size as the last member of the event structure.
-For example, you can add the variable size data to a previously defined event by applying the following change to the code:
+For example, you can add variable sized data to the previously defined event by applying the following change to the code:
 
 .. code-block:: c
 
-   #include "event_manager.h"
+   #include <event_manager.h>
 
    struct sample_event {
 	   struct event_header header;
@@ -136,7 +136,7 @@ For example, you can add the variable size data to a previously defined event by
 
    EVENT_TYPE_DYNDATA_DECLARE(sample_event);
 
-In this example, the :c:struct:`event_dyndata` contains the following information:
+In this example, the :c:struct:`event_dyndata` structure contains the following information:
 
 * A zero-length array that is used as a buffer with variable size (:c:member:`event_dyndata.data`).
 * A number representing the size of the buffer (:c:member:`event_dyndata.size`).
@@ -148,7 +148,7 @@ To create a source file for the event type you defined in the header file:
 
 1. Include the header file for the new event type in your source file.
 #. Define the event type with the :c:macro:`EVENT_TYPE_DEFINE` macro.
-   Passing the name of the event type as declared in the header and the additional parameters.
+   Pass the name of the event type as declared in the header along with additional parameters.
    For example, you can provide a function that fills a buffer with a string version of the event data (used for logging).
 
 The following code example shows a source file for the event type ``sample_event``:
@@ -303,65 +303,28 @@ Event Manager extensions
 
 The Event Manager provides additional features that could be helpful when debugging event-based applications.
 
-Profiling an event
-==================
+.. _event_manager_profiling_tracing_hooks:
 
-The Event Manager events can be profiled using :ref:`profiler`.
-Profiler allows you to observe the propagation of an event in the system, view the data connected with the event, or create statistics.
+Tracing hooks
+=============
 
-To profile an event, you must complete the following steps:
+.. em_tracing_hooks_start
 
-1. Enable the profiler using the :kconfig:`CONFIG_EVENT_MANAGER_PROFILER_ENABLED` Kconfig option.
-#. Edit the source file for the event type:
+Event Manager provides tracing hooks that you can use at run time to get information about Event Manager initialization, event submission, and event execution.
+The hooks are provided as weak functions.
+You can override them for interacting with a custom profiler or for other purposes.
 
-   a. Define a profiling function that logs the event data to a given buffer by calling one of the following functions for every registered data type:
+The following weak functions are provided by Event Manager as hooks:
 
-      * :c:func:`profiler_log_encode_uint32`
-      * :c:func:`profiler_log_encode_int32`
-      * :c:func:`profiler_log_encode_uint16`
-      * :c:func:`profiler_log_encode_int16`
-      * :c:func:`profiler_log_encode_uint8`
-      * :c:func:`profiler_log_encode_int8`
-      * :c:func:`profiler_log_encode_string`
-   #. Define an :c:struct:`event_info` structure, using :c:macro:`EVENT_INFO_DEFINE` in your event source file, and provide it as an argument when defining the event type with :c:macro:`EVENT_TYPE_DEFINE` macro.
-	  This structure contains a profiling function and information about the data fields that are logged.
-	  The following code example shows a profiling function for the event type ``sample_event``:
+* :c:func:`event_manager_trace_event_execution`
+* :c:func:`event_manager_trace_event_submission`
+* :c:func:`event_manager_trace_event_init`
+* :c:func:`event_manager_alloc`
+* :c:func:`event_manager_free`
 
-	  .. code::
+For details, refer to `API documentation`_.
 
-	     static void profile_sample_event(struct log_event_buf *buf,
-		 			 const struct event_header *eh)
-		 {
-			struct sample_event *event = cast_sample_event(eh);
-
-			profiler_log_encode_int8(buf, event->value1);
-			profiler_log_encode_int16(buf, event->value2);
-			profiler_log_encode_int32(buf, event->value3);
-		 }
-
-	  The following code example shows how to define the event profiling information structure and add it to event type definition:
-
-	  .. code::
-
-		 EVENT_INFO_DEFINE(sample_event,
-				/* Profiled datafield types. */
-				ENCODE(PROFILER_ARG_S8, PROFILER_ARG_S16, PROFILER_ARG_S32),
-				/* Profiled data field names - displayed by profiler. */
-				ENCODE("value1", "value2", "value3"),
-				/* Function used to profile event data. */
-				profile_sample_event);
-
-		 EVENT_TYPE_DEFINE(sample_event,
-				true,
-				log_sample_event,	/* Function for logging event data. */
-				&sample_event_info);	/* Structure with data for profiling. */
-
-	  .. note::
-		  * By default, all Event Manager events that are defined with an :c:struct:`event_info` argument are profiled.
-		  * :c:struct:`sample_event_info` is defined within the :c:macro:`EVENT_INFO_DEFINE` macro.
-
-#. Use profiler scripts to profile the application.
-   See :ref:`profiler` for more details.
+.. em_tracing_hooks_end
 
 Shell integration
 =================

@@ -24,6 +24,13 @@ static int cmd_zb_suspend(const struct shell *shell, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
+	if (!zigbee_debug_zboss_thread_is_created()) {
+		zb_cli_print_error(shell,
+				   "Can't suspend Zigbee scheduler - ZBOSS thread not created.",
+				   ZB_FALSE);
+		return -ENOEXEC;
+	}
+
 	zigbee_debug_suspend_zboss_thread();
 	zb_cli_print_done(shell, ZB_FALSE);
 
@@ -42,6 +49,13 @@ static int cmd_zb_resume(const struct shell *shell, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
+	if (!zigbee_debug_zboss_thread_is_created()) {
+		zb_cli_print_error(shell,
+				   "Can't resume Zigbee scheduler - ZBOSS thread not created.",
+				   ZB_FALSE);
+		return -ENOEXEC;
+	}
+
 	zigbee_debug_resume_zboss_thread();
 	zb_cli_print_done(shell, ZB_FALSE);
 
@@ -49,12 +63,12 @@ static int cmd_zb_resume(const struct shell *shell, size_t argc, char **argv)
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(sub_zigbee,
-	SHELL_CMD_ARG(resume, NULL, "Suspend Zigbee scheduler processing",
+	SHELL_CMD_ARG(resume, NULL, "Suspend Zigbee scheduler processing.",
 		      cmd_zb_resume, 1, 0),
-	SHELL_CMD_ARG(suspend, NULL, "Suspend Zigbee scheduler processing",
+	SHELL_CMD_ARG(suspend, NULL, "Suspend Zigbee scheduler processing.",
 		      cmd_zb_suspend, 1, 0),
 	SHELL_SUBCMD_SET_END);
 
-SHELL_CMD_REGISTER(zscheduler, &sub_zigbee, "Zigbee scheduler manipulation",
+SHELL_CMD_REGISTER(zscheduler, &sub_zigbee, "Zigbee scheduler manipulation.",
 		   NULL);
 #endif

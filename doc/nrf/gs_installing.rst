@@ -229,21 +229,16 @@ You only need to do this once.
 Get the |NCS| code
 ******************
 
-The |NCS| consists of a set of :ref:`Git repositories <ncs_introduction>`.
-
-Every |NCS| release consists of a combination of these repositories at different revisions.
+Every |NCS| release consists of a combination of :ref:`Git repositories <ncs_introduction>` at different revisions.
 The revision of each of those repositories is determined by the current revision of the main (or manifest) repository, `sdk-nrf`_.
 
 .. note::
-   The latest state of development is on the ``master`` branch of the `sdk-nrf`_ repository.
+   The latest state of development is on the ``main`` branch of the `sdk-nrf`_ repository.
    To ensure a usable state, the `sdk-nrf`_ repository defines the compatible states of the other repositories.
    However, this state is not necessarily tested.
    For a higher degree of quality assurance, check out a tagged release.
 
    Unless you are familiar with the development process, you should always work with a specific release of the |NCS|.
-
-The main repository, `sdk-nrf`_, contains a `west manifest file`_, :file:`west.yml`, that determines the revision of all other repositories.
-This means that sdk-nrf acts as the :ref:`manifest repository <zephyr:west-basics>`, while the other repositories are project repositories.
 
 For more information about the repository and development model, see the :ref:`development model section <dev-model>`.
 
@@ -257,7 +252,7 @@ To clone the repositories, complete the following steps:
    * To work with a specific release, the identifier is the corresponding tag (for example, |release_tt|).
      You can find the tag in the :ref:`release_notes` of the release.
    * To work with a development tag, the identifier is the corresponding tag (for example, ``v1.2.99-dev1``)
-   * To work with a branch, the identifier is the branch name (for example, ``master`` to work with the latest state of development).
+   * To work with a branch, the identifier is the branch name (for example, ``main`` to work with the latest state of development).
    * To work with a specific state, the identifier is the SHA (for example, ``224bee9055d986fe2677149b8cbda0ff10650a6e``).
 
 #. From the command line, initialize west with the revision of the |NCS| that you want to check out, replacing *NCS_revision* with the identifier:
@@ -276,7 +271,7 @@ To clone the repositories, complete the following steps:
 
    To check out the latest state of development, enter the following command::
 
-     west init -m https://github.com/nrfconnect/sdk-nrf --mr master
+     west init -m https://github.com/nrfconnect/sdk-nrf --mr main
 
    .. west-error-start
 
@@ -379,6 +374,8 @@ To be able to cross-compile your applications for Arm targets, you must install 
    Other toolchain versions might not work with this version of the |NCS|.
    Similarly, other versions of the |NCS| might require a different toolchain version.
 
+   |tfm_gnu_version_incompatibility|
+
 To set up the toolchain, complete the following steps:
 
 .. _toolchain_setup:
@@ -463,7 +460,6 @@ Visual Studio Code extension
 ============================
 
 |vsc_extension_instructions|
-For detailed instructions see the `nRF Connect for Visual Studio Code`_ README file.
 
 .. _installing_ses:
 

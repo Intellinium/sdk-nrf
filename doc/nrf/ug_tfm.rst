@@ -16,7 +16,7 @@ TF-M is the reference implementation of `Platform Security Architecture (PSA)`_.
 
 It provides a highly configurable set of software components to create a Trusted Execution Environment.
 This is achieved by a set of secure run time services such as Secure Storage, Cryptography, Audit Logs, and Attestation.
-Additionally, secure boot via MCUboot in TF-M ensures integrity of run time software and supports firmware upgrade.
+Additionally, secure boot through MCUboot in TF-M ensures integrity of run time software and supports firmware upgrade.
 
 Support for TF-M in |NCS| is currently experimental.
 TF-M is a framework which will be extended for new functions and use cases beyond the scope of SPM.
@@ -28,6 +28,7 @@ The TF-M implementation in |NCS| is currently demonstrated in the following samp
 - The :ref:`tfm_hello_world` sample
 - All :ref:`cryptography samples <crypto_samples>` in this SDK
 - A series of :ref:`TF-M integration samples <zephyr:tfm_integration-samples>` available in Zephyr
+- The :ref:`https_client` sample for nRF9160 in this SDK
 
 Building
 ********
@@ -95,8 +96,12 @@ Logging
 TF-M employs two UART interfaces for logging: one for the secure part (MCUboot and TF-M), and one for the non-secure application.
 The logs arrive on different COM ports on the host PC.
 
-On the nRF5340 DK, you must connect specific wires on the kit to receive secure logs on the host PC.
-Wire the pins P0.25 and P0.26 to RxD and TxD respectively.
+.. note::
+   * On the nRF5340 DK v1.0.0, you must connect specific wires on the kit to receive secure logs on the host PC.
+     Specifically, wire the pins **P0.25** and **P0.26** of the **P2** connector respectively to **RxD** and **TxD**  of the **P24** connector.
+     See :ref:`logging_cpunet` on the Working with nRF5340 DK page for more information.
+   * On the nRF5340 DK v2.0.0, there is one fewer COM port than on v1.0.0, so the secure and non-secure UART peripheral must be wired to the same pins.
+     Specifically, wire the pins **P0.25** and **P0.26** to **P0.20** and **P0.22**, respectively.
 
 Limitations
 ***********

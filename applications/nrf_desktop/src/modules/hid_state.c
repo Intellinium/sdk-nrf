@@ -1009,7 +1009,7 @@ static int8_t get_subscriber_priority(const struct subscriber *sub)
 	return (sub->is_usb) ? (1) : (0);
 }
 
-static struct report_data *rs_get_linked_rd(uint8_t report_id)
+static struct report_data *get_used_rd(uint8_t report_id)
 {
 	/* Connect with appropriate report data. */
 	uint8_t report_data_id = report_id;
@@ -1045,7 +1045,9 @@ static struct report_state *find_next_report_state(const struct report_data *rd,
 		for (size_t j = 0; j < ARRAY_SIZE(sub->state); j++) {
 			struct report_state *rs = &sub->state[j];
 
-			if ((rs_get_linked_rd(rs->report_id) == rd) &&
+			if (((rs->linked_rd == rd) ||
+			     ((rs->linked_rd == &empty_rd) &&
+			      (get_used_rd(rs->report_id) == rd))) &&
 			    (sub_prio_result <= sub_prio) &&
 			    (rs != former_rs)) {
 				__ASSERT_NO_MSG(sub_prio_result != sub_prio);
@@ -1077,10 +1079,6 @@ static void broadcast_keyboard_leds(void)
 	BUILD_ASSERT(REPORT_SIZE_KEYBOARD_LEDS == 1);
 
 	const struct subscriber *sub = get_linked_subscriber(REPORT_ID_KEYBOARD_KEYS);
-	if (!sub) {
-		LOG_WRN("No linked subscriber to REPORT_ID_KEYBOARD_KEYS");
-		return;
-	}
 	size_t idx = get_output_report_idx(REPORT_ID_KEYBOARD_LEDS);
 
 	static uint8_t displayed_leds_state;
@@ -1120,7 +1118,7 @@ static void connect(const void *subscriber_id, uint8_t report_id)
 	rs->state = STATE_CONNECTED_IDLE;
 	rs->report_id = report_id;
 
-	struct report_data *rd = rs_get_linked_rd(report_id);
+	struct report_data *rd = get_used_rd(report_id);
 
 	__ASSERT_NO_MSG(rd);
 
@@ -1457,7 +1455,7 @@ static bool handle_button_event(const struct button_event *event)
 	struct hid_keymap *map = hid_keymap_get(event->key_id);
 
 	if (!map || !map->usage_id) {
-		LOG_WRN("No mapping, button ignored");
+		LOG_DBG("No mapping, button ignored");
 	} else {
 		/* Keydown increases ref counter, keyup decreases it. */
 		int16_t value = (event->pressed != false) ? (1) : (-1);

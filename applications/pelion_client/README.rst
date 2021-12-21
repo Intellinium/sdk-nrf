@@ -154,7 +154,7 @@ The following table lists modules that are part of the application.
 
 All modules react to ``module_state_event``.
 
-On top of these modules, the application uses the following modules from :ref:`lib_caf` (CAF), a set of generic modules based on the Event Manager and available to all applications in the |NCS|:
+On top of these modules, the application uses the following modules of the :ref:`lib_caf` (CAF) libraries, a set of generic modules based on the Event Manager and available to all applications in the |NCS|:
 
 * :ref:`caf_buttons`
 * :ref:`caf_leds`
@@ -207,7 +207,7 @@ Flash memory layout
 The partition layout on the flash memory is set by :ref:`partition_manager`.
 
 The application uses static configurations of partitions to ensure that the partition layout does not change between builds.
-The :file:`pm_static_${CMAKE_BUILD_TYPE}.yml` file located in each board directory in the :file:`configuration` directory defines the static Partition Manager configuration for the given board and build type.
+The :file:`pm_static_${build_type}.yml` file located in each board directory in the :file:`configuration` directory defines the static Partition Manager configuration for the given board and build type.
 See `Configuration files`_ for more information.
 
 The following partitions are used by the project:
@@ -301,6 +301,53 @@ The internal procedures refer to situations where both connection types interact
 
 The state transitions are related to the LED behavior, as described in `User interface`_.
 
+Requirements
+************
+
+The application supports the following development kits:
+
+.. table-from-rows:: /includes/sample_board_rows.txt
+   :header: heading
+   :rows: nrf9160dk_nrf9160_ns, nrf5340dk_nrf5340_cpuapp, nrf5340dk_nrf5340_cpuapp_ns, nrf52840dk_nrf52840
+
+The nRF Pelion Client application is configured to compile and run as a non-secure application on nRF91's and nRF5340's Cortex-M33.
+Therefore, it automatically includes the :ref:`secure_partition_manager` that prepares the required peripherals to be available for the application.
+
+Pelion Device Management requirements
+=====================================
+
+You need a developer account on `Pelion Device Management Portal`_.
+
+.. _pelion_client_reqs_build_types:
+
+nRF Pelion Client build types
+=============================
+
+The nRF Pelion Client application does not use a single :file:`prj.conf` file.
+Configuration files are provided for different build types for each supported board.
+
+Each board has its own :file:`prj.conf` file, which represents a ``debug`` build type.
+Other build types are covered by dedicated files with the build type added as a suffix to the ``prj`` part, as per the following list.
+For example, the ``release`` build type file name is :file:`prj_release.conf`.
+If a board has other configuration files, for example associated with partition layout or child image configuration, these follow the same pattern.
+
+.. include:: /gs_modifying.rst
+   :start-after: build_types_overview_start
+   :end-before: build_types_overview_end
+
+Before you start testing the application, you can select one of the build types supported by nRF Pelion Client application, depending on your development kit and the building method.
+The application supports the following build types:
+
+* ``debug`` -- Debug version of the application - can be used to verify if the application works correctly.
+* ``release`` -- Release version of the application - can be used to achieve better performance and reduce memory consumption.
+
+Not every board supports both mentioned build types.
+The given board can also support some additional configurations of the nRF Pelion Client application.
+
+.. note::
+    `Selecting a build type`_ is optional.
+    The ``debug`` build type is used by default if no build type is explicitly selected.
+
 User interface
 **************
 
@@ -347,47 +394,6 @@ The following table shows the LED behavior demonstrated by the application:
 
 See `Application states`_ for an overview of the application state transitions.
 
-Requirements
-************
-
-The application supports the following development kits:
-
-.. table-from-rows:: /includes/sample_board_rows.txt
-   :header: heading
-   :rows: nrf9160dk_nrf9160_ns, nrf5340dk_nrf5340_cpuapp, nrf5340dk_nrf5340_cpuapp_ns, nrf52840dk_nrf52840
-
-The nRF Pelion Client application is configured to compile and run as a non-secure application on nRF91's and nRF5340's Cortex-M33.
-Therefore, it automatically includes the :ref:`secure_partition_manager` that prepares the required peripherals to be available for the application.
-
-Pelion Device Management requirements
-=====================================
-
-You need a developer account on `Pelion Device Management Portal`_.
-
-.. _pelion_client_reqs_build_types:
-
-nRF Pelion Client build types
-=============================
-
-The nRF Pelion Client application does not use a single :file:`prj.conf` file.
-Configuration files are provided for different build types for each supported board.
-
-.. include:: /gs_modifying.rst
-   :start-after: build_types_overview_start
-   :end-before: build_types_overview_end
-
-Before you start testing the application, you can select one of the build types supported by nRF Pelion Client application, depending on your development kit and the building method.
-The application supports the following build types:
-
-* ``ZDebug`` -- Debug version of the application - can be used to verify if the application works correctly.
-* ``ZRelease`` -- Release version of the application - can be used to achieve better performance and reduce memory consumption.
-
-.. note::
-    `Selecting a build type`_ is optional.
-    The ``ZDebug`` build type is used by default if no build type is explicitly selected.
-
-For more information, see the `Configuration files`_ section.
-
 Configuration
 *************
 
@@ -433,9 +439,9 @@ Along with the bootloader, you must also enable an image manager with the :kconf
 When MCUboot is enabled the |NCS| build system generates the update image that can be uploaded to the secondary (update) slot.
 The resulting signed file named :file:`app_update.bin` can be found in the build directory.
 For more information refer to :ref:`mcuboot_ncs`.
-This image is signed with MCUboot private key.
-By default, if private key is present at :file:`applications/pelion_client/configuration/${BOARD_NAME}/mcuboot_private.pem` it will be used for signing process.
-If key is not present and configuration does not point to any specific key path, the default sample MCUBoot key will be used.
+This image is signed with the MCUboot private key.
+By default, if a private key is present at :file:`applications/pelion_client/configuration/${BOARD_NAME}/mcuboot_private.pem` it will be used for the signing process.
+If a key is not present and configuration does not point to any specific key path, the default sample MCUBoot key will be used.
 
 Additionally, if the application image is large, you may need to store the update image on an external flash device.
 In such case, enable the external flash support and correctly configure the partition layout.
@@ -443,7 +449,7 @@ In such case, enable the external flash support and correctly configure the part
 The Pelion Device Management library's update manager is enabled when you select the :kconfig:`CONFIG_PELION_UPDATE` Kconfig option.
 This option enables components required for image transport and storage.
 
-For the update campaign to be recognized and the image be accepted, you need to provision the device with the valid update resources (device unique identifiers and certificate used for update process validation).
+For the update campaign to be recognized and the image to be accepted, you need to provision the device with the valid update resources (device unique identifiers and certificate used for update process validation).
 These resources are normally stored on device at production time.
 To simplify the development process, you can have the update resources created by the update manifest generation tool (see `Pelion Manifest Tool for version 4.7`_ in the Pelion documentation).
 The generated C file must be stored to the :file:`update_default_resources.c` file, located in the :file:`applications/pelion_client/configuration/common` directory.
@@ -454,26 +460,28 @@ The manifest tool can further help during development as it gives a possibility 
 Configuration files
 ===================
 
-You can find the configuration files in the :file:`applications/pelion_client/configuration` directory.
-For each supported build target, you can find a subdirectory that contains all configuration files for the given target.
-Configuration files are provided for different `nRF Pelion Client build types`_ for each supported build target.
+The nRF Pelion Client application uses the following files as configuration sources:
 
-The build types names are replacing the *${CMAKE_BUILD_TYPE}* variable in the configuration file names (for example, :file:`pm_static_ZDebug.yml`).
-If the given build type is not supported on the selected build target, an error message appears when `Building and running`_.
-In addition to the build types mentioned above, some build targets can provide more build types, which can be used to generate an application in a specific variant.
-The selected build type impacts the configuration of all system elements that are enabled (application, bootloader, partition layout).
+* Devicetree Specification (DTS) files - These reflect the hardware configuration.
+  See :ref:`zephyr:dt-guide` for more information about the DTS data structure.
+* Kconfig files - These reflect the software configuration.
+  See :ref:`kconfig_tips_and_tricks` for information about how to configure them.
+* :file:`_def` files - These contain configuration arrays for the application modules.
+  The :file:`_def` files are used by the nRF Pelion Client application modules and :ref:`lib_caf` modules.
 
-The following configuration files are specified for each build type:
+The application configuration files for a given board must be defined in a board-specific directory in the :file:`applications/pelion_client/configuration/` directory.
+For example, the configuration files for the nRF9160 DK are defined in the :file:`applications/pelion_client/configuration/nrf9160dk_nrf9160_ns` directory.
 
-* :file:`app_${CMAKE_BUILD_TYPE}.conf` - Contains configuration of the application.
-* :file:`mcuboot_${CMAKE_BUILD_TYPE}.conf` - Contains configuration of the bootloader.
-* :file:`pm_static_${CMAKE_BUILD_TYPE}.conf` - Contains configuration of the partition layout.
+The following configuration files can be defined for any supported board:
 
-Additionally, each build target directory contains the following configuration files:
-
-* :file:`mcuboot_private.pem` - Private signature used for binary image signing.
-* :file:`dts.overlay` - The DTS overlay used to adjust the DTS for needs of the application (that is, enable and configure the required hardware).
-* ``_def`` files - Configuration files for application modules.
+* :file:`prj_build_type.conf` - Kconfig configuration file for a build type.
+  To support a given build type for the selected board, you must define the configuration file with a proper name.
+  For example, the :file:`prj_release.conf` defines configuration for ``release`` build type.
+  The :file:`prj.conf` without any suffix defines the ``debug`` build type.
+* :file:`app.overlay` - DTS overlay file specific for the board.
+  Defining the DTS overlay file for a given board is optional.
+* :file:`_def` files - These files are defined separately for modules used by the application.
+  You must define a :file:`_def` file for every module that requires it and enable it in the configuration for the given board.
 
 Building and running
 ********************
@@ -495,6 +503,13 @@ Selecting a build type
 ======================
 
 Before you start testing the application, you can select one of the :ref:`pelion_client_reqs_build_types`, depending on your development kit and building method.
+
+Selecting a build type in |VSC|
+-------------------------------
+
+.. include:: /gs_modifying.rst
+   :start-after: build_types_selection_vsc_start
+   :end-before: build_types_selection_vsc_end
 
 Selecting a build type in SES
 -----------------------------

@@ -225,7 +225,7 @@ static bool handle_sensor_event(const struct sensor_event *event)
 	static uint8_t buf[DATA_BUF_SIZE];
 	int pos = ei_data_forwarder_parse_data(sensor_event_get_data_ptr(event),
 					       sensor_event_get_data_cnt(event),
-					       buf,
+					       (char *)buf,
 					       sizeof(buf));
 
 	if (pos < 0) {
@@ -366,6 +366,8 @@ static bool handle_ble_peer_event(const struct ble_peer_event *event)
 
 	case PEER_STATE_DISCONNECTED:
 		k_work_cancel(&send_queued);
+		/* Fall-through */
+
 	case PEER_STATE_DISCONNECTING:
 		/* Clear flags representing connection state. */
 		conn_state = 0;

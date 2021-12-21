@@ -62,15 +62,22 @@ Complete the following steps to configure the building process:
    * :kconfig:`CONFIG_LIB_CPLUSPLUS`
    * :kconfig:`CONFIG_NEWLIB_LIBC`
    * :kconfig:`CONFIG_NEWLIB_LIBC_FLOAT_PRINTF`
-   * :kconfig:`CONFIG_FPU`
 
+   .. note::
+      The :kconfig:`CONFIG_FPU` Kconfig option is implied by default if floating point unit (FPU) is supported by the hardware.
+      Using FPU speeds up calculations.
+
+#. Make sure that the :kconfig:`CONFIG_FP16` Kconfig option is disabled.
+   The Edge Impulse library is not compatible with half-precision floating point support introduced in Zephyr.
 #. Enable building the downloaded library by setting the :kconfig:`CONFIG_EDGE_IMPULSE` Kconfig option.
    Setting this option also enables the :ref:`ei_wrapper`.
 #. Enable and specify the Uniform Resource Identifier (URI) in the :kconfig:`CONFIG_EDGE_IMPULSE_URI` Kconfig option.
    You can set it to one of the following values:
 
-   * An absolute path to a file in the local file system.
+   * An absolute or relative path to a file in the local file system.
      For this variant, you must download the :file:`zip` file manually and place it under path defined by the Kconfig option.
+     The relative path is tracked from the application source directory (``APPLICATION_SOURCE_DIR``).
+     CMake variables that are part of the path are expanded.
    * Any downloadable URI supported by CMake's ``file(DOWNLOAD)`` command.
      For this variant, the |NCS| build system will download the :file:`zip` file automatically during build.
      The :file:`zip` file is downloaded into your application's :file:`build` directory.

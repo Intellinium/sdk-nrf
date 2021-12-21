@@ -87,7 +87,7 @@ To program the nRF device with the RCP application, complete the following steps
 
          .. code-block:: console
 
-            west build -p always -b nrf52840dongle_nrf52840 nrf/samples/openthread/coprocessor/ -- -DOVERLAY_CONFIG="overlay-rcp.conf ../cli/overlay-thread_1_2.conf overlay-usb.conf"
+            west build -p always -b nrf52840dongle_nrf52840 nrf/samples/openthread/coprocessor/ -- -DOVERLAY_CONFIG="overlay-rcp.conf ../cli/overlay-thread_1_2.conf overlay-usb.conf" -DDTC_OVERLAY_FILE="usb.overlay"
 
       .. tab:: nRF52840 Development Kit (UART transport)
 
@@ -164,14 +164,24 @@ The recommended option is to build and configure the OpenThread Border Router on
 This option provides most of the functionalities available in the OpenThread Border Router, such as border routing capabilities needed for establishing Thread communication with a mobile phone on a Wi-Fi network.
 However, this approach requires you to download the OpenThread Border Router repository and install the Border Router manually on the Raspberry Pi.
 
-To set up and configure the OpenThread Border Router, follow the official `OpenThread Border Router Codelab tutorial`_ on the OpenThread documentation portal.
-After cloning the repository, make sure to check out the compatible commit id:
+To set up and configure the OpenThread Border Router, follow the official `OpenThread Border Router Codelab tutorial`_ on the OpenThread documentation portal with the below modifications:
 
-.. code-block:: console
+* After cloning the repository in the *Get OTBR code* section, make sure to check out the compatible commit id:
 
-   git checkout e149a60
+   .. code-block:: console
 
-Omit the *Build and flash RCP firmware* section, because that section duplicates the steps already performed in the `Configuring a radio co-processor`_ section of this guide.
+      cd ot-br-posix
+      git pull --unshallow
+      git checkout 8ae81c5
+
+* After the *Build and install OTBR* section, configure RCP device's UART baud rate in *otbr-agent*.
+  Modify the :file:`/etc/default/otbr-agent` configuration file with default RCP baud rate:
+
+  .. code-block:: console
+
+     spinel+hdlc+uart:///dev/ttyACM0?uart-baudrate=1000000
+
+* Omit the *Build and flash RCP firmware* section, because that section duplicates the steps already performed in the `Configuring a radio co-processor`_ section of this guide.
 
 Running OTBR using Docker
 =========================
@@ -204,41 +214,18 @@ To install and configure the OpenThread Border Router using the Docker container
 
    .. code-block:: console
 
-      docker pull nrfconnect/otbr:e149a60
+      docker pull nrfconnect/otbr:8ae81c5
 
 #. Connect the radio co-processor that you configured in :ref:`ug_thread_tools_tbr_rcp` to the Border Router device.
 #. Start the OpenThread Border Router container using one of the following commands depending on the hardware platform:
 
-   .. tabs::
+   .. code-block:: console
 
-      .. tab:: nRF52840 Dongle (USB transport)
+      sudo docker run -it --rm --privileged --name otbr --network otbr -p 8080:80 \
+      --sysctl "net.ipv6.conf.all.disable_ipv6=0 net.ipv4.conf.all.forwarding=1 net.ipv6.conf.all.forwarding=1" \
+      --volume /dev/ttyACM0:/dev/radio nrfconnect/otbr:8ae81c5 --radio-url spinel+hdlc+uart:///dev/radio?uart-baudrate=1000000
 
-         .. parsed-literal::
-            :class: highlight
-
-            sudo docker run -it --rm --privileged --name otbr --network otbr -p 8080:80 \
-            --sysctl "net.ipv6.conf.all.disable_ipv6=0 net.ipv4.conf.all.forwarding=1 net.ipv6.conf.all.forwarding=1" \
-            --volume /dev/:/dev/ nrfconnect/otbr:e149a60 --radio-url spinel+hdlc+uart:///dev/serial/by-id/\ *rcp_symlink*\ ?uart-reset
-
-         Replace *rcp_symlink* with the device symlink of the OpenThread radio co-processor.
-         For example:
-
-         .. code-block:: console
-
-            sudo docker run -it --rm --privileged --name otbr --network otbr -p 8080:80 \
-            --sysctl "net.ipv6.conf.all.disable_ipv6=0 net.ipv4.conf.all.forwarding=1 net.ipv6.conf.all.forwarding=1" \
-            --volume /dev/:/dev/ nrfconnect/otbr:e149a60 --radio-url \
-            spinel+hdlc+uart:///dev/serial/by-id/usb-Nordic_Semiconductor_ASA_Thread_Co-Processor_08204FCC09303D20-if00?uart-reset
-
-      .. tab:: nRF52840 Development Kit (UART transport)
-
-         .. code-block:: console
-
-            sudo docker run -it --rm --privileged --name otbr --network otbr -p 8080:80 \
-            --sysctl "net.ipv6.conf.all.disable_ipv6=0 net.ipv4.conf.all.forwarding=1 net.ipv6.conf.all.forwarding=1" \
-            --volume /dev/ttyACM0:/dev/radio nrfconnect/otbr:e149a60 --radio-url spinel+hdlc+uart:///dev/radio?uart-baudrate=1000000
-
-         Replace ``/dev/ttyACM0`` with the device node name of the OpenThread radio co-processor.
+   Replace ``/dev/ttyACM0`` with the device node name of the OpenThread radio co-processor.
 
 #. Form the Thread network using one of the following options:
 
@@ -472,39 +459,25 @@ Running the OpenThread POSIX applications
 
 Use the following radio URL parameter to connect to an RCP node.
 
-* For UART transport:
+.. code-block:: console
 
-  .. parsed-literal::
-     :class: highlight
+   'spinel+hdlc+uart://\ *ncp_uart_device*\ ?uart-baudrate=\ *baud_rate*'
 
-     'spinel+hdlc+uart://\ *ncp_uart_device*\ ?uart-baudrate=\ *baud_rate*'
+Replace the following parameters:
 
-  Replace the following parameters:
+   * *ncp_uart_device* - Specifies the location of the device, for example: :file:`/dev/ttyACM0`
+   * *baud_rate* - Specifies the baud rate to use.
+     The Thread Co-Processor sample supports baud rate ``1000000``.
 
-    * *ncp_uart_device* - Specifies the location of the device, for example: :file:`/dev/ttyACM0`
-    * *baud_rate* - Specifies the baud rate to use.
-      The Thread Co-Processor sample supports baud rate ``1000000``.
+For example, to use ``ot-daemon``, enter the following commands:
 
-  For example, to use ``ot-daemon`` with UART transport, enter the following commands::
+.. code-block:: console
 
-     sudo ./build/posix/src/posix/ot-daemon 'spinel+hdlc+uart:///dev/ttyACM0?uart-baudrate=1000000' --verbose
-     sudo ./build/posix/src/posix/ot-ctl
+   sudo ./build/posix/src/posix/ot-daemon 'spinel+hdlc+uart:///dev/ttyACM0?uart-baudrate=1000000' --verbose
+   sudo ./build/posix/src/posix/ot-ctl
 
-* For USB transport:
+To use ``ot-cli``, enter the following command instead:
 
-  .. parsed-literal::
-     :class: highlight
+.. code-block:: console
 
-     'spinel+hdlc+uart://\ *ncp_uart_device*\ ?uart-reset'
-
-  Replace the following parameter:
-
-    * *ncp_uart_device* - Specifies the location of the device, for example: :file:`/dev/serial/by-id/usb-Nordic_Semiconductor_ASA_Thread_Co-Processor_07AA4C22D2E2C88D-if00`
-
-  For example, to use ``ot-cli`` with USB transport, enter the following command::
-
-     sudo ./build/posix/src/posix/ot-cli 'spinel+hdlc+uart:///dev/serial/by-id/usb-Nordic_Semiconductor_ASA_Thread_Co-Processor_07AA4C22D2E2C88D-if00?uart-reset' --verbose
-
-  .. note::
-     You must use a symlink to specify the device for a USB connection.
-     Otherwise, communication will fail after resetting the device.
+   sudo ./build/posix/src/posix/ot-cli 'spinel+hdlc+uart:///dev/ttyACM0?uart-baudrate=1000000' --verbose

@@ -26,6 +26,11 @@
 #define SYS_REBOOT_NCP 0x10
 #endif /* CONFIG_ZIGBEE_LIBRARY_NCP_DEV */
 
+/* Value that is returned while reading a single byte from the erased flash page .*/
+#define FLASH_EMPTY_BYTE 0xFF
+/* The number of bytes to be checked before concluding that the ZBOSS NVRAM is not initialized. */
+#define ZB_PAGE_INIT_CHECK_LEN 32
+
 
 /**
  * Enumeration representing type of application callback to execute from ZBOSS
@@ -91,6 +96,16 @@ static k_tid_t zboss_tid;
 static bool stack_is_started;
 
 #ifdef CONFIG_ZIGBEE_DEBUG_FUNCTIONS
+/**@brief Function for checking if the ZBOSS thread has been created.
+ */
+bool zigbee_debug_zboss_thread_is_created(void)
+{
+	if (zboss_tid) {
+		return true;
+	}
+	return false;
+}
+
 /**@brief Function for suspending zboss thread.
  */
 void zigbee_debug_suspend_zboss_thread(void)
@@ -497,6 +512,8 @@ void zb_osif_init(void)
 void zb_osif_abort(void)
 {
 	LOG_ERR("Fatal error occurred");
+	ZB_OSIF_SERIAL_FLUSH();
+
 	k_fatal_halt(K_ERR_KERNEL_PANIC);
 }
 
@@ -659,6 +676,26 @@ zb_uint8_t zb_get_reset_source(void)
 #endif /* CONFIG_ZIGBEE_LIBRARY_NCP_DEV */
 
 	return zb_reason;
+}
+
+zb_bool_t zigbee_is_nvram_initialised(void)
+{
+	zb_uint8_t buf[ZB_PAGE_INIT_CHECK_LEN] = {0};
+	zb_uint8_t i;
+	zb_ret_t ret_code;
+
+	ret_code = zb_osif_nvram_read(0, 0, buf, sizeof(buf));
+	if (ret_code != RET_OK) {
+		return ZB_FALSE;
+	}
+
+	for (i = 0; i < sizeof(buf); i++) {
+		if (buf[i] != FLASH_EMPTY_BYTE) {
+			return ZB_TRUE;
+		}
+	}
+
+	return ZB_FALSE;
 }
 
 ZB_WEAK_PRE zb_uint32_t ZB_WEAK zb_osif_get_fw_version(void)
