@@ -177,7 +177,7 @@ void shell_bt_nus_enable(struct bt_conn *conn)
 	k_sem_reset(&shell_bt_nus_ready);
 
 	if (!is_init) {
-		err = shell_init(&shell_bt_nus, NULL, true, log_backend, level);
+		err = shell_init(&shell_bt_nus, NULL, false, log_backend, level);
 		__ASSERT_NO_MSG(err == 0);
 		is_init = true;
 	}

@@ -59,7 +59,7 @@ static bool at_buf_busy; /* Guards at_buf while processing a command */
 static char at_buf[AT_BUF_SIZE]; /* AT command and modem response buffer */
 static struct k_work_q at_host_work_q;
 static struct k_work cmd_send_work;
-
+static at_cmd_custom_handler_t custom_handler;
 
 
 static inline void write_uart_string(const char *str)
@@ -78,16 +78,42 @@ static void response_handler(void *context, const char *response)
 	write_uart_string(response);
 }
 
+#if defined(CONFIG_AT_HOST_CUSTOM_COMMANDS)
+static bool cmd_is_custom(const char *cmd)
+{
+	char *prefix = CONFIG_AT_HOST_CUSTOM_COMMANDS_PREFIX;
+
+	for (int i = 0; i < strlen(prefix); i++) {
+		if (tolower(prefix[i]) != tolower(cmd[i])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+#endif /* CONFIG_AT_HOST_CUSTOM_COMMANDS */
+
 static void cmd_send(struct k_work *work)
 {
 	char              str[25];
 	enum at_cmd_state state;
 	int               err;
+	bool              custom = false;
 
 	ARG_UNUSED(work);
 
-	err = at_cmd_write(at_buf, at_buf,
-			   sizeof(at_buf), &state);
+#if defined(CONFIG_AT_HOST_CUSTOM_COMMANDS)
+	custom = cmd_is_custom(at_buf);
+#endif /* CONFIG_AT_HOST_CUSTOM_COMMANDS */
+
+	if (custom) {
+		err = custom_handler(at_buf, at_buf,
+				     sizeof(at_buf), &state);
+	} else {
+		err = at_cmd_write(at_buf, at_buf,
+				   sizeof(at_buf), &state);
+	}
+
 	if (err < 0) {
 		LOG_ERR("Error while processing AT command: %d", err);
 		state = AT_CMD_ERROR;
@@ -152,8 +178,8 @@ static void uart_rx_handler(uint8_t character)
 				goto send;
 			}
 			if (term_mode == MODE_CR_LF &&
-			    at_cmd_len > 0 &&
-			    at_buf[at_cmd_len - 1] == '\r') {
+				at_cmd_len > 0 &&
+				at_buf[at_cmd_len - 1] == '\r') {
 				goto send;
 			}
 			break;
@@ -217,7 +243,7 @@ static void isr(const struct device *dev, void *user_data)
 	 * and that a new character is available before handling each character
 	 */
 	while ((!at_buf_busy) &&
-	       (uart_fifo_read(dev, &character, 1))) {
+		(uart_fifo_read(dev, &character, 1))) {
 		uart_rx_handler(character);
 	}
 }
@@ -240,7 +266,7 @@ static int at_uart_init(char *uart_dev_name)
 		err = uart_err_check(uart_dev);
 		if (err) {
 			if (k_uptime_get_32() - start_time >
-			    CONFIG_AT_HOST_UART_INIT_TIMEOUT) {
+				CONFIG_AT_HOST_UART_INIT_TIMEOUT) {
 				LOG_ERR("UART check failed: %d. "
 					"UART initialization timed out.", err);
 				return -EIO;
@@ -258,6 +284,15 @@ static int at_uart_init(char *uart_dev_name)
 
 	uart_irq_callback_set(uart_dev, isr);
 	return err;
+}
+
+void at_cmd_set_custom_handler(at_cmd_custom_handler_t handler)
+{
+	if (IS_ENABLED(CONFIG_AT_HOST_CUSTOM_COMMANDS)) {
+		custom_handler = handler;
+	} else {
+		LOG_WRN("CONFIG_AT_HOST_CUSTOM_COMMANDS is disabled");
+	}
 }
 
 static int at_host_init(const struct device *arg)

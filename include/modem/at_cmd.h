@@ -133,6 +133,49 @@ int at_cmd_write(const char *const cmd,
 		 enum at_cmd_state *state);
 
 /**
+ * @typedef at_cmd_custom_handler_t
+ *
+ * This type defines a custom handler which will manage the custom commands
+ * received by the modem.
+ *
+ * The parameters and return values of this function shall be coherent with
+ * the definition of @ref at_cmd_write, as functionimplementing this type are
+ * are meant to be a drop-in replacement of the @ref at_cmd_write in case of a
+ * custom AT commands
+ *
+ * @param cmd Pointer to null terminated AT command string
+ * @param buf Buffer to put the response in. NULL pointer is allowed, see
+ *            behaviour explanation for @p buf_len equals 0.
+ * @param buf_len Length of response buffer. 0 length is allowed and will send
+ *                the command, process the return code from the modem, but
+ *                any returned data will be dropped.
+ * @param state   Pointer to enum @em at_cmd_state variable that can hold
+ *                the error state returned by the modem. If the return state
+ *                is a CMS or CME errors will the error code be returned in the
+ *                the function return code as a positive value. NULL pointer is
+ *                allowed.
+ * @retval -ENOBUFS is returned if AT_CMD_RESPONSE_MAX_LEN is not large enough
+ *         to hold the data returned from the modem.
+ * @retval -ENOEXEC is returned if the modem returned ERROR.
+ * @retval -EMSGSIZE is returned if the supplied buffer is to small or NULL.
+ */
+typedef int (*at_cmd_custom_handler_t)(const char *const cmd,
+				       char *buf,
+				       size_t buf_len,
+				       enum at_cmd_state *state);
+
+/**
+ * @brief Sets the handler called when a custom commands is received.
+ *
+ * @note This function requires the CONFIG_AT_HOST_CUSTOM_COMMANDS to be set to
+ * have any effect.
+ *
+ * @param handler Pointer to a notification handler function of type
+ *                @ref at_cmd_handler_t.
+ */
+void at_cmd_set_custom_handler(at_cmd_custom_handler_t handler);
+
+/**
  * @brief Function to set AT command global notification handler
  *
  * @param handler Pointer to a received notification handler function of type
