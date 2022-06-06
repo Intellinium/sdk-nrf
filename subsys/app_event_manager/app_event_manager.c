@@ -23,6 +23,9 @@ static K_WORK_DEFINE(event_processor, event_processor_fn);
 static sys_slist_t eventq = SYS_SLIST_STATIC_INIT(&eventq);
 static struct k_spinlock lock;
 
+K_THREAD_STACK_DEFINE(my_stack_area, 2048);
+struct k_work_q my_work_q;
+
 static bool log_is_event_displayed(const struct event_type *et)
 {
 	size_t idx = et - _event_type_list_start;
@@ -219,7 +222,7 @@ void _event_submit(struct app_event_header *aeh)
 	sys_slist_append(&eventq, &aeh->node);
 	k_spin_unlock(&lock, key);
 
-	k_work_submit(&event_processor);
+	k_work_submit_to_queue(&my_work_q, &event_processor);
 }
 
 int app_event_manager_init(void)
@@ -230,6 +233,10 @@ int app_event_manager_init(void)
 			CONFIG_APP_EVENT_MANAGER_MAX_EVENT_CNT);
 
 	log_event_init();
+
+	k_work_queue_start(&my_work_q, my_stack_area,
+			   K_THREAD_STACK_SIZEOF(my_stack_area), 0, NULL);
+
 
 	if (IS_ENABLED(CONFIG_APP_EVENT_MANAGER_POSTINIT_HOOK)) {
 		STRUCT_SECTION_FOREACH(app_event_manager_postinit_hook, h) {
