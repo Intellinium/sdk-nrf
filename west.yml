@@ -87,6 +87,7 @@ manifest:
           - nrf_hw_models
           - open-amp
           - openthread
+          - protobuf_intellinium
           - psa-arch-tests
           - segger
           - tinycbor
