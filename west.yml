@@ -70,8 +70,10 @@ manifest:
           - civetweb
           - cmsis
           - edtt
+          - embedded-itl-lib
           - fatfs
           - fff
+          - hal_intellinium
           - hal_nordic
           - hal_st
           - liblc3codec
@@ -90,6 +92,7 @@ manifest:
           - protobuf_intellinium
           - psa-arch-tests
           - segger
+          - telecom-tcp-protobuf
           - tinycbor
           - tinycrypt
           - tf-m-tests

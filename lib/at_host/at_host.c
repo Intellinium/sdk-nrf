@@ -76,7 +76,8 @@ static void cmd_send(struct k_work *work)
     /* Sending through string format rather than raw buffer in case
      * the buffer contains characters that need to be escaped
      */
-	err = nrf_modem_at_cmd(at_buf, sizeof(at_buf), "%s", at_buf);
+	//err = nrf_modem_at_cmd(at_buf, sizeof(at_buf), "%s", at_buf);
+	err = nrf_modem_at_cmd(at_buf, sizeof(at_buf), at_buf);
 	if (err < 0) {
 		LOG_ERR("Error while processing AT command: %d", err);
 	}
