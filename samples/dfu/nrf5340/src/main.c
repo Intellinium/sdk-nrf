@@ -14,6 +14,11 @@ LOG_MODULE_REGISTER(app, CONFIG_APP_LOG_LEVEL);
 /* CONFIG_DOWNLOAD_CLIENT_BUF_SIZE + some room */
 static uint8_t buf[2100];
 
+static void on_update_done(bool success)
+{
+	LOG_WRN("Update success: %d", success);
+}
+
 void main(void)
 {
 	const struct device *uart = DEVICE_DT_GET(DT_CHOSEN(sample_dfu_uart));
@@ -29,5 +34,5 @@ void main(void)
 
 	dfu_target_mcuboot_set_buf(buf, ARRAY_SIZE(buf));
 
-	dfu_target_uart_host_start(uart);
+	dfu_target_uart_host_start(uart, on_update_done);
 }

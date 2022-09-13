@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2020 Nordic Semiconductor ASA
- * Copyright (c) 2022 INTELLINIUM <giuliano.franchetto@intellinium.com>
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
@@ -51,6 +50,7 @@ static struct dfu_target_uart_host_ctx {
 	size_t out_buf_cursor;
 
 	bool stop_thread;
+	void (*on_done)(bool success);
 } context;
 
 static void send_out_buffer(void)
@@ -209,6 +209,10 @@ static void execute_input_fnc(const struct DFU_UART_target_RemoteFnc *fnc)
 		break;
 	case _DFU_UART_target_RemoteFnc_type_done:
 		parse_done(fnc);
+		if (context.on_done) {
+			context.on_done(context.download_success);
+		}
+
 		err = dfu_target_mcuboot_done(context.download_success);
 		if (err) {
 			send_error(
@@ -283,7 +287,7 @@ noreturn static void uart_input_handler(void *p1, void *p2, void *p3)
 	ring_buf_reset(&context.rx_rb);
 }
 
-int dfu_target_uart_host_start(const struct device *uart)
+int dfu_target_uart_host_start(const struct device *uart, void (*on_done)(bool success))
 {
 	if (!device_is_ready(uart)) {
 		return -EINVAL;
@@ -292,6 +296,7 @@ int dfu_target_uart_host_start(const struct device *uart)
 	context.uart_dev = uart;
 	context.out_buf_cursor = 0;
 	context.stop_thread = false;
+	context.on_done = on_done;
 
 	if (context.init_done) {
 		k_sem_init(&context.lte_uart_sem, 0, 1);
