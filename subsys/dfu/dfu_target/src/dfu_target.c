@@ -62,7 +62,7 @@ int dfu_target_img_type(const void *const buf, size_t len)
 	}
 #endif
 #if CONFIG_DFU_TARGET_UART
-	if (dfu_target_uart_identify(buf)) {
+	if (dfu_target_uart_identify(buf, len)) {
 		return DFU_TARGET_IMAGE_TYPE_UART;
 	}
 #endif
@@ -90,7 +90,7 @@ int dfu_target_init(int img_type, int img_num, size_t file_size, dfu_target_call
 	}
 #endif
 #ifdef CONFIG_DFU_TARGET_UART
-	if(img_type == DFU_TARGET_IMAGE_TYPE_UART){
+	if (img_type == DFU_TARGET_IMAGE_TYPE_UART) {
 		new_target = &dfu_target_uart;
 	}
 #endif

@@ -1,0 +1,18 @@
+#
+# Copyright (c) 2022 INTELLINIUM <giuliano.franchetto@intellinium.com>
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "UART DFU sample"
+
+module = APP
+module-dep = LOG
+module-str = Log level for sample
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+endmenu
+
+menu "Zephyr Kernel"
+source "Kconfig.zephyr"
+endmenu

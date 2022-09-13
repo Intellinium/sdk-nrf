@@ -16,82 +16,119 @@
 extern "C" {
 #endif
 
-enum dfu_uart_target_func {
-	DFU_UART_INIT,
-	DFU_UART_WRITE,
-	DFU_UART_OFFSET,
-	DFU_UART_DONE
+/**
+ *  @def DFU_UART_HEADER_MAGIC
+ *
+ *  @brief UART target magic value. This value needs to be set in the envelope
+ *  to select UART as active DFU type
+ */
+#define DFU_UART_HEADER_MAGIC               0x85f3d83a
+
+/**
+ * @struct dfu_target_uart_remote
+ *
+ * @brief Structure representing a single remote endpoint which can receive
+ * application update
+ */
+struct dfu_target_uart_remote {
+	/**
+	 * Target identifier. This value shall be used in the cbor envelope
+	 */
+	uint32_t identifier;
+
+	/**
+	 * The uart device to use. Must not be NULL
+	 */
+	const struct device *device;
 };
 
-struct dfu_uart_packet {
-	const void *data;
-	size_t len;
-};
-
-struct dfu_uart_buffer {
+/**
+ * @struct dfu_target_uart_params
+ *
+ * @brief Structure representing the configuration of the UART target type
+ */
+struct dfu_target_uart_params {
+	/* The number of remotes in the configuration */
+	size_t remote_count;
+	/* The list of remotes to register */
+	struct dfu_target_uart_remote *remotes;
+	/* The output buffer to use */
 	uint8_t *buffer;
-	size_t offs;
+	/* The output buffer size */
 	size_t buf_size;
 };
 
-#define DFU_UART_HEADER_MAGIC               0x85f3d83a
+/**
+ * @brief Configure resources required by dfu_target_uart
+ *
+ * @param[in] params Pointer to dfu type parameters.
+ *
+ * @note This function shall be called before any other function of
+ * the target type.
+ *
+ * @return 0 on success, or -EINVAL if the configuration is invalid
+ */
+int dfu_target_uart_cfg(const struct dfu_target_uart_params *params);
 
-#define DFU_UART_MAGIC_START                "xogq"
-#define DFU_UART_MAGIC_STOP                 "foqs"
+/**
+ * @brief See if data in buf indicates a UART type update.
+ *
+ * @param[in] buf Pointer to data to check.
+ * @param[in] len Size of the input buffer.
+ *
+ * @retval true if data indicates a UART type upgrade, false otherwise.
+ */
+bool dfu_target_uart_identify(const void *buf, size_t len);
 
-#define DFU_PACKET(d, s) {.data= (d), .len = (s)}
-#define DFU_PACKET_MAGIC_START \
-        DFU_PACKET(DFU_UART_MAGIC_START, sizeof(DFU_UART_MAGIC_START) - 1)
-#define DFU_PACKET_MAGIC_STOP  \
-        DFU_PACKET(DFU_UART_MAGIC_STOP, sizeof(DFU_UART_MAGIC_STOP) - 1)
+/**
+ * @brief Initialize dfu target, perform steps necessary to receive firmware.
+ *
+ * @param[in] file_size Size of the current file being downloaded.
+ * @param[in] img_num Image pair index. The value is not used currently.
+ * @param[in] callback  Not in use. In place to be compatible with DFU target API.
+ *
+ * @retval 0 If successful, negative errno otherwise.
+ */
+int dfu_target_uart_init(size_t file_size, int img_num, dfu_target_callback_t callback);
 
-static inline int dfu_uart_append_buffer(const struct dfu_uart_packet *packet,
-					 struct dfu_uart_buffer *buffer)
-{
-	if (buffer->offs + packet->len > buffer->buf_size) {
-		return -ENOMEM;
-	}
-
-	memcpy(buffer->buffer + buffer->offs, packet->data, packet->len);
-	buffer->offs += (int) packet->len;
-
-	return 0;
-}
-
-static inline int
-dfu_uart_fill_out_buffer(const struct dfu_uart_packet *packet,
-			 size_t count,
-			 struct dfu_uart_buffer *buffer)
-{
-	int err = 0;
-
-	buffer->offs = 0;
-
-	for (int i = 0; i < count; i++) {
-		err = dfu_uart_append_buffer(packet + i, buffer);
-		if (err) {
-			break;
-		}
-	}
-
-	if (err) {
-		buffer->offs = 0;
-	}
-
-	return err;
-}
-
-bool dfu_target_uart_identify(const void *buf);
-
-int dfu_target_uart_init(size_t file_size, int img_num,
-			 dfu_target_callback_t cb);
-
+/**
+ * @brief Get offset of firmware
+ *
+ * @param[out] offset Returns the offset of the firmware upgrade.
+ *
+ * @return 0 on success, otherwise negative value if unable to get the offset
+ */
 int dfu_target_uart_offset_get(size_t *offset);
 
+/**
+ * @brief Write firmware data.
+ *
+ * @param[in] buf Pointer to data that should be written.
+ * @param[in] len Length of data to write.
+ *
+ * @return 0 on success, negative errno otherwise.
+ */
 int dfu_target_uart_write(const void *buf, size_t len);
 
+/**
+ * @brief De-initialize resources and finalize firmware upgrade if successful.
+
+ * @param[in] successful Indicate whether the firmware was successfully
+ *            received.
+ *
+ * @return 0 on success, negative errno otherwise.
+ */
 int dfu_target_uart_done(bool successful);
 
+/**
+ * @brief Schedule update of the image.
+ *
+ * This call does nothing for this target type.
+ *
+ * @param[in] img_num This parameter is unused by this target type.
+ *
+ * @return 0, it is always successful.
+ **/
 int dfu_target_uart_schedule_update(int img_num);
 
 #ifdef __cplusplus

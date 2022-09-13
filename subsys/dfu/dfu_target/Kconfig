@@ -71,27 +71,16 @@ endif # DFU_TARGET_MODEM_DELTA
 
 config DFU_TARGET_UART
 	bool "UART update support"
-	default n
+	depends on SERIAL
+	select RING_BUFFER
 	help
 	  Enable support for updates sent over UART.
 
 if (DFU_TARGET_UART)
 
-config DFU_TARGET_UART_DEV_NAME
-	string "UART device name used to send the update"
-	default ""
-
 config DFU_TARGET_UART_TIMEOUT
 	int "Timeout on UART response, in ms"
 	default 500
-
-config DFU_TARGET_UART_INPUT_BUF_SIZE
-	int "Input buffer size"
-	default 128
-
-config DFU_TARGET_UART_OUTPUT_BUF_SIZE
-	int "Output buffer size"
-	default 2048
 
 endif # DFU_TARGET_UART
 

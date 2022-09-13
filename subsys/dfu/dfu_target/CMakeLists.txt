@@ -26,3 +26,7 @@ zephyr_library_sources_ifdef(CONFIG_DFU_TARGET_MCUBOOT
 zephyr_library_sources_ifdef(CONFIG_DFU_TARGET_UART
   src/dfu_target_uart.c
   )
+
+if (CONFIG_DFU_TARGET_UART)
+  add_subdirectory(src/dfu_target_uart_cddl)
+endif()
