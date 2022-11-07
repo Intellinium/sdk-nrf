@@ -64,7 +64,7 @@ static inline void write_uart_string(const char *str)
 static void response_handler(const char *response)
 {
 	/* Forward the data over UART */
-	write_uart_string(response);
+	//write_uart_string(response);
 }
 
 static void cmd_send(struct k_work *work)
