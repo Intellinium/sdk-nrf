@@ -27,7 +27,7 @@ extern "C" {
  * @return 0 on success
  * @return -EINVAL if the provided UART device is not ready
  */
-int dfu_target_uart_host_start(const struct device *uart, void (*on_done)(bool success));
+int dfu_target_uart_host_start(const struct device *uart, void (*on_done)(uint8_t img_num, bool success));
 
 /**
  * @brief Stop the UART DFU process

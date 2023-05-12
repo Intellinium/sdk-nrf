@@ -217,9 +217,10 @@ static int download_client_callback(const struct download_client_evt *event)
 			send_error_evt(FOTA_DOWNLOAD_ERROR_CAUSE_DOWNLOAD_FAILED);
 			return err;
 		}
-		send_evt(FOTA_DOWNLOAD_EVT_FINISHED);
 		first_fragment = true;
 		downloading = false;
+		send_evt(FOTA_DOWNLOAD_EVT_FINISHED);
+
 		break;
 
 	case DOWNLOAD_CLIENT_EVT_ERROR: {

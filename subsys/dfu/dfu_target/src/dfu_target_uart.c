@@ -26,8 +26,7 @@ static const struct dfu_target_uart_params *target_params;
 static bool first_packet;
 static const struct device *uart_dev;
 
-static const struct device *find_interface(uint32_t id)
-{
+static const struct device *find_interface(uint32_t id) {
 	__ASSERT(target_params, "The target type is not configured");
 
 	struct dfu_target_uart_remote *cursor;
@@ -43,8 +42,7 @@ static const struct device *find_interface(uint32_t id)
 	return NULL;
 }
 
-static void send_out_buffer(void)
-{
+static void send_out_buffer(void) {
 	__ASSERT(uart_dev, "No UART set");
 
 	for (int i = 0; i < out_cursor; i++) {
@@ -54,8 +52,7 @@ static void send_out_buffer(void)
 	out_cursor = 0;
 }
 
-static void uart_cb(const struct device *x, void *p)
-{
+static void uart_cb(const struct device *x, void *p) {
 	ARG_UNUSED(p);
 
 	int rx;
@@ -76,8 +73,7 @@ static void uart_cb(const struct device *x, void *p)
 }
 
 static int wait_resp(struct DFU_UART_target_RemoteResp *resp,
-		     k_timeout_t timeout)
-{
+					 k_timeout_t timeout) {
 	int err;
 	uint8_t *cursor;
 	size_t cursor_len;
@@ -95,10 +91,10 @@ static int wait_resp(struct DFU_UART_target_RemoteResp *resp,
 		}
 
 		err = cbor_decode_DFU_UART_target_RemoteResp(
-			cursor,
-			cursor_len,
-			resp,
-			&dec_len);
+				cursor,
+				cursor_len,
+				resp,
+				&dec_len);
 		if (err) {
 			ring_buf_get_finish(&rx_rb, 0);
 			/* Try again */
@@ -114,14 +110,13 @@ static int wait_resp(struct DFU_UART_target_RemoteResp *resp,
 }
 
 static int check_response(struct DFU_UART_target_RemoteResp *resp,
-			  uint8_t func,
-			  size_t *offset)
-{
+						  uint8_t func,
+						  size_t *offset) {
 	int err;
 
 	if (resp->type_choice != func) {
 		LOG_ERR("Wrong function type received: %d instead of %d",
-			resp->type_choice, func);
+				resp->type_choice, func);
 		return -EBADMSG;
 	}
 
@@ -139,15 +134,14 @@ static int check_response(struct DFU_UART_target_RemoteResp *resp,
 }
 
 static int parse_envelope(struct DFU_UART_target_Envelope *env,
-			  const uint8_t *buffer, size_t size)
-{
+						  const uint8_t *buffer, size_t size) {
 	int err;
 	size_t olen;
 
 	err = cbor_decode_DFU_UART_target_Envelope(buffer,
-						  size,
-						  env,
-						  &olen);
+											   size,
+											   env,
+											   &olen);
 	if (err) {
 		return err;
 	}
@@ -155,8 +149,7 @@ static int parse_envelope(struct DFU_UART_target_Envelope *env,
 	return olen;
 }
 
-static int acquire_uart(const struct DFU_UART_target_Envelope *env)
-{
+static int acquire_uart(const struct DFU_UART_target_Envelope *env) {
 	uart_dev = find_interface(env->rem_target);
 	if (!device_is_ready(uart_dev)) {
 		LOG_ERR("Could not get for remote target %d", env->rem_target);
@@ -169,18 +162,17 @@ static int acquire_uart(const struct DFU_UART_target_Envelope *env)
 	return 0;
 }
 
-static int send_fragment(const void *buf, size_t size)
-{
+static int send_fragment(const void *buf, size_t size) {
 	int len;
 	int err;
 	struct DFU_UART_target_Envelope envelope;
 
 	struct DFU_UART_target_RemoteFnc fnc = {
-		.type_choice = _DFU_UART_target_RemoteFnc_type_write,
-		.data_present = true,
-		.data = {
-			.data_choice = _DFU_UART_target_RemoteFnc_data_payload,
-		}
+			.type_choice = _DFU_UART_target_RemoteFnc_type_write,
+			.data_present = true,
+			.data = {
+					.data_choice = _DFU_UART_target_RemoteFnc_data_payload,
+			}
 	};
 
 	if (first_packet) {
@@ -203,9 +195,9 @@ static int send_fragment(const void *buf, size_t size)
 	fnc.data.payload.len = size;
 
 	err = cbor_encode_DFU_UART_target_RemoteFnc(target_params->buffer,
-						    target_params->buf_size,
-						    &fnc,
-						    &out_cursor);
+												target_params->buf_size,
+												&fnc,
+												&out_cursor);
 	if (err) {
 		LOG_ERR("Could not encode fragment, error %d", err);
 		return err;
@@ -215,24 +207,23 @@ static int send_fragment(const void *buf, size_t size)
 	return 0;
 }
 
-static int send_init(size_t fs, uint8_t im)
-{
+static int send_init(size_t fs, uint8_t im) {
 	int err;
 	struct DFU_UART_target_RemoteResp resp = {0};
 	const struct DFU_UART_target_RemoteFnc fnc = {
-		.type_choice = _DFU_UART_target_RemoteFnc_type_init,
-		.data = {
-			.file_size = fs,
-			.image_num = im,
-			.data_choice = _data__file_size
-		},
-		.data_present = 1
+			.type_choice = _DFU_UART_target_RemoteFnc_type_init,
+			.data = {
+					.file_size = fs,
+					.image_num = fs < 300000 ? 1 : im,
+					.data_choice = _data__file_size
+			},
+			.data_present = 1
 	};
 
 	err = cbor_encode_DFU_UART_target_RemoteFnc(target_params->buffer,
-						    target_params->buf_size,
-						    &fnc,
-						    &out_cursor);
+												target_params->buf_size,
+												&fnc,
+												&out_cursor);
 	if (err) {
 		return err;
 	}
@@ -245,26 +236,25 @@ static int send_init(size_t fs, uint8_t im)
 	}
 
 	return check_response(
-		&resp,
-		_DFU_UART_target_RemoteFnc_type_init,
-		NULL);
+			&resp,
+			_DFU_UART_target_RemoteFnc_type_init,
+			NULL);
 }
 
-static int send_offset(void)
-{
+static int send_offset(void) {
 	int err;
 	const struct DFU_UART_target_RemoteFnc fnc = {
-		.type_choice = _DFU_UART_target_RemoteFnc_type_offset,
-		.data_present = 0
+			.type_choice = _DFU_UART_target_RemoteFnc_type_offset,
+			.data_present = 0
 	};
 
 	err = cbor_encode_DFU_UART_target_RemoteFnc(target_params->buffer,
-						    target_params->buf_size,
-						    &fnc,
-						    &out_cursor);
+												target_params->buf_size,
+												&fnc,
+												&out_cursor);
 	if (err) {
 		LOG_ERR("Could not encode CBOR with type offset, error %d",
-			err);
+				err);
 		return err;
 	}
 
@@ -272,22 +262,21 @@ static int send_offset(void)
 	return 0;
 }
 
-static int send_done(bool success)
-{
+static int send_done(bool success) {
 	int err;
 	const struct DFU_UART_target_RemoteFnc fnc = {
-		.type_choice = _DFU_UART_target_RemoteFnc_type_done,
-		.data_present = 1,
-		.data = {
-			.data_choice = _DFU_UART_target_RemoteFnc_data_success,
-			.success = success,
-		}
+			.type_choice = _DFU_UART_target_RemoteFnc_type_done,
+			.data_present = 1,
+			.data = {
+					.data_choice = _DFU_UART_target_RemoteFnc_data_success,
+					.success = success,
+			}
 	};
 
 	err = cbor_encode_DFU_UART_target_RemoteFnc(target_params->buffer,
-						    target_params->buf_size,
-						    &fnc,
-						    &out_cursor);
+												target_params->buf_size,
+												&fnc,
+												&out_cursor);
 	if (err) {
 		return err;
 	}
@@ -296,8 +285,7 @@ static int send_done(bool success)
 	return 0;
 }
 
-bool dfu_target_uart_identify(const void *const buf, size_t len)
-{
+bool dfu_target_uart_identify(const void *const buf, size_t len) {
 	int err;
 	struct DFU_UART_target_Envelope envelope;
 
@@ -309,7 +297,7 @@ bool dfu_target_uart_identify(const void *const buf, size_t len)
 
 	if (envelope.magic != DFU_UART_HEADER_MAGIC) {
 		LOG_WRN("Wrong magic number: %u instead of %u", envelope.magic,
-			DFU_UART_HEADER_MAGIC);
+				DFU_UART_HEADER_MAGIC);
 		return false;
 	}
 
@@ -322,12 +310,11 @@ bool dfu_target_uart_identify(const void *const buf, size_t len)
 }
 
 int
-dfu_target_uart_init(size_t size, int img_num, dfu_target_callback_t cb)
-{
+dfu_target_uart_init(size_t size, int img_num, dfu_target_callback_t cb) {
 	ARG_UNUSED(cb);
 
 	LOG_DBG("DFU target UART init with file size: %zu, image num: %d",
-		size, img_num);
+			size, img_num);
 
 	/* This flag needs to be reset so the write function knows it must remove the envelope */
 	first_packet = true;
@@ -335,8 +322,7 @@ dfu_target_uart_init(size_t size, int img_num, dfu_target_callback_t cb)
 	return send_init(size, img_num);
 }
 
-int dfu_target_uart_offset_get(size_t *offset)
-{
+int dfu_target_uart_offset_get(size_t *offset) {
 	int err;
 	struct DFU_UART_target_RemoteResp resp = {0};
 
@@ -354,35 +340,68 @@ int dfu_target_uart_offset_get(size_t *offset)
 	}
 
 	return check_response(
-		&resp,
-		_DFU_UART_target_RemoteFnc_type_offset,
-		offset);
+			&resp,
+			_DFU_UART_target_RemoteFnc_type_offset,
+			offset);
 }
 
-int dfu_target_uart_write(const void *const buf, size_t len)
-{
-	int err;
+int dfu_target_uart_write(const void *const buf, size_t len) {
+	int err, retries = 3;
 	struct DFU_UART_target_RemoteResp resp = {0};
 
 	LOG_DBG("Sending firmware fragment of length: %d", len);
+
+#if 0
+	do {
+		err = send_fragment(buf, len);
+		if (err) {
+			LOG_WRN("Error %d when sending fragment. %d retries left", err, retries);
+			k_sleep(K_MSEC(250));
+			continue;
+		}
+
+		err = wait_resp(&resp, RESP_TIMEOUT);
+		if (err) {
+			LOG_WRN("Error %d when waiting response. %d retries left", err, retries);
+			k_sleep(K_MSEC(250));
+			continue;
+		}
+
+		break;
+	} while (retries--);
+
+	if (!retries) {
+		LOG_ERR("Error when sending packet. No more retries");
+		return err;
+	}
+
+	return check_response(
+			&resp,
+			_DFU_UART_target_RemoteFnc_type_write,
+			NULL);
+#else
 	err = send_fragment(buf, len);
 	if (err) {
+		LOG_WRN("Error %d when sending fragment. %d retries left", err, retries);
 		return err;
 	}
 
 	err = wait_resp(&resp, RESP_TIMEOUT);
 	if (err) {
-		return err;
+		LOG_WRN("Error %d when waiting response. %d retries left", err, retries);
+		k_sleep(K_MSEC(250));
+		return 0;
 	}
 
-	return check_response(
-		&resp,
-		_DFU_UART_target_RemoteFnc_type_write,
-		NULL);
+	err = check_response(
+			&resp,
+			_DFU_UART_target_RemoteFnc_type_write,
+			NULL);
+	return err;
+#endif
 }
 
-int dfu_target_uart_done(bool successful)
-{
+int dfu_target_uart_done(bool successful) {
 	int err;
 	struct DFU_UART_target_RemoteResp resp = {0};
 
@@ -398,20 +417,18 @@ int dfu_target_uart_done(bool successful)
 	}
 
 	return check_response(
-		&resp,
-		_DFU_UART_target_RemoteFnc_type_done,
-		NULL);
+			&resp,
+			_DFU_UART_target_RemoteFnc_type_done,
+			NULL);
 }
 
-int dfu_target_uart_schedule_update(int img_num)
-{
+int dfu_target_uart_schedule_update(int img_num) {
 	ARG_UNUSED(img_num);
 
 	return 0;
 }
 
-int dfu_target_uart_cfg(const struct dfu_target_uart_params *params)
-{
+int dfu_target_uart_cfg(const struct dfu_target_uart_params *params) {
 	__ASSERT_NO_MSG(params);
 	__ASSERT_NO_MSG(params->buffer);
 	__ASSERT_NO_MSG(params->remotes);

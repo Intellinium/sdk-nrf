@@ -18,7 +18,7 @@
 LOG_MODULE_REGISTER(at_host, CONFIG_AT_HOST_LOG_LEVEL);
 
 /* Stack definition for AT host workqueue */
-#define AT_HOST_STACK_SIZE 2048
+#define AT_HOST_STACK_SIZE 12000
 
 K_THREAD_STACK_DEFINE(at_host_stack_area, AT_HOST_STACK_SIZE);
 
@@ -198,20 +198,40 @@ static void isr(const struct device *dev, void *user_data)
 
 static int at_uart_init(char *uart_dev_name)
 {
+#if defined(CONFIG_NRF_SW_LPUART)
+	ARG_UNUSED(uart_dev_name);
+#endif
+
 	int err;
 	uint8_t dummy;
 
+#if !defined(CONFIG_NRF_SW_LPUART)
 	uart_dev = device_get_binding(uart_dev_name);
+#else
+	uart_dev = DEVICE_DT_GET(DT_NODELABEL(lpuart));
+#endif /* CONFIG_NRF_SW_LPUART */
 	if (uart_dev == NULL) {
+#if !defined(CONFIG_NRF_SW_LPUART)
 		LOG_ERR("Cannot bind %s\n", uart_dev_name);
+#else
+		LOG_ERR("Could not bind node with label lpuart");
+#endif /* CONFIG_NRF_SW_LPUART */
 		return -EINVAL;
 	}
 
 	uint32_t start_time = k_uptime_get_32();
 
 	/* Wait for the UART line to become valid */
+	LOG_INF("Waiting for uart line to be valid");
 	do {
 		err = uart_err_check(uart_dev);
+		if (err == -ENOSYS) {
+			LOG_WRN("UART API does not implement uart_err_check");
+			err = 0;
+		}
+
+		LOG_INF("Error %d returned by uart_err_check", err);
+
 		if (err) {
 			if (k_uptime_get_32() - start_time >
 			    CONFIG_AT_HOST_UART_INIT_TIMEOUT) {
@@ -231,6 +251,7 @@ static int at_uart_init(char *uart_dev_name)
 	} while (err);
 
 	uart_irq_callback_set(uart_dev, isr);
+	LOG_INF("UART line valid");
 	return err;
 }
 
@@ -238,7 +259,9 @@ static int at_host_init(const struct device *arg)
 {
 	char *uart_dev_name;
 	int err;
+#if !defined(CONFIG_NRF_SW_LPUART)
 	enum select_uart uart_id = CONFIG_AT_HOST_UART;
+#endif
 	enum term_modes mode = CONFIG_AT_HOST_TERMINATION;
 
 	ARG_UNUSED(arg);
@@ -250,6 +273,7 @@ static int at_host_init(const struct device *arg)
 		return -EINVAL;
 	}
 
+#if !defined(CONFIG_NRF_SW_LPUART)
 	/* Choose which UART to use */
 	switch (uart_id) {
 	case UART_0:
@@ -265,6 +289,7 @@ static int at_host_init(const struct device *arg)
 		LOG_ERR("Unknown UART instance %d", uart_id);
 		return -EINVAL;
 	}
+#endif
 
 	/* Initialize the UART module */
 	err = at_uart_init(uart_dev_name);

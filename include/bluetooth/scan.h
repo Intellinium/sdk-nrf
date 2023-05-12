@@ -395,6 +395,14 @@ struct bt_scan_cb {
  */
 void bt_scan_cb_register(struct bt_scan_cb *cb);
 
+/**@brief Unregister scanning callbacks.
+ *
+ * Unregister callbacks to monitor the state of scanning.
+ *
+ * @param cb Callback struct.
+ */
+void bt_scan_cb_unregister(struct bt_scan_cb *cb);
+
 /**@brief Function for initializing the Scanning Module.
  *
  * @param[in] init Pointer to scanning module initialization structure.

@@ -10,7 +10,6 @@
 #include <dfu/dfu_target_mcuboot.h>
 #include <dfu/dfu_target.h>
 #include <zephyr/logging/log.h>
-#include <stdnoreturn.h>
 #include <dfu_target_uart_encode.h>
 #include <dfu_target_uart_decode.h>
 #include <zephyr/sys/ring_buffer.h>
@@ -50,8 +49,8 @@ static struct dfu_target_uart_host_ctx {
 	size_t out_buf_cursor;
 
 	bool stop_thread;
-	void (*on_done)(bool success);
-} context;
+	void (*on_done)(uint8_t img_num, bool success);
+} context = {.init_done = false};
 
 static void send_out_buffer(void)
 {
@@ -209,14 +208,14 @@ static void execute_input_fnc(const struct DFU_UART_target_RemoteFnc *fnc)
 		break;
 	case _DFU_UART_target_RemoteFnc_type_done:
 		parse_done(fnc);
-		if (context.on_done) {
-			context.on_done(context.download_success);
-		}
 
 		err = dfu_target_mcuboot_done(context.download_success);
 		if (err) {
 			send_error(
 				_DFU_UART_target_RemoteFnc_type_done, err);
+			if (context.on_done) {
+				context.on_done(context.image_num, false);
+			}
 			break;
 		}
 
@@ -225,6 +224,10 @@ static void execute_input_fnc(const struct DFU_UART_target_RemoteFnc *fnc)
 		send_error(
 			_DFU_UART_target_RemoteFnc_type_done,
 			err);
+
+		if (context.on_done) {
+			context.on_done(context.image_num, err ? err : context.download_success);
+		}
 		break;
 	default:
 		break;
@@ -273,7 +276,7 @@ static void process_input_data(void)
 	}
 }
 
-noreturn static void uart_input_handler(void *p1, void *p2, void *p3)
+static void uart_input_handler(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1);
 	ARG_UNUSED(p2);
@@ -287,7 +290,7 @@ noreturn static void uart_input_handler(void *p1, void *p2, void *p3)
 	ring_buf_reset(&context.rx_rb);
 }
 
-int dfu_target_uart_host_start(const struct device *uart, void (*on_done)(bool success))
+int dfu_target_uart_host_start(const struct device *uart, void (*on_done)(uint8_t img_num, bool success))
 {
 	if (!device_is_ready(uart)) {
 		return -EINVAL;
@@ -298,7 +301,7 @@ int dfu_target_uart_host_start(const struct device *uart, void (*on_done)(bool s
 	context.stop_thread = false;
 	context.on_done = on_done;
 
-	if (context.init_done) {
+	if (!context.init_done) {
 		k_sem_init(&context.lte_uart_sem, 0, 1);
 		ring_buf_init(&context.rx_rb, ARRAY_SIZE(in_buf), in_buf);
 	}

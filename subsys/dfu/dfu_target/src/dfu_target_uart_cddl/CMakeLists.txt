@@ -7,8 +7,8 @@
 set(py_dfu_uart_gen_cbor
     python3
     ${ZEPHYR_ZCBOR_MODULE_DIR}/zcbor/zcbor.py
-    -c ${CMAKE_CURRENT_SOURCE_DIR}/dfu_target_uart.cddl
     code
+    -c ${CMAKE_CURRENT_SOURCE_DIR}/dfu_target_uart.cddl
     --output-cmake ${PROJECT_BINARY_DIR}/dfu_target_uart.cmake
     -t DFU_UART_target_Envelope DFU_UART_target_RemoteFnc DFU_UART_target_RemoteResp
     -d

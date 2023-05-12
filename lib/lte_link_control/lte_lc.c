@@ -392,7 +392,7 @@ static void at_handler_xmodemsleep(const char *response)
 
 	__ASSERT_NO_MSG(response != NULL);
 
-	LOG_DBG("%%XMODEMSLEEP notification");
+	LOG_WRN("%%XMODEMSLEEP notification: %s", response);
 
 	err = parse_xmodemsleep(response, &evt.modem_sleep);
 	if (err) {
